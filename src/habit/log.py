@@ -1,0 +1,14 @@
+from datetime import datetime
+from typing import Optional
+
+from peewee import *
+from db import BaseModel
+from .habit import Habit
+
+class Log(BaseModel):
+    id = AutoField()
+    habit = ForeignKeyField(Habit, backref='logs')
+    start: datetime = DateTimeField()
+    end: Optional[datetime] = DateTimeField(null=True)
+    started_by = CharField(null=True)
+    ended_by = CharField(null=True)
