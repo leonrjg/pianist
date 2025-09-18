@@ -34,7 +34,7 @@ def cli(ctx):
 def save(name, schedule, duration, timeout, trackers, track_args):
     """Add or edit a habit with the specified parameters."""
     with db.atomic():
-        saved_habit = Habit.get_or_none(Habit.name == name) or Habit.insert(name=name, schedule=schedule)
+        saved_habit = Habit.get_or_none(Habit.name == name) or Habit.create(name=name, schedule=schedule)
 
         if duration:
             saved_habit.allocated_time = duration * 60 # Minutes to seconds

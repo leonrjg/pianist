@@ -17,17 +17,14 @@ class HourlySchedule(Schedule):
             to oldest.
         """
         now = datetime.now()
-        hours = timespan // 3600
+        hours = timespan // time.HOUR
 
         tasks = []
         current = now
         for _ in range(hours):
             prev_task = self.get_previous_task(current)
-            if prev_task:
-                tasks.append(prev_task)
-                current = prev_task
-            else:
-                break
+            tasks.append(prev_task)
+            current = prev_task
         return tasks
 
     def get_previous_task(self, from_dt: datetime) -> Optional[datetime]:
@@ -43,7 +40,7 @@ class HourlySchedule(Schedule):
         if from_dt <= self.start:
             return None
 
-        hours_since_start = int((from_dt - self.start).total_seconds() // 3600)
+        hours_since_start = int((from_dt - self.start).total_seconds() // time.HOUR)
         if hours_since_start == 0:
             return None
 
@@ -60,7 +57,7 @@ class HourlySchedule(Schedule):
             to latest.
         """
         now = datetime.now()
-        hours = timespan // 3600
+        hours = timespan // time.HOUR
 
         tasks = []
         current = now
