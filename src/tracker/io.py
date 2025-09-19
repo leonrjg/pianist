@@ -10,6 +10,7 @@ EPSILON = 2
 
 class IOTracker(Tracker):
     def __init__(self):
+        """Initialize IO tracker with mouse and keyboard listeners."""
         super().__init__()
 
         def pulse(*args):
@@ -24,5 +25,6 @@ class IOTracker(Tracker):
         self._keyboard_listener.start()
 
     def is_active(self) -> bool:
+        """Check if recent input activity was detected."""
         return self.last_active and (time.time() - self.last_active) < EPSILON
 

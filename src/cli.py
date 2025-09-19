@@ -10,7 +10,6 @@ from db import db, initialize_database
 from habit.habit import Habit
 from habit.habit_tracker import HabitTracker
 from session import Session, SessionStatus
-from session import SessionStatus
 from util.time import get_friendly_elapsed, get_friendly_datetime, get_timespan
 
 
@@ -25,35 +24,67 @@ def cli(ctx):
 
 @cli.command()
 @click.argument('name')
-@click.option('--schedule', required=True,
-              type=click.Choice(['hourly', 'daily', 'weekly', 'monthly', 'exponential_3', 'yearly']),
+@click.option('--schedule',
+              type=click.Choice(['hourly', 'daily', 'weekly', 'monthly', 'exponential_3']),
               help='Schedule type for the habit')
 @click.option('--duration', type=int, help='Allocated time per period in minutes')
 @click.option('--timeout', type=int, help='Inactivity threshold for trackers in seconds')
 @click.option('--track', 'trackers', multiple=True, default=[], type=click.Choice(['io', 'window']), help='Trackers (one or more)')
 @click.option('--track-args', help='Tracker arguments in "key=value&key2=value2" format (query string)')
 def save(name, schedule, duration, timeout, trackers, track_args):
-    """Add or edit a habit with the specified parameters."""
+    """
+    Add or edit a habit with the specified parameters.
+
+    Args:
+        name: Unique name for the habit (e.g., "piano_practice", "daily_reading").
+        schedule: Periodicity type - 'daily', 'weekly', 'monthly', 'hourly', or 'exponential_3'.
+        duration: Allocated time per period in minutes (minimum for streak qualification).
+        timeout: Inactivity threshold in seconds before session pause.
+        trackers: List of tracking methods ('io' for activity, 'window' for app detection).
+        track_args: Configuration for trackers in "key=value&key2=value2" format.
+
+    Examples:
+        python cli.py save "meditation" --schedule daily --duration 15
+        python cli.py save "coding" --schedule daily --track window --track-args "keywords=VSCode"
+        python cli.py save "review" --schedule weekly --duration 60 --track io
+    """
     with db.atomic():
-        habit = Habit.get_or_none(Habit.name == name) or Habit.create(name=name, schedule=schedule)
+        habit = Habit.get_or_none(Habit.name == name)
+        if not habit:
+            if not schedule:
+                click.echo("Error: Schedule is required for new habits.")
+                return
+            habit = Habit.create(name=name, schedule=schedule)
 
         if duration:
+            click.echo(f'Setting allocated time to {duration}m')
             habit.allocated_time = duration * 60 # Minutes to seconds
+
         if timeout:
+            click.echo(f'Setting inactivity threshold to {timeout}s')
             habit.inactivity_threshold = timeout
 
         habit.save()
 
         for tracker in trackers:
+            click.echo(f"Enabling tracker '{tracker}'")
             HabitTracker.insert(habit=habit, tracker=tracker, config=HabitTracker.create_json_config(track_args),
                                  is_enabled=True).on_conflict_replace().execute()
     
-    click.echo(f"Saved habit '{name}' with schedule '{schedule}'")
+    click.echo(f"Saved habit '{habit.name}' with schedule '{habit.schedule}'")
 
 @cli.command()
 @click.argument('name')
 def delete(name):
-    """Delete a habit by name."""
+    """
+    Delete a habit and all its associated data from the database.
+
+    Args:
+        name: Name of the habit to delete.
+
+    Example:
+        python cli.py delete "old_habit"
+    """
     try:
         habit = Habit.get(Habit.name == name)
         habit.delete_instance()
@@ -65,7 +96,18 @@ def delete(name):
 @cli.command()
 @click.argument('name')
 def play(name):
-    """Exercise a habit"""
+    """
+    Start an interactive session for a habit with real-time tracking.
+
+    This command allows completing habit tasks.
+    The session tracks activity in real-time, pauses during inactivity, and saves completion data for streak analysis.
+
+    Args:
+        name: Name of the habit to exercise.
+
+    Example:
+        python cli.py play "piano_practice"
+    """
     # Get habit from database
     try:
         habit = Habit.get(Habit.name == name)
@@ -118,7 +160,22 @@ def play(name):
 @cli.command()
 @click.argument('name', required=False)
 def stats(name):
-    """Show statistics for a specific habit or all habits."""
+    """
+    This command provides the analytics module functionality:
+        - List of all currently tracked habits
+        - List of habits with the same periodicity
+        - Longest run streak of all defined habits
+        - Longest run streak for a given habit
+        - Additional insights like completion rates and time analysis
+
+    Args:
+        name: Optional habit name for detailed individual analysis.
+              If omitted, shows summary statistics for all habits.
+
+    Examples:
+        python cli.py stats                    # All habits summary
+        python cli.py stats "piano_practice"   # Detailed habit analysis
+    """
     if name:
         try:
             habit = Habit.get(Habit.name == name)
@@ -160,27 +217,29 @@ def _display_habit_stats(habit):
 
     buckets = habit.get_activity_buckets()
 
-    print(f"\nLatest activity:")
+    click.echo(f"\nLatest activity:")
 
     if not buckets:
         click.echo("No sessions recorded yet")
         return
 
-    for bucket in islice(buckets, 5):
+    for bucket in buckets:
         start = get_friendly_datetime(bucket.start, scale)
         end = get_friendly_datetime(bucket.end, scale)
         duration = get_friendly_elapsed(bucket.net_duration)
         click.echo(f"• {start if start == end else f'{start} to {end}'} | Net duration: {duration} | Sessions: {bucket.sessions}")
 
-    print(f"\nMilestones:")
-    print(f"• Current streak: {habit.get_streak()}")
-    print(f"• Longest streak: {habit.get_longest_streak()}")
-    print(f"• Total time spent: {get_friendly_elapsed(analytics.get_time_spent(buckets))}")
+    click.echo(f"\nMilestones:")
+    click.echo(f"• Current streak: {habit.get_streak()}")
+    click.echo(f"• Longest streak: {habit.get_longest_streak()}")
+    click.echo(f"• Total time spent: {get_friendly_elapsed(analytics.get_time_spent(buckets))}")
 
     total_buckets = len(buckets)
+    click.echo(f"• Tasks done: {total_buckets}")
+
     previous_tasks = len(schedule.get_previous_tasks(get_timespan(schedule.start)))
-    print(f"• Tasks done: {total_buckets}")
-    print(f"• Tasks vs schedule (all time): {analytics.get_task_vs_schedule_ratio(total_buckets, previous_tasks) * 100:.2f}%")
+    task_vs_schedule_ratio = analytics.get_completion_rate(total_buckets, previous_tasks)
+    click.echo(f"• Completion rate (all time): {total_buckets}/{previous_tasks} ({task_vs_schedule_ratio * 100:.2f}%)")
 
 def _display_all_habits_stats(habits):
     """Display summary statistics for all habits."""
@@ -193,6 +252,11 @@ def _display_all_habits_stats(habits):
     click.echo(f"\n=== Habits by periodicity ===")
     for schedule, group in analytics.group_habits_by_schedule(habits):
         click.echo(f'- {schedule.capitalize()}: {','.join(h.name for h in group)}')
+
+    click.echo(f"\n=== Habits by completion rate (least struggle to most) ===")
+    sorted_habits = analytics.sort_habits_by_completion_rate(habits)
+    for habit, rate in sorted_habits:
+        click.echo(f'- {habit.name}: {rate * 100:.2f}%')
     
     click.echo(f"\n=== Milestones ===")
     longest_streak_habit = analytics.get_habit_with_longest_streak(habits)

@@ -72,8 +72,3 @@ class Schedule(ABC):
     def get_scale(self) -> int:
         """Get the largest time unit within the smallest interval of the schedule."""
         pass
-
-    def is_task_scheduled(self, dt: datetime, task_dt: datetime = None) -> bool:
-        """Check if the given datetime is close enough to a task to consider it checked off."""
-        task_date = task_dt or self.get_next_task(dt)
-        return dt >= task_date - timedelta(seconds=self.get_scale())

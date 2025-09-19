@@ -16,7 +16,7 @@ def get_friendly_elapsed(total_seconds: int) -> str:
 
 def get_friendly_datetime(dt: datetime, scale: int = DAY) -> str:
     """Format a datetime object into a human-readable string."""
-    return dt.strftime(f"%a, %b %d{' (%H:%M)' if scale < DAY else ''}")
+    return dt.strftime(f"%a, %b %d, %Y{' (%H:%M)' if scale < DAY else ''}")
 
 def get_timespan(start: datetime, end: datetime = None) -> int:
     """Get the timespan in seconds between two datetime objects."""

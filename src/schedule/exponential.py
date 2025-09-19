@@ -33,48 +33,44 @@ class ExponentialSchedule(Schedule):
         days = timespan // time.DAY
         cutoff = current - timedelta(days=days)
         tasks = []
-        
-        exp = 1
-        cumulative_days = 0
         while True:
-            cumulative_days += self.base ** exp
-            task_date = self.start - timedelta(days=cumulative_days)
-            
-            if task_date < cutoff:
+            prev_task = self.get_previous_task(current)
+            if prev_task is None or prev_task < cutoff:
                 break
-            if task_date <= current:
-                tasks.append(task_date)
-            
-            exp += 1
-            if exp > 20:  # Prevent infinite loops
-                break
-        
-        return sorted(tasks)
+            tasks.append(prev_task)
+            current = prev_task
+        return tasks
+
 
     def get_previous_task(self, from_dt: datetime) -> Optional[datetime]:
         """Get the previous exponentially scheduled task before the given datetime.
-        
+
         Args:
             from_dt: Reference datetime to look back from.
-            
+
         Returns:
             The previous exponentially scheduled occurrence, or None if from_dt
             is at or before the start date.
         """
         if from_dt <= self.start:
             return None
-        
+
         days_diff = (from_dt - self.start).days
         exp = 1
         cumulative_days = 0
-        
-        while cumulative_days < days_diff:
-            cumulative_days += self.base ** exp
+
+        while True:
+            next_cumulative = cumulative_days + (self.base ** exp)
+            if next_cumulative >= days_diff:
+                break
+            cumulative_days = next_cumulative
             exp += 1
-        
-        # Go back to previous cumulative
-        cumulative_days -= self.base ** (exp - 1)
+
+        if cumulative_days == 0:
+            return self.start
+
         return self.start + timedelta(days=cumulative_days)
+
 
     def get_next_tasks(self, timespan: int) -> List[datetime]:
         """Get upcoming exponentially scheduled tasks within the given timespan.
@@ -90,20 +86,12 @@ class ExponentialSchedule(Schedule):
         days = timespan // time.DAY
         cutoff = current + timedelta(days=days)
         tasks = []
-        
-        exp = 1
-        cumulative_days = 0
         while True:
-            cumulative_days += self.base ** exp
-            task_date = self.start + timedelta(days=cumulative_days)
-            
-            if task_date > cutoff:
+            next_task = self.get_next_task(current)
+            if next_task is None or next_task > cutoff:
                 break
-            if task_date >= current:
-                tasks.append(task_date)
-            
-            exp += 1
-        
+            tasks.append(next_task)
+            current = next_task
         return tasks
 
     def get_next_task(self, from_dt: datetime) -> Optional[datetime]:

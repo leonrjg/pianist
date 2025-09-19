@@ -96,5 +96,6 @@ class DailySchedule(Schedule):
             return self.start + timedelta(days=days_since_start + 1)
 
     def get_scale(self) -> int:
+        """Get the time scale for daily scheduling in seconds."""
         return time.DAY
 

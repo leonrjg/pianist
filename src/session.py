@@ -18,7 +18,16 @@ class SessionStatus(Enum):
 
 
 class Session:
-    """Thread-safe shared state for a habit tracking session."""
+    """
+    Thread-safe shared state for a habit tracking session.
+
+    It manages real-time activity tracking,
+    automatic pause/resume based on inactivity, and persists session data
+    to the database for streak and analytics calculations.
+
+    The session coordinates multiple tracking threads (I/O, window monitoring)
+    and maintains timing data including active time, idle time, and pause states.
+    """
 
     def __init__(self, habit: Habit):
         self.habit = habit
