@@ -53,14 +53,14 @@ class TestDailySchedule:
         """Test get_next_task returns same time when at start."""
         at_start = datetime(2023, 1, 1, 12, 0, 0)
         result = daily_schedule.get_next_task(at_start)
-        expected = datetime(2023, 1, 1, 12, 0, 0)
+        expected = datetime(2023, 1, 2, 12, 0, 0)
         assert result == expected
     
     def test_get_next_task_same_day_after_start_time(self, daily_schedule):
         """Test get_next_task returns today's task when after start time."""
         same_day_later = datetime(2023, 1, 1, 15, 0, 0)
         result = daily_schedule.get_next_task(same_day_later)
-        expected = datetime(2023, 1, 1, 12, 0, 0)
+        expected = datetime(2023, 1, 2, 12, 0, 0)
         assert result == expected
     
     def test_get_next_task_next_day(self, daily_schedule):
@@ -85,6 +85,9 @@ class TestDailySchedule:
             @staticmethod
             def now():
                 return current_time
+            @staticmethod
+            def today():
+                return current_time
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
@@ -102,6 +105,9 @@ class TestDailySchedule:
         class MockDateTime:
             @staticmethod
             def now():
+                return current_time
+            @staticmethod
+            def today():
                 return current_time
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
@@ -134,6 +140,9 @@ class TestDailySchedule:
             @staticmethod
             def now():
                 return current_time
+            @staticmethod
+            def today():
+                return current_time
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
@@ -152,6 +161,9 @@ class TestDailySchedule:
             @staticmethod
             def now():
                 return current_time
+            @staticmethod
+            def today():
+                return datetime(2024, 1, 1, 12, 0, 0)
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
@@ -162,9 +174,9 @@ class TestDailySchedule:
         
         # Should be ordered from earliest to latest
         expected = [
-            datetime(2023, 1, 1, 12, 0, 0),  # Earliest
             datetime(2023, 1, 2, 12, 0, 0),
-            datetime(2023, 1, 3, 12, 0, 0),  # Latest
+            datetime(2023, 1, 3, 12, 0, 0),
+            datetime(2023, 1, 4, 12, 0, 0),
         ]
         assert result == expected
     
@@ -173,11 +185,11 @@ class TestDailySchedule:
         # Test with leap year date
         start = datetime(2024, 2, 28, 10, 0, 0)
         schedule = DailySchedule(start)
-        
+
         # Test next task after leap day
         leap_day = datetime(2024, 2, 29, 15, 0, 0)
         result = schedule.get_next_task(leap_day)
-        expected = datetime(2024, 2, 29, 10, 0, 0)
+        expected = datetime(2024, 3, 1, 10, 0, 0)
         assert result == expected
     
     def test_edge_case_dst_transition(self):

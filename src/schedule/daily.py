@@ -69,7 +69,7 @@ class DailySchedule(Schedule):
             next_task = self.get_next_task(current)
             if next_task:
                 tasks.append(next_task)
-                current = next_task + timedelta(days=1)
+            current = next_task
         return tasks
 
     def get_next_task(self, from_dt: datetime) -> Optional[datetime]:
