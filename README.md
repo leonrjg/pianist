@@ -25,11 +25,6 @@ A habit tracking application with basic activity monitoring.
    ```bash
    pip install -r src/requirements.txt
    ```
-4. Initialize the database:
-   ```bash
-   cd src
-   python db.py
-   ```
 
 ### Optional: Load Test Data
 
@@ -246,11 +241,6 @@ python -m pytest --cov=. --cov-report=html
 ## Troubleshooting
 
 ### Common Issues
-
-**Database not found**:
-```bash
-cd src && python db.py
-```
 
 **No habits showing**:
 ```bash
