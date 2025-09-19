@@ -1,5 +1,6 @@
+<img width="1792" height="576" alt="pianistborderv2" src="https://github.com/user-attachments/assets/d88cb723-8589-4edd-be4c-1e4d662704d5" />
 
-<img width="1792" height="576" alt="pianist1a" src="https://github.com/user-attachments/assets/93380349-95ba-432a-89cf-06cbb1fe27db" />
+
 <br /><br />
 <p align="center">A habit tracking application with basic activity monitoring.</p>
 
