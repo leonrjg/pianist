@@ -6,14 +6,14 @@ from pynput import mouse, keyboard
 
 logger = logging.getLogger(__name__)
 
-EPSILON = 5
+EPSILON = 2
 
 class IOTracker(Tracker):
     def __init__(self):
         super().__init__()
 
         def pulse(*args):
-            self.last_active = time.time()
+            self.last_active = int(time.time())
 
         # Set up listeners
         self._mouse_listener = mouse.Listener(on_move=pulse)

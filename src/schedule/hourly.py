@@ -63,10 +63,9 @@ class HourlySchedule(Schedule):
         current = now
         for _ in range(hours):
             next_task = self.get_next_task(current)
-            if next_task:
-                tasks.append(next_task)
-                current = next_task + timedelta(seconds=1)
-
+            tasks.append(next_task)
+            current = next_task
+        return tasks
 
     def get_next_task(self, from_dt: datetime) -> Optional[datetime]:
         """Get the next hourly task after the given datetime.

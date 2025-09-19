@@ -1,9 +1,10 @@
+import time
 from abc import ABC, abstractmethod
 
 
 class Tracker(ABC):
     def __init__(self):
-        self.last_active = None
+        self.last_active: int = int(time.time())
     
     @abstractmethod
     def is_active(self) -> bool:

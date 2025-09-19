@@ -9,7 +9,8 @@ import analytics
 from db import db, initialize_database
 from habit.habit import Habit
 from habit.habit_tracker import HabitTracker
-from session import Session
+from session import Session, SessionStatus
+from session import SessionStatus
 from util.time import get_friendly_elapsed, get_friendly_datetime, get_timespan
 
 
@@ -34,17 +35,17 @@ def cli(ctx):
 def save(name, schedule, duration, timeout, trackers, track_args):
     """Add or edit a habit with the specified parameters."""
     with db.atomic():
-        saved_habit = Habit.get_or_none(Habit.name == name) or Habit.create(name=name, schedule=schedule)
+        habit = Habit.get_or_none(Habit.name == name) or Habit.create(name=name, schedule=schedule)
 
         if duration:
-            saved_habit.allocated_time = duration * 60 # Minutes to seconds
+            habit.allocated_time = duration * 60 # Minutes to seconds
         if timeout:
-            saved_habit.inactivity_threshold = timeout
+            habit.inactivity_threshold = timeout
 
-        saved_habit.save()
+        habit.save()
 
         for tracker in trackers:
-            HabitTracker.insert(habit=saved_habit, tracker=tracker, config=HabitTracker.create_json_config(track_args),
+            HabitTracker.insert(habit=habit, tracker=tracker, config=HabitTracker.create_json_config(track_args),
                                  is_enabled=True).on_conflict_replace().execute()
     
     click.echo(f"Saved habit '{name}' with schedule '{schedule}'")
@@ -78,22 +79,40 @@ def play(name):
     click.echo(f"{click.style('♪♪♪', blink=True)} Playing {click.style(name.capitalize(), fg='green')} "
                f"{click.style('(Press Ctrl+C to stop)', fg='bright_black')}")
     
+    last_state = SessionStatus.ACTIVE
     try:
         while session.is_active():
-            elapsed = session.get_elapsed_time()
-            click.echo(click.style(f"\r{get_friendly_elapsed(elapsed)}", bold=True), nl=False)
+            current_state = session.get_status()
+            
+            # Display state changes
+            if current_state != last_state:
+                if session.is_paused():
+                    click.secho(f"\n⏸ Pausing due to inactivity ({session.get_transition_reason()})", fg='bright_red')
+                elif current_state == SessionStatus.ACTIVE and last_state == SessionStatus.PAUSED:
+                    click.echo(click.style(f"\nResuming due to activity detection", fg='bright_green'))
+                last_state = current_state
+
+            message = '' if session.is_paused() else get_friendly_elapsed(session.get_elapsed_time())
+            click.secho(f"\r{message}", bold=True, nl=False)
             time.sleep(1)
     except KeyboardInterrupt:
         pass
     finally:
+        if session.is_ended():
+            click.secho(f"Ending session due to extended inactivity", fg='bright_black')
+
         # Signal all threads to stop and wait until they finish
         session.end()
         session.join()
 
-        if session.log and session.log.ended_by:
-            click.echo('\n' + click.style(f"Ending session due to inactivity ({session.log.ended_by})", fg='bright_red'))
-
-        click.echo(f"\nSession lasted {get_friendly_elapsed(session.get_elapsed_time())}")
+        active_time = session.get_elapsed_time()
+        total_time = int(time.time() - session.start_time)
+        paused_time = total_time - active_time
+        
+        click.echo(f"\nSession lasted {get_friendly_elapsed(active_time)}")
+        if paused_time > 0:
+            click.echo(f"Paused time: {get_friendly_elapsed(paused_time)}")
+            click.echo(f"Total time: {get_friendly_elapsed(total_time)}")
 
 
 @cli.command()
