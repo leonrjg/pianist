@@ -79,21 +79,18 @@ class DailySchedule(Schedule):
             from_dt: Reference datetime to look ahead from.
             
         Returns:
-            The next daily occurrence. If from_dt falls exactly on a
-            scheduled day, returns that occurrence. Otherwise returns
-            the next daily occurrence based on 1-day intervals from
+            The next daily occurrence. If from_dt is today, returns that occurrence.
+            Otherwise, returns the next daily occurrence based on 1-day intervals from
             the start date.
         """
         if from_dt < self.start:
             return self.start
-        
+
+        if from_dt.date() == datetime.today().date():
+            return datetime.today()
+
         days_since_start = (from_dt - self.start).days
-        current_occurrence = self.start + timedelta(days=days_since_start)
-        
-        if current_occurrence.date() >= from_dt.date():
-            return current_occurrence
-        else:
-            return self.start + timedelta(days=days_since_start + 1)
+        return self.start + timedelta(days=days_since_start + 1)
 
     def get_scale(self) -> int:
         """Get the time scale for daily scheduling in seconds."""

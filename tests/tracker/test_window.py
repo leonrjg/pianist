@@ -56,13 +56,15 @@ class TestWindowTracker:
     def test_is_active_false_when_no_keyword_matches(self, mock_get_windows):
         """Test is_active returns False when no keywords match."""
         mock_get_windows.return_value = ['Firefox', 'Chrome', 'Safari']
-        tracker = WindowTracker(['vim', 'emacs'])
-        
-        result = tracker.is_active()
-        
-        assert result is False
-        # last_active should not be updated
-        assert tracker.last_active is None
+        with patch('src.tracker.window.time.time', return_value=1000):
+            tracker = WindowTracker(['vim', 'emacs'])
+            initial_last_active = tracker.last_active
+
+            result = tracker.is_active()
+
+            assert result is False
+            # last_active should not be updated (remains the same as initial value)
+            assert tracker.last_active == initial_last_active
 
     @patch('src.tracker.window.WindowTracker._get_active_windows')
     def test_is_active_case_insensitive_matching(self, mock_get_windows):

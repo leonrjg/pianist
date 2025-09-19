@@ -83,21 +83,13 @@ class WeeklySchedule(Schedule):
             from_dt: Reference datetime to look ahead from.
             
         Returns:
-            The next weekly occurrence. If from_dt falls exactly on a
-            scheduled week, returns that occurrence. Otherwise returns
-            the next weekly occurrence based on 7-day intervals from
-            the start date.
+            The next weekly occurrence.
         """
         if from_dt < self.start:
             return self.start
-        
+
         weeks_since_start = (from_dt - self.start).days // 7
-        current_occurrence = self.start + timedelta(weeks=weeks_since_start)
-        
-        if current_occurrence.date() >= from_dt.date():
-            return current_occurrence
-        else:
-            return self.start + timedelta(weeks=weeks_since_start + 1)
+        return self.start + timedelta(weeks=weeks_since_start + 1)
 
     def get_scale(self) -> int:
         return time.WEEK

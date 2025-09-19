@@ -45,12 +45,12 @@ class TestIOTracker:
     @patch('src.tracker.io.keyboard')
     def test_is_active_true_when_recent_activity(self, mock_keyboard, mock_mouse):
         """Test is_active returns True when recent activity detected."""
-        with patch('src.tracker.io.time.time', side_effect=[1000, 1002]):
-            tracker = IOTracker()
+        with patch('src.tracker.io.time.time', side_effect=[500, 1000, 1001]):
+            tracker = IOTracker()  # Uses first value (500)
             pulse_func = mock_mouse.Listener.call_args[1]['on_move']
-            pulse_func()  # Sets last_active to 1000
-            
-            # Current time is 1002, difference is 2 seconds < EPSILON (5)
+            pulse_func()  # Sets last_active to 1000 (second value)
+
+            # Current time is 1001, difference is 1 second < EPSILON (2)
             result = tracker.is_active()
             assert result is True
 
@@ -58,25 +58,26 @@ class TestIOTracker:
     @patch('src.tracker.io.keyboard')
     def test_is_active_false_when_old_activity(self, mock_keyboard, mock_mouse):
         """Test is_active returns False when activity is too old."""
-        with patch('src.tracker.io.time.time', side_effect=[1000, 1010]):
-            tracker = IOTracker()
+        with patch('src.tracker.io.time.time', side_effect=[500, 1000, 1010]):
+            tracker = IOTracker()  # Uses first value (500)
             pulse_func = mock_mouse.Listener.call_args[1]['on_move']
-            pulse_func()  # Sets last_active to 1000
-            
-            # Current time is 1010, difference is 10 seconds > EPSILON (5)
+            pulse_func()  # Sets last_active to 1000 (second value)
+
+            # Current time is 1010, difference is 10 seconds > EPSILON (2)
             result = tracker.is_active()
             assert result is False
 
     @patch('src.tracker.io.mouse')
     @patch('src.tracker.io.keyboard')
     def test_is_active_false_when_no_activity(self, mock_keyboard, mock_mouse):
-        """Test is_active returns falsy value when no activity recorded."""
-        with patch('src.tracker.io.time.time', return_value=1000):
+        """Test is_active returns False when no additional activity recorded after initial time."""
+        # Initial time when tracker is created, then much later time when checking
+        with patch('src.tracker.io.time.time', side_effect=[1000, 1010]):
             tracker = IOTracker()
-            # Don't trigger any pulse events
-            
+            # Don't trigger any pulse events beyond the initial time in __init__
+
             result = tracker.is_active()
-            assert not result  # Should be falsy (None in this case)
+            assert not result  # Should be False since 10 seconds > EPSILON (2)
 
     @patch('src.tracker.io.mouse')
     @patch('src.tracker.io.keyboard') 
@@ -96,11 +97,11 @@ class TestIOTracker:
     @patch('src.tracker.io.keyboard')
     def test_epsilon_boundary_condition(self, mock_keyboard, mock_mouse):
         """Test is_active at exactly EPSILON boundary."""
-        with patch('src.tracker.io.time.time', side_effect=[1000, 1000 + EPSILON]):
-            tracker = IOTracker()
+        with patch('src.tracker.io.time.time', side_effect=[500, 1000, 1000 + EPSILON]):
+            tracker = IOTracker()  # Uses first value (500)
             pulse_func = mock_mouse.Listener.call_args[1]['on_move']
-            pulse_func()  # Sets last_active to 1000
-            
-            # Current time is exactly EPSILON seconds later
+            pulse_func()  # Sets last_active to 1000 (second value)
+
+            # Current time is exactly EPSILON seconds later (third value)
             result = tracker.is_active()
             assert result is False  # >= EPSILON should be False

@@ -80,27 +80,27 @@ class MonthlySchedule(Schedule):
 
     def get_next_task(self, from_dt: datetime) -> Optional[datetime]:
         """Get the next monthly task on or after the given datetime.
-        
+
         Args:
             from_dt: Reference datetime to look ahead from.
-            
+
         Returns:
-            The next monthly occurrence. If from_dt falls exactly on a
-            scheduled month, returns that occurrence. Otherwise returns
-            the next monthly occurrence based on 30-day intervals from
-            the start date.
+            The next monthly occurrence.
         """
         if from_dt < self.start:
             return self.start
-        
+
         days_since_start = (from_dt - self.start).days
         months_since_start = days_since_start // 30
-        current_occurrence = self.start + timedelta(days=30 * months_since_start)
+        next_task = self.start + timedelta(days=30 * months_since_start)
+
+        # If we've already passed the calculated date, go to the next month
+        if next_task < from_dt:
+            next_task = self.start + timedelta(days=30 * (months_since_start + 1))
+
+        return next_task
         
-        if current_occurrence.date() >= from_dt.date():
-            return current_occurrence
-        else:
-            return self.start + timedelta(days=30 * (months_since_start + 1))
+
 
     def get_scale(self) -> int:
         return time.MONTH

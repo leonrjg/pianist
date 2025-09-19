@@ -19,15 +19,19 @@ class TestSaveCommand:
     @patch('src.cli.HabitTracker')
     def test_save_new_habit_minimal(self, mock_habit_tracker, mock_habit, mock_db):
         """Test saving a new habit with minimal parameters."""
+        mock_habit_instance = Mock()
+        mock_habit_instance.name = 'test-habit'
+        mock_habit_instance.schedule = 'daily'
         mock_habit.get_or_none.return_value = None
-        mock_habit.insert.return_value = Mock()
-        
+        mock_habit.create.return_value = mock_habit_instance
+
         result = self.runner.invoke(save, ['test-habit', '--schedule', 'daily'])
-        
+
         assert result.exit_code == 0
         assert "Saved habit 'test-habit' with schedule 'daily'" in result.output
         mock_habit.get_or_none.assert_called_once()
-        mock_habit.insert.assert_called_once_with(name='test-habit', schedule='daily')
+        mock_habit.create.assert_called_once_with(name='test-habit', schedule='daily')
+        mock_habit_instance.save.assert_called_once()
 
     @patch('src.cli.db')
     @patch('src.cli.Habit')
@@ -121,18 +125,19 @@ class TestPlayCommand:
         """Test playing habit that gets interrupted."""
         mock_habit_instance = Mock()
         mock_habit.get.return_value = mock_habit_instance
-        
+
         mock_session = Mock()
         mock_session.is_active.side_effect = [True, False]  # First True, then False
         mock_session.get_elapsed_time.return_value = 60
+        mock_session.start_time = 1000.0  # Mock start time as float
         mock_session.log = None
         mock_session_class.return_value = mock_session
-        
+
         mock_get_friendly_elapsed.return_value = "1m"
         mock_sleep.side_effect = KeyboardInterrupt()  # Simulate Ctrl+C
-        
+
         result = self.runner.invoke(play, ['test-habit'], input='\n')
-        
+
         assert result.exit_code == 0
         mock_session.start.assert_called_once()
         mock_session.end.assert_called_once()
@@ -238,7 +243,7 @@ class TestDisplayFunctions:
         mock_get_friendly_datetime.return_value = 'Yesterday'
         mock_get_friendly_elapsed.return_value = '30m'
         mock_analytics.get_time_spent.return_value = 7200
-        mock_analytics.get_task_vs_schedule_ratio.return_value = 0.85
+        mock_analytics.get_completion_rate.return_value = 0.85
         
         _display_habit_stats(mock_habit)
         

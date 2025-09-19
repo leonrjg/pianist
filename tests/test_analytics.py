@@ -5,7 +5,7 @@ from src.analytics import (
     get_habit_with_longest_streak,
     group_habits_by_schedule,
     get_time_spent,
-    get_task_vs_schedule_ratio
+    get_completion_rate
 )
 from src.habit.bucket import Bucket
 
@@ -184,29 +184,29 @@ class TestGetTaskVsScheduleRatio:
     
     def test_normal_ratio(self):
         """Test normal case where buckets < previous_tasks."""
-        assert get_task_vs_schedule_ratio(3, 5) == 0.6
+        assert get_completion_rate(3, 5) == 0.6
     
     def test_perfect_ratio(self):
         """Test case where buckets equals previous_tasks."""
-        assert get_task_vs_schedule_ratio(5, 5) == 1.0
+        assert get_completion_rate(5, 5) == 1.0
     
     def test_over_completion(self):
         """Test case where buckets > previous_tasks (capped at 1)."""
-        assert get_task_vs_schedule_ratio(7, 5) == 1.0
+        assert get_completion_rate(7, 5) == 1.0
     
     def test_zero_previous_tasks(self):
         """Test edge case where previous_tasks is 0."""
-        assert get_task_vs_schedule_ratio(3, 0) == 1.0
+        assert get_completion_rate(3, 0) == 1.0
     
     def test_zero_buckets_zero_previous(self):
         """Test edge case where both values are 0."""
-        assert get_task_vs_schedule_ratio(0, 0) == 0.0
+        assert get_completion_rate(0, 0) == 0.0
     
     def test_zero_buckets_nonzero_previous(self):
         """Test case where buckets is 0 but previous_tasks > 0."""
-        assert get_task_vs_schedule_ratio(0, 5) == 0.0
+        assert get_completion_rate(0, 5) == 0.0
     
     def test_fractional_values(self):
         """Test with fractional results."""
-        assert get_task_vs_schedule_ratio(1, 3) == pytest.approx(0.3333, rel=1e-3)
-        assert get_task_vs_schedule_ratio(2, 7) == pytest.approx(0.2857, rel=1e-3)
+        assert get_completion_rate(1, 3) == pytest.approx(0.3333, rel=1e-3)
+        assert get_completion_rate(2, 7) == pytest.approx(0.2857, rel=1e-3)

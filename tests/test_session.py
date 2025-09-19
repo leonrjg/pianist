@@ -3,7 +3,7 @@ import time
 import threading
 from unittest.mock import Mock, MagicMock, patch, call
 from datetime import datetime
-from src.session import Session
+from src.session import Session, SessionStatus
 
 
 class TestSession:
@@ -223,7 +223,7 @@ class TestSession:
             assert session.log == mock_log
 
     def test_track_with_inactive_tracker(self, mock_habit, mock_tracker):
-        """Test track method with an inactive tracker."""
+        """Test track method with an inactive tracker (now pauses instead of ending)."""
         # Ensure the habit has an inactivity threshold set
         mock_habit.inactivity_threshold = 120  # 120 seconds
         
@@ -241,10 +241,9 @@ class TestSession:
         with patch.object(Session, '_load_trackers', return_value=[mock_tracker_instance]):
             session = Session(mock_habit)
             
-            with patch.object(session, 'end') as mock_end:
+            with patch.object(session, '_pause') as mock_pause:
                 # Mock the wait method to simulate first loop iteration then shutdown
                 call_count = [0]
-                original_wait = session.shutdown_event.wait
                 
                 def mock_wait(timeout=None):
                     call_count[0] += 1
@@ -256,8 +255,8 @@ class TestSession:
                 with patch.object(session.shutdown_event, 'wait', side_effect=mock_wait):
                     session.track()
                 
-                # Should call end with tracker name
-                mock_end.assert_called_with('MockTracker')
+                # Should call _pause with tracker name (new behavior)
+                mock_pause.assert_called_with('MockTracker')
 
     def test_track_with_active_tracker(self, mock_habit, mock_tracker):
         """Test track method with an active tracker."""
@@ -285,8 +284,8 @@ class TestSession:
             # Should not raise any exceptions
             session.track()
 
-    def test_track_poll_interval_adjustment(self, mock_habit):
-        """Test that track adjusts poll interval based on inactivity threshold."""
+    def test_track_poll_interval_is_fixed(self, mock_habit):
+        """Test that track uses fixed 5-second poll interval."""
         mock_habit.inactivity_threshold = 10  # 10 seconds
         
         with patch.object(Session, '_load_trackers', return_value=[]):
@@ -296,12 +295,12 @@ class TestSession:
                 mock_wait.return_value = True  # Simulate timeout to exit loop
                 session.track()
                 
-                # Should use inactivity_threshold as poll_interval
-                mock_wait.assert_called_with(timeout=10)
+                # Should use fixed 5-second poll interval
+                mock_wait.assert_called_with(timeout=5)
 
-    def test_track_default_poll_interval(self, mock_habit):
-        """Test track uses default poll interval when threshold is small."""
-        mock_habit.inactivity_threshold = 1  # 1 second (less than default 2)
+    def test_track_fixed_poll_interval_regardless_of_threshold(self, mock_habit):
+        """Test track uses fixed 5-second poll interval regardless of threshold."""
+        mock_habit.inactivity_threshold = 1  # 1 second 
         
         with patch.object(Session, '_load_trackers', return_value=[]):
             session = Session(mock_habit)
@@ -310,5 +309,237 @@ class TestSession:
                 mock_wait.return_value = True  # Simulate timeout to exit loop
                 session.track()
                 
-                # Should use default poll_interval of 2
-                mock_wait.assert_called_with(timeout=2)
+                # Should always use fixed 5-second poll interval
+                mock_wait.assert_called_with(timeout=5)
+
+    # === NEW PAUSE/RESUME FUNCTIONALITY TESTS ===
+
+    def test_session_status_initialization(self, mock_habit):
+        """Test session starts in ACTIVE state."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            assert session.get_status() == SessionStatus.ACTIVE
+            assert not session.is_paused()
+            assert not session.is_ended()
+
+    def test_pause_session_from_active(self, mock_habit):
+        """Test pausing session from active state."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            
+            session._pause("IOTracker")
+            
+            assert session.is_paused()
+            assert session.get_status() == SessionStatus.PAUSED
+            assert session.get_transition_reason() == "IOTracker"
+            assert session.pause_start_time is not None
+
+    def test_pause_session_when_already_paused(self, mock_habit):
+        """Test pausing when already paused has no effect."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            
+            session._pause("FirstTracker")
+            first_pause_time = session.pause_start_time
+            time.sleep(0.01)  # Small delay
+            session._pause("SecondTracker")
+            
+            assert session.pause_start_time == first_pause_time
+            assert session.get_transition_reason() == "FirstTracker"  # Unchanged
+
+    def test_resume_session_from_paused(self, mock_habit):
+        """Test resuming session from paused state."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            
+            session._pause("IOTracker")
+            pause_time = time.time()
+            time.sleep(0.01)
+            session._resume("ActivityDetected")
+            
+            assert not session.is_paused()
+            assert session.get_status() == SessionStatus.ACTIVE
+            assert session.get_transition_reason() == "ActivityDetected"
+            assert session.pause_start_time is None
+            assert session.total_paused_time > 0
+
+    def test_resume_session_when_not_paused(self, mock_habit):
+        """Test resuming when not paused has no effect."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            initial_paused_time = session.total_paused_time
+            
+            session._resume("ActivityDetected")
+            
+            assert not session.is_paused()
+            assert session.total_paused_time == initial_paused_time
+
+    def test_get_elapsed_time_excludes_paused_time(self, mock_habit):
+        """Test elapsed time calculation excludes paused periods."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            start_time = session.start_time
+            
+            # Mock time progression
+            with patch('time.time') as mock_time:
+                # After 5 seconds total
+                mock_time.return_value = start_time + 5
+                session._pause("IOTracker")
+                
+                # After 8 seconds total (3 seconds paused)
+                mock_time.return_value = start_time + 8
+                session._resume("ActivityDetected")
+                
+                # After 10 seconds total
+                mock_time.return_value = start_time + 10
+                
+                elapsed = session.get_elapsed_time()
+                # Should be 10 - 3 = 7 seconds (excluding paused time)
+                assert elapsed == 7
+
+    def test_get_elapsed_time_while_paused(self, mock_habit):
+        """Test elapsed time calculation while currently paused."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            start_time = session.start_time
+            
+            with patch('time.time') as mock_time:
+                # After 5 seconds, pause
+                mock_time.return_value = start_time + 5
+                session._pause("IOTracker")
+                
+                # After 8 seconds total (3 seconds into pause)
+                mock_time.return_value = start_time + 8
+                
+                elapsed = session.get_elapsed_time()
+                # Should be 5 seconds (time before pause)
+                assert elapsed == 5
+
+    def test_end_session_while_paused(self, mock_habit):
+        """Test ending session while paused includes pause time in total."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            mock_log = Mock()
+            session.log = mock_log
+            start_time = session.start_time
+            
+            with patch('time.time') as mock_time:
+                # Pause after 5 seconds
+                mock_time.return_value = start_time + 5
+                session._pause("IOTracker")
+                
+                # End after 8 seconds total (3 seconds paused)
+                mock_time.return_value = start_time + 8
+                session.end("extended_inactivity")
+                
+                assert session.is_ended()
+                assert session.total_paused_time == 3
+                assert mock_log.idle_time == 3
+                assert mock_log.ended_by == "extended_inactivity"
+
+    def test_track_pauses_on_inactivity(self, mock_habit):
+        """Test track method pauses session when tracker becomes inactive."""
+        mock_habit.inactivity_threshold = 5
+        
+        mock_tracker = Mock()
+        mock_tracker.is_active.return_value = False
+        mock_tracker.get_last_active.return_value = time.time() - 10  # 10 seconds ago
+        
+        with patch.object(Session, '_load_trackers', return_value=[mock_tracker]):
+            session = Session(mock_habit)
+            
+            with patch.object(session, '_pause') as mock_pause:
+                # Simulate one iteration of track loop
+                call_count = [0]
+                def mock_wait(timeout=None):
+                    call_count[0] += 1
+                    return call_count[0] > 1  # Exit after first iteration
+                
+                with patch.object(session.shutdown_event, 'wait', side_effect=mock_wait):
+                    session.track()
+                
+                mock_pause.assert_called_once_with(type(mock_tracker).__name__)
+
+    def test_track_resumes_on_activity(self, mock_habit):
+        """Test track method resumes session when all trackers become active."""
+        mock_tracker1 = Mock()
+        mock_tracker1.is_active.return_value = True
+        mock_tracker2 = Mock()
+        mock_tracker2.is_active.return_value = True
+        
+        with patch.object(Session, '_load_trackers', return_value=[mock_tracker1, mock_tracker2]):
+            session = Session(mock_habit)
+            session._pause("IOTracker")  # Start paused
+            
+            with patch.object(session, '_resume') as mock_resume:
+                call_count = [0]
+                def mock_wait(timeout=None):
+                    call_count[0] += 1
+                    return call_count[0] > 1  # Exit after first iteration
+                
+                with patch.object(session.shutdown_event, 'wait', side_effect=mock_wait):
+                    session.track()
+                
+                mock_resume.assert_called_once()
+
+    def test_track_ends_session_on_extended_inactivity(self, mock_habit):
+        """Test track method ends session after extended inactivity."""
+        mock_habit.inactivity_threshold = 10
+        
+        # Need at least one tracker for the extended inactivity logic to trigger
+        mock_tracker = Mock()
+        mock_tracker.is_active.return_value = False
+        mock_tracker.get_last_active.return_value = time.time() - 5  # Recent enough to not trigger pause
+        
+        with patch.object(Session, '_load_trackers', return_value=[mock_tracker]):
+            session = Session(mock_habit)
+            session._pause("IOTracker")
+            session.pause_start_time = time.time() - 35  # 35 seconds ago (> 3 * 10)
+            
+            with patch.object(session, 'end') as mock_end:
+                call_count = [0]
+                def mock_wait(timeout=None):
+                    call_count[0] += 1
+                    return call_count[0] > 1  # Exit after first iteration
+                
+                with patch.object(session.shutdown_event, 'wait', side_effect=mock_wait):
+                    session.track()
+                
+                mock_end.assert_called_once()
+
+    def test_thread_safety_of_state_transitions(self, mock_habit):
+        """Test state transitions are thread-safe."""
+        with patch.object(Session, '_load_trackers', return_value=[]):
+            session = Session(mock_habit)
+            
+            # Simulate concurrent access
+            def pause_resume_cycle():
+                for _ in range(10):
+                    session._pause("Tracker")
+                    session._resume("Activity")
+            
+            threads = [threading.Thread(target=pause_resume_cycle) for _ in range(3)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            
+            # Should end in consistent state
+            assert session.get_status() in [SessionStatus.ACTIVE, SessionStatus.PAUSED]
+            assert isinstance(session.total_paused_time, (int, float))
+
+    def test_tracker_initialization_with_timestamp(self):
+        """Test trackers initialize with current timestamp."""
+        from src.tracker.tracker import Tracker
+        
+        class TestTracker(Tracker):
+            def is_active(self):
+                return True
+        
+        start_time = int(time.time())
+        tracker = TestTracker()
+        end_time = int(time.time())
+        
+        # Allow for the timestamp to be within a reasonable range (account for int conversion)
+        assert start_time <= tracker.get_last_active() <= end_time + 1
+        assert isinstance(tracker.get_last_active(), int)

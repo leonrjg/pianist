@@ -132,7 +132,29 @@ class TestWeeklySchedule:
         """Test get_scale returns WEEK constant."""
         start = datetime(2025, 1, 1, 10, 0)
         schedule = WeeklySchedule(start)
-        
+
         result = schedule.get_scale()
-        
+
         assert result == time.WEEK
+
+    def test_get_previous_task_get_next_task_consistency(self):
+        """Test consistency between get_previous_task and get_next_task methods."""
+        start = datetime(2025, 1, 1, 10, 0)  # Wednesday
+        schedule = WeeklySchedule(start)
+
+        # Start from a scheduled task time
+        t1 = schedule.get_next_task(start + timedelta(weeks=2))
+
+        # Go forward 3 steps, using slightly offset times to avoid exact matches
+        t2 = schedule.get_next_task(t1 + timedelta(seconds=1))
+        t3 = schedule.get_next_task(t2 + timedelta(seconds=1))
+        t4 = schedule.get_next_task(t3 + timedelta(seconds=1))
+
+        # Go backward 3 steps - should return to original tasks
+        back1 = schedule.get_previous_task(t4)
+        back2 = schedule.get_previous_task(back1)
+        back3 = schedule.get_previous_task(back2)
+
+        assert back1 == t3
+        assert back2 == t2
+        assert back3 == t1

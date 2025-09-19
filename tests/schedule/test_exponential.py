@@ -15,23 +15,28 @@ def exp_schedule():
 class TestExponentialSchedule:
     
     def test_get_scale(self, exp_schedule):
+        """Test that get_scale returns DAY constant."""
         assert exp_schedule.get_scale() == DAY
     
     def test_init(self):
+        """Test ExponentialSchedule initialization with custom base."""
         start = datetime(2023, 1, 1, 12, 0, 0)
         schedule = ExponentialSchedule(start, base=3)
         assert schedule.start == start
         assert schedule.base == 3
     
     def test_get_previous_task_before_start(self, exp_schedule):
+        """Test get_previous_task returns None for datetime before start."""
         before_start = datetime(2022, 12, 31, 11, 0, 0)
         assert exp_schedule.get_previous_task(before_start) is None
     
     def test_get_previous_task_at_start(self, exp_schedule):
+        """Test get_previous_task returns None at exact start time."""
         at_start = datetime(2023, 1, 1, 12, 0, 0)
         assert exp_schedule.get_previous_task(at_start) is None
     
     def test_get_previous_task_sequence(self, exp_schedule):
+        """Test get_previous_task returns correct exponential sequence."""
         # With base=2: intervals are 2, 4, 8, 16... days
         # Tasks at: start + 2, start + 6, start + 14, start + 30...
         
@@ -48,12 +53,14 @@ class TestExponentialSchedule:
         assert result == expected
     
     def test_get_next_task_before_start(self, exp_schedule):
+        """Test get_next_task returns start time when before start."""
         before_start = datetime(2022, 12, 31, 11, 0, 0)
         result = exp_schedule.get_next_task(before_start)
         expected = datetime(2023, 1, 1, 12, 0, 0)  # start
         assert result == expected
     
     def test_get_next_task_sequence(self, exp_schedule):
+        """Test get_next_task returns correct exponential intervals."""
         # With base=2: intervals are 2, 4, 8, 16... days
         # Tasks at: start + 2, start + 6, start + 14, start + 30...
         
@@ -75,36 +82,39 @@ class TestExponentialSchedule:
         assert result == expected
     
     def test_get_previous_tasks(self, exp_schedule):
-        # Mock datetime.now() to be several days after start  
+        """Test get_previous_tasks returns exponentially spaced tasks."""
+        # Mock datetime.now() to be several days after start
         current_time = datetime(2023, 1, 10, 12, 0, 0)
-        
+
         class MockDateTime:
             @staticmethod
             def now():
                 return current_time
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
-        
+
         import src.schedule.exponential
         original_datetime = src.schedule.exponential.datetime
         src.schedule.exponential.datetime = MockDateTime()
-        
+
         try:
-            # The implementation calculates backwards from start date
-            # With base=2: tasks at start-2, start-6, start-14 days
+            # The implementation calculates forward from start date
+            # With base=2: tasks at start+2, start+6, start+14 days
             timespan_seconds = 20 * DAY
             result = exp_schedule.get_previous_tasks(timespan_seconds)
-            
-            # Should find tasks going backwards from start date
+
+            # Should find tasks going forward from start date within the timespan, working backwards
             expected = [
-                datetime(2022, 12, 26, 12, 0, 0),  # start - 6 days (2^2 + 2^1)
-                datetime(2022, 12, 30, 12, 0, 0),  # start - 2 days (2^1)
+                datetime(2023, 1, 7, 12, 0, 0),   # start + 6 days
+                datetime(2023, 1, 3, 12, 0, 0),   # start + 2 days
+                datetime(2023, 1, 1, 12, 0, 0),   # start
             ]
             assert result == expected
         finally:
             src.schedule.exponential.datetime = original_datetime
     
     def test_get_next_tasks(self, exp_schedule):
+        """Test get_next_tasks returns future exponentially spaced tasks."""
         # Mock datetime.now() to be at start
         current_time = datetime(2023, 1, 1, 12, 0, 0)
         
@@ -134,6 +144,7 @@ class TestExponentialSchedule:
             src.schedule.exponential.datetime = original_datetime
     
     def test_different_base_values(self):
+        """Test exponential schedule with different base values."""
         start = datetime(2023, 1, 1, 12, 0, 0)
         
         # Test base=3: intervals are 3, 9, 27... days
@@ -149,6 +160,7 @@ class TestExponentialSchedule:
         assert result == expected
     
     def test_large_timespan_protection(self, exp_schedule):
+        """Test protection against infinite loops with large timespans."""
         # Test infinite loop protection in get_previous_tasks
         current_time = datetime(2023, 1, 1, 12, 0, 0)
         
@@ -173,24 +185,47 @@ class TestExponentialSchedule:
             src.schedule.exponential.datetime = original_datetime
     
     def test_edge_case_zero_timespan(self, exp_schedule):
+        """Test behavior with zero timespan parameter."""
         current_time = datetime(2023, 1, 10, 12, 0, 0)
-        
+
         class MockDateTime:
             @staticmethod
             def now():
                 return current_time
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
-        
+
         import src.schedule.exponential
         original_datetime = src.schedule.exponential.datetime
         src.schedule.exponential.datetime = MockDateTime()
-        
+
         try:
             result = exp_schedule.get_previous_tasks(0)
             assert result == []
-            
+
             result = exp_schedule.get_next_tasks(0)
             assert result == []
         finally:
             src.schedule.exponential.datetime = original_datetime
+
+    def test_get_previous_task_get_next_task_consistency(self):
+        """Test consistency between get_previous_task and get_next_task methods."""
+        start = datetime(2023, 1, 1, 12, 0, 0)
+        schedule = ExponentialSchedule(start, base=3)
+
+        # Start from a scheduled task time
+        t1 = schedule.get_next_task(start + timedelta(days=5))
+
+        # Go forward 3 steps
+        t2 = schedule.get_next_task(t1)
+        t3 = schedule.get_next_task(t2)
+        t4 = schedule.get_next_task(t3)
+
+        # Go backward 3 steps - should return to t1
+        back1 = schedule.get_previous_task(t4)
+        back2 = schedule.get_previous_task(back1)
+        back3 = schedule.get_previous_task(back2)
+
+        assert back1 == t3
+        assert back2 == t2
+        assert back3 == t1
