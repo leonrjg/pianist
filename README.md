@@ -1,5 +1,5 @@
 
-<img width="1792" height="576" src="https://github.com/user-attachments/assets/f44cd9bd-2944-4f4c-ba35-b3e6fcddf882" />
+<img width="1792" height="576" alt="pianist1a" src="https://github.com/user-attachments/assets/93380349-95ba-432a-89cf-06cbb1fe27db" />
 
 # Pianist
 
