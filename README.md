@@ -1,3 +1,6 @@
+
+<img width="1792" height="576" src="https://github.com/user-attachments/assets/f44cd9bd-2944-4f4c-ba35-b3e6fcddf882" />
+
 # Pianist
 
 A habit tracking application with basic activity monitoring.
@@ -57,11 +60,11 @@ cd src
 # Create a simple daily habit
 python cli.py save "daily_reading" --schedule daily
 
-# Create a habit with allocated time and tracking
-python cli.py save "workout" --schedule daily --duration 45 --track io --track window
+# Create a habit with allocated time and mouse/keyboard tracking
+python cli.py save "workout" --schedule daily --duration 45 --track io
 
 # Create a weekly habit with specific trackers
-python cli.py save "code_review" --schedule weekly --duration 120 --track window --track-args "keywords=VSCode,IntelliJ,Terminal"
+python cli.py save "coding" --schedule weekly --duration 120 --track window --track-args "keywords=project_name,VSCode,IntelliJ,Terminal"
 ```
 
 #### Available Schedule Types
@@ -88,7 +91,7 @@ python cli.py play "piano_practice"
 
 During a session:
 - Press `Ctrl+C` to end manually
-- Sessions pause automatically after inactivity threshold
+- Sessions pause automatically after the defined inactivity threshold
 - Sessions end automatically after extended inactivity
 
 #### View Habit Statistics
@@ -98,7 +101,7 @@ During a session:
 python cli.py stats
 
 # View detailed statistics for specific habit
-python cli.py stats "piano_practice"
+python cli.py stats piano_practice
 ```
 
 Statistics include:
@@ -113,42 +116,6 @@ Statistics include:
 
 ```bash
 python cli.py delete "habit_name"
-```
-
-### More examples
-
-#### Daily Habit Workflow
-
-```bash
-# 1. Create a daily habit
-python cli.py save "meditation" --schedule daily --duration 15 --track io
-
-# 2. Start a session
-python cli.py play "meditation"
-# Session runs for 15 minutes with activity tracking
-
-# 3. Check progress
-python cli.py stats "meditation"
-# Shows: streak, completion rate, session history
-
-# 4. View all habits
-python cli.py stats
-# Shows: all habits, completion rates, longest streaks
-```
-
-#### Weekly Planning Review
-
-```bash
-# Create weekly habit with specific app tracking
-python cli.py save "weekly_review" --schedule weekly --duration 60 --track window --track-args "keywords=Calendar,Notes,Planning"
-
-# View weekly habits
-python cli.py stats
-# Shows all weekly habits grouped together
-
-# Track longest weekly streak
-python cli.py stats "weekly_review"
-# Shows detailed weekly performance
 ```
 
 ### Advanced Usage
