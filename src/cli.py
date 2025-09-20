@@ -36,7 +36,7 @@ def save(name, schedule, duration, timeout, trackers, track_args):
     Add or edit a habit with the specified parameters.
 
     Args:
-        name: Unique name for the habit (e.g., "piano_practice", "daily_reading").
+        name: Unique name for the habit (e.g., "piano", "reading").
         schedule: Periodicity type - 'daily', 'weekly', 'monthly', 'hourly', or 'exponential_3'.
         duration: Allocated time per period in minutes (minimum for streak qualification).
         timeout: Inactivity threshold in seconds before session pause.
@@ -108,7 +108,7 @@ def play(name):
         name: Name of the habit to exercise.
 
     Example:
-        python cli.py play "piano_practice"
+        python cli.py play "piano"
     """
     # Get habit from database
     try:
@@ -163,12 +163,7 @@ def play(name):
 @click.argument('name', required=False)
 def stats(name):
     """
-    This command provides the analytics module functionality:
-        - List of all currently tracked habits
-        - List of habits with the same periodicity
-        - Longest run streak of all defined habits
-        - Longest run streak for a given habit
-        - Additional insights like completion rates and time analysis
+    List of habits and detailed statistics.
 
     Args:
         name: Optional habit name for detailed individual analysis.
@@ -176,7 +171,7 @@ def stats(name):
 
     Examples:
         python cli.py stats                    # All habits summary
-        python cli.py stats "piano_practice"   # Detailed habit analysis
+        python cli.py stats piano   # Detailed habit analysis
     """
     if name:
         try:

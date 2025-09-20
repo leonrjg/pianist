@@ -146,9 +146,11 @@ class Habit(BaseModel):
     def _find_bucket_for_task(self, buckets: list[Bucket], task: datetime) -> Optional[Bucket]:
         """Find the bucket that contains the given task datetime, if any."""
         unit = self._schedule.get_scale()
-        min_threshold = task - timedelta(seconds=unit)
+        # Get lower boundary of the unit containing the task
+        min_threshold = task - timedelta(seconds=int(task.timestamp()) % unit)
         # Get upper boundary of the unit
-        max_threshold = task + timedelta(seconds=unit - (int(task.timestamp()) % unit))
+        max_threshold =  min_threshold + timedelta(seconds=unit)
+
         for bucket in buckets:
             # Buckets are descending, so if we go below min_threshold, stop searching
             if bucket.start < min_threshold:
