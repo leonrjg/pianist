@@ -117,8 +117,8 @@ class Session:
                     if tracker.get_last_active():
                         if time.time() - tracker.get_last_active() >= inactivity_threshold:
                             self._pause(tracker.__class__.__name__)
-            elif self.is_paused() and time.time() - self.pause_start_time > MAX_IDLE_FACTOR * inactivity_threshold:
-                self.end()
+            #elif self.is_paused() and time.time() - self.pause_start_time > MAX_IDLE_FACTOR * inactivity_threshold:
+                #self.end()
 
     def get_elapsed_time(self) -> int:
         """Get the elapsed time in seconds since the session started, excluding paused time."""

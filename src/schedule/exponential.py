@@ -118,4 +118,5 @@ class ExponentialSchedule(Schedule):
         return self.start + timedelta(days=cumulative_days)
 
     def get_scale(self) -> int:
-        return time.DAY
+        # Base 3 would give streak tolerance of 2 days, base 2 gives 1 day
+        return (self.base - 1) * time.DAY

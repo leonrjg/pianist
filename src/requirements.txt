@@ -1,3 +1,4 @@
+click==8.2.1
 peewee==3.18.2
 pynput==1.8.1
 pywinctl==0.4.1

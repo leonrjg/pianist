@@ -56,11 +56,13 @@ def save(name, schedule, duration, timeout, trackers, track_args):
                 return
             habit = Habit.create(name=name, schedule=schedule)
 
-        if duration:
+        habit.schedule = schedule or habit.schedule
+
+        if duration is not None:
             click.echo(f'Setting allocated time to {duration}m')
             habit.allocated_time = duration * 60 # Minutes to seconds
 
-        if timeout:
+        if timeout is not None:
             click.echo(f'Setting inactivity threshold to {timeout}s')
             habit.inactivity_threshold = timeout
 
@@ -195,7 +197,7 @@ def _display_habit_stats(habit):
     schedule = habit.get_schedule()
     scale = schedule.get_scale()
 
-    click.echo(f"\n=== {habit.name.upper()} ===")
+    click.secho(f"\n=== {habit.name.upper()} ===", bold=True)
     click.echo(f"Schedule: {habit.schedule}")
     click.echo(f"Created: {get_friendly_datetime(habit.created_at)}")
     click.echo(f"Started: {get_friendly_datetime(habit.started_at)}")
@@ -217,7 +219,7 @@ def _display_habit_stats(habit):
 
     buckets = habit.get_activity_buckets()
 
-    click.echo(f"\nLatest activity:")
+    click.secho(f"\n=== Activity ===", bold=True)
 
     if not buckets:
         click.echo("No sessions recorded yet")
@@ -229,7 +231,7 @@ def _display_habit_stats(habit):
         duration = get_friendly_elapsed(bucket.net_duration)
         click.echo(f"• {start if start == end else f'{start} to {end}'} | Net duration: {duration} | Sessions: {bucket.sessions}")
 
-    click.echo(f"\nMilestones:")
+    click.secho(f"\n=== Milestones ===", bold=True)
     click.echo(f"• Current streak: {habit.get_streak()}")
     click.echo(f"• Longest streak: {habit.get_longest_streak()}")
     click.echo(f"• Total time spent: {get_friendly_elapsed(analytics.get_time_spent(buckets))}")
@@ -239,26 +241,26 @@ def _display_habit_stats(habit):
 
     previous_tasks = len(schedule.get_previous_tasks(get_timespan(schedule.start)))
     task_vs_schedule_ratio = analytics.get_completion_rate(total_buckets, previous_tasks)
-    click.echo(f"• Completion rate (all time): {total_buckets}/{previous_tasks} ({task_vs_schedule_ratio * 100:.2f}%)")
+    click.echo(f"• Completion rate (all time): {total_buckets}/{previous_tasks + 1} ({task_vs_schedule_ratio * 100:.2f}%)")
 
 def _display_all_habits_stats(habits):
     """Display summary statistics for all habits."""
-    click.echo(f"\n=== Habits ({len(habits)}) ===")
+    click.secho(f"\n=== Habits ({len(habits)}) ===", bold=True)
     for habit in habits:
-        click.echo(f'- {habit.name}\n'
+        click.echo(f'- {click.style(habit.name, bold=True)}\n'
                    f'   - Schedule: {habit.schedule.capitalize()}\n'
                    f'   - Started: {get_friendly_datetime(habit.started_at, habit.get_schedule().get_scale())}')
 
-    click.echo(f"\n=== Habits by periodicity ===")
+    click.secho(f"\n=== Habits by periodicity ===", bold=True)
     for schedule, group in analytics.group_habits_by_schedule(habits):
         click.echo(f'- {schedule.capitalize()}: {','.join(h.name for h in group)}')
 
-    click.echo(f"\n=== Habits by completion rate (least struggle to most) ===")
+    click.secho(f"\n=== Habits by completion rate (least struggle to most) ===", bold=True)
     sorted_habits = analytics.sort_habits_by_completion_rate(habits)
     for habit, rate in sorted_habits:
         click.echo(f'- {habit.name}: {rate * 100:.2f}%')
     
-    click.echo(f"\n=== Milestones ===")
+    click.secho(f"\n=== Milestones ===", bold=True)
     longest_streak_habit = analytics.get_habit_with_longest_streak(habits)
     click.echo(f"Longest streak of all habits: {longest_streak_habit.get_longest_streak()} ({longest_streak_habit.name})")
 

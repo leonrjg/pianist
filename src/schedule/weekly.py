@@ -92,4 +92,4 @@ class WeeklySchedule(Schedule):
         return self.start + timedelta(weeks=weeks_since_start + 1)
 
     def get_scale(self) -> int:
-        return time.WEEK
+        return time.DAY

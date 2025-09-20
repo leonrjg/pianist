@@ -135,7 +135,7 @@ class TestWeeklySchedule:
 
         result = schedule.get_scale()
 
-        assert result == time.WEEK
+        assert result == time.DAY
 
     def test_get_previous_task_get_next_task_consistency(self):
         """Test consistency between get_previous_task and get_next_task methods."""

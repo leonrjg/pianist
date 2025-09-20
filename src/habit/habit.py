@@ -107,13 +107,14 @@ class Habit(BaseModel):
             return 0
 
         streak = 0
-        previous_task = self._schedule.get_previous_task(datetime.now())
-        while previous_task and previous_task >= self._schedule.start:
-            bucket = self._find_bucket_for_task(buckets, previous_task)
-            if not bucket or not self._qualifies_for_streak(bucket):
+        task = self._schedule.get_next_task(datetime.now()) or self._schedule.start
+        while task and task >= self._schedule.start:
+            bucket = self._find_bucket_for_task(buckets, task)
+            if bucket and self._qualifies_for_streak(bucket):
+                streak += 1
+            elif task < datetime.now():
                 break
-            streak += 1
-            previous_task = self._schedule.get_previous_task(previous_task)
+            task = self._schedule.get_previous_task(task)
 
         return streak
 
@@ -130,15 +131,15 @@ class Habit(BaseModel):
             return 0
 
         longest_streak, current_streak = 0, 0
-        previous_task = self._schedule.get_next_task(buckets[0].start)
-        while previous_task and previous_task >= self._schedule.start:
-            bucket = self._find_bucket_for_task(buckets, previous_task)
+        task = self._schedule.get_next_task(buckets[0].start)
+        while task and task >= self._schedule.start:
+            bucket = self._find_bucket_for_task(buckets, task)
             if bucket and self._qualifies_for_streak(bucket):
                 current_streak += 1
             else:
                 longest_streak = max(current_streak, longest_streak)
                 current_streak = 0
-            previous_task = self._schedule.get_previous_task(previous_task)
+            task = self._schedule.get_previous_task(task)
 
         return max(current_streak, longest_streak)
 
@@ -160,6 +161,6 @@ class Habit(BaseModel):
         """Check if the given bucket qualifies for streak counting."""
         if bucket.start <= self._schedule.start + timedelta(seconds=self._schedule.get_scale()):
             return True
-        if bucket.net_duration < (self.allocated_time or 0):
+        if self.allocated_time and bucket.net_duration < (self.allocated_time or 0):
             return False
         return True

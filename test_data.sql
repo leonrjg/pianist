@@ -1,5 +1,3 @@
--- Habit Tracker Application Test Database
--- Complete SQLite schema with realistic test data for comprehensive testing
 
 -- Drop existing tables if they exist
 DROP TABLE IF EXISTS habittracker;
@@ -46,46 +44,31 @@ CREATE TABLE habittracker (
 -- Insert test habits with varied schedules and configurations
 INSERT INTO habit (id, name, schedule, created_at, updated_at, started_at, inactivity_threshold, allocated_time) VALUES
 -- Daily habits
-(1, 'piano_practice', 'daily', '2024-08-15 08:00:00', '2024-08-15 08:00:00', '2024-08-15 08:00:00', 180, 1800), -- 30 min allocated
-(2, 'morning_meditation', 'daily', '2024-08-16 06:00:00', '2024-08-16 06:00:00', '2024-08-16 06:00:00', 120, 900), -- 15 min allocated
+(1, 'piano', 'daily', '2024-08-15 08:00:00', '2024-08-15 08:00:00', '2024-08-15 08:00:00', 15, 0),
+(2, 'emails', 'daily', '2024-08-16 06:00:00', '2024-08-16 06:00:00', '2024-08-16 06:00:00', 10, 0),
 
 -- Weekly habits
-(3, 'deep_work_session', 'weekly', '2024-08-17 09:00:00', '2024-08-17 09:00:00', '2024-08-17 09:00:00', 300, 7200), -- 2 hours allocated
-(4, 'language_study', 'weekly', '2024-08-18 14:00:00', '2024-08-18 14:00:00', '2024-08-18 14:00:00', 240, 3600), -- 1 hour allocated
+(3, 'focus', 'weekly', '2024-08-17 09:00:00', '2024-08-17 09:00:00', '2024-08-17 09:00:00', 10, 0),
+(4, 'language_study', 'weekly', '2024-08-18 14:00:00', '2024-08-18 14:00:00', '2024-08-18 14:00:00', 20, 0),
 
 -- Monthly habit
-(5, 'financial_review', 'monthly', '2024-08-01 19:00:00', '2024-08-01 19:00:00', '2024-08-01 19:00:00', 600, 5400), -- 1.5 hours allocated
+(5, 'budgeting', 'monthly', '2024-08-01 19:00:00', '2024-08-01 19:00:00', '2024-08-01 19:00:00', 15, 0),
 
 -- Hourly habit for intensive testing
-(6, 'posture_check', 'hourly', '2024-09-13 09:00:00', '2024-09-13 09:00:00', '2024-09-13 09:00:00', 60, 300), -- 5 min allocated
+(6, 'posture_check', 'hourly', '2024-09-13 09:00:00', '2024-09-13 09:00:00', '2024-09-13 09:00:00', 10, 5), -- 5 min allocated
 
 -- Exponential habit
-(7, 'skill_challenge', 'exponential_3', '2024-08-20 10:00:00', '2024-08-20 10:00:00', '2024-08-20 10:00:00', 180, 2700); -- 45 min allocated
+(7, 'chess', 'exponential_3', '2024-08-20 10:00:00', '2024-08-20 10:00:00', '2024-08-20 10:00:00', 10, 0);
 
 -- Insert habit trackers
 INSERT INTO habittracker (habit_id, tracker, config, is_enabled, created_at) VALUES
--- Piano practice with window tracking (looking for music apps)
-(1, 'window', '{"keywords": ["Piano", "Musescore", "Sibelius", "Logic"]}', 1, '2024-08-15 08:00:00'),
-(1, 'io', '{}', 1, '2024-08-15 08:00:00'),
 
--- Meditation with IO tracking only
-(2, 'io', '{}', 1, '2024-08-16 06:00:00'),
+-- Email writing with IO tracking only
+(5, 'io', '{}', 1, '2024-08-16 06:00:00'),
 
--- Deep work with comprehensive tracking
-(3, 'window', '{"keywords": ["VSCode", "IntelliJ", "Terminal", "Sublime"]}', 1, '2024-08-17 09:00:00'),
-(3, 'io', '{}', 1, '2024-08-17 09:00:00'),
-
--- Language study with specific app tracking
-(4, 'window', '{"keywords": ["Anki", "Duolingo", "Memrise", "Language"]}', 1, '2024-08-18 14:00:00'),
-
--- Financial review with spreadsheet tracking
-(5, 'window', '{"keywords": ["Excel", "Numbers", "Sheets", "Budget"]}', 1, '2024-08-01 19:00:00'),
-
--- Posture check with IO only
-(6, 'io', '{}', 1, '2024-09-13 09:00:00'),
-
--- Skill challenge with window tracking
-(7, 'window', '{"keywords": ["Practice", "Tutorial", "Course"]}', 1, '2024-08-20 10:00:00');
+-- Chess with window and IO tracking
+(7, 'window', '{"keywords": ["Chess.com"]}', 1, '2024-08-20 10:00:00');
+(7, 'io', '{}', 1, '2024-08-17 09:00:00'),
 
 -- Generate 4 weeks of realistic log data (from 2024-08-15 to 2024-09-14)
 -- This creates varied patterns to test streaks, gaps, and analytics
@@ -93,13 +76,13 @@ INSERT INTO habittracker (habit_id, tracker, config, is_enabled, created_at) VAL
 -- Piano Practice (daily) - Strong streak with some gaps
 INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 -- Week 1 (Aug 15-21) - Perfect week
-(1, '2024-08-15 07:30:00', '2024-08-15 08:15:00', 'user', 'user', 300), -- 45min with 5min idle
-(1, '2024-08-16 07:45:00', '2024-08-16 08:20:00', 'user', 'inactivity', 180), -- 35min with 3min idle
-(1, '2024-08-17 08:00:00', '2024-08-17 08:35:00', 'user', 'user', 0), -- 35min no idle
-(1, '2024-08-18 07:30:00', '2024-08-18 08:10:00', 'user', 'user', 120), -- 40min with 2min idle
-(1, '2024-08-19 08:15:00', '2024-08-19 08:45:00', 'user', 'user', 0), -- 30min no idle
-(1, '2024-08-20 07:45:00', '2024-08-20 08:25:00', 'user', 'inactivity', 240), -- 40min with 4min idle
-(1, '2024-08-21 08:00:00', '2024-08-21 08:30:00', 'user', 'user', 60), -- 30min with 1min idle
+(1, '2024-08-15 07:30:00', '2024-08-15 08:15:00', 'user', NULL, 300), -- 45min with 5min idle
+(1, '2024-08-16 07:45:00', '2024-08-16 08:20:00', 'user', 'WindowTracker', 180), -- 35min with 3min idle
+(1, '2024-08-17 08:00:00', '2024-08-17 08:35:00', 'user', NULL, 0), -- 35min no idle
+(1, '2024-08-18 07:30:00', '2024-08-18 08:10:00', 'user', NULL, 120), -- 40min with 2min idle
+(1, '2024-08-19 08:15:00', '2024-08-19 08:45:00', 'user', NULL, 0), -- 30min no idle
+(1, '2024-08-20 07:45:00', '2024-08-20 08:25:00', 'user', 'IOTracker', 240), -- 40min with 4min idle
+(1, '2024-08-21 08:00:00', '2024-08-21 08:30:00', 'user', NULL, 60), -- 30min with 1min idle
 
 -- Week 2 (Aug 22-28) - Missed 2 days
 (1, '2024-08-22 07:30:00', '2024-08-22 08:00:00', 'user', 'user', 0), -- 30min
@@ -218,23 +201,4 @@ INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 -- Create indexes for better query performance
 CREATE INDEX idx_log_habit_start ON log(habit_id, start);
 CREATE INDEX idx_log_habit_end ON log(habit_id, end);
-CREATE INDEX idx_habittracker_habit ON habittracker(habit_id);
 CREATE INDEX idx_habit_schedule ON habit(schedule);
-
--- Summary statistics for verification:
--- 1. Piano Practice: 26 sessions over 4 weeks (daily habit) - Current streak of ~7 days
--- 2. Morning Meditation: 17 sessions over 4 weeks (daily habit) - Sporadic with recent improvement
--- 3. Deep Work: 4 sessions over 4 weeks (weekly habit) - Missed 1 week
--- 4. Language Study: 4 sessions over 4 weeks (weekly habit) - Consistent weekly
--- 5. Financial Review: 2 sessions over 4+ weeks (monthly habit) - On schedule
--- 6. Posture Check: 7 sessions in 2 days (hourly habit) - New habit
--- 7. Skill Challenge: 3 sessions over 3+ weeks (exponential habit) - Following exponential pattern
-
--- This data allows testing:
--- ✓ Streak calculations (current and longest)
--- ✓ Various schedule types and their intervals
--- ✓ Different completion patterns (perfect, sporadic, missed periods)
--- ✓ Session timing with idle time tracking
--- ✓ Habit tracker configurations
--- ✓ Analytics like completion ratios and time spent
--- ✓ Recent vs historical activity patterns

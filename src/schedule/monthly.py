@@ -103,4 +103,4 @@ class MonthlySchedule(Schedule):
 
 
     def get_scale(self) -> int:
-        return time.MONTH
+        return time.WEEK
