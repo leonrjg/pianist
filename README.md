@@ -41,7 +41,7 @@ cd src
 
 ### Requirements
 
-- Python 3.7 or later
+- Python 3.9 or later
 - SQLite3 (included with Python)
 
 ### Setup
