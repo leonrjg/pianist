@@ -92,12 +92,12 @@ class TestDeleteCommand:
     @patch('src.cli.Habit')
     def test_delete_nonexistent_habit(self, mock_habit):
         """Test deletion of nonexistent habit."""
-        mock_habit.get.side_effect = Exception("Not found")
+        mock_habit.get.side_effect = DoesNotExist()
         
         result = self.runner.invoke(delete, ['nonexistent'])
         
-        assert result.exit_code == 0
-        assert "Error deleting habit 'nonexistent'" in result.output
+        assert result.exit_code == 1
+        assert "does not exist" in result.output
 
 
 class TestPlayCommand:
@@ -114,8 +114,8 @@ class TestPlayCommand:
         
         result = self.runner.invoke(play, ['nonexistent'])
         
-        assert result.exit_code == 0
-        assert "Habit 'nonexistent' was not found" in result.output
+        assert result.exit_code == 1
+        assert "does not exist" in result.output
 
     @patch('src.cli.Session')
     @patch('src.cli.Habit')
@@ -170,8 +170,8 @@ class TestStatsCommand:
         
         result = self.runner.invoke(stats, ['nonexistent'])
         
-        assert result.exit_code == 0
-        assert "Habit 'nonexistent' not found" in result.output
+        assert result.exit_code == 1
+        assert "does not exist" in result.output
 
     @patch('src.cli._display_all_habits_stats')
     @patch('src.cli.Habit')

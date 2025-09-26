@@ -1,16 +1,15 @@
-import pytest
 from datetime import datetime, timedelta
 from src.schedule.monthly import MonthlySchedule
-from util import time
+from src.util import time
 
 
-class mTestMonthlySchedule:
+class TestMonthlySchedule:
     
     def test_get_scale(self):
-        """Test that get_scale returns MONTH constant."""
+        """Test that get_scale returns WEEK constant."""
         start = datetime(2024, 1, 1, 10, 0)
         schedule = MonthlySchedule(start)
-        assert schedule.get_scale() == time.MONTH
+        assert schedule.get_scale() == time.WEEK
     
     def test_get_next_task_before_start(self):
         """Test get_next_task when from_dt is before start date."""

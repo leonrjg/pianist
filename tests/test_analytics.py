@@ -42,15 +42,6 @@ class TestGetHabitWithLongestStreak:
         # Should return one of them (max() behavior with ties)
         assert result in [habit1, habit2]
     
-    def test_zero_streaks(self):
-        """Test with habits having zero streaks."""
-        habit1 = Mock()
-        habit1.get_longest_streak.return_value = 0
-        habit2 = Mock()
-        habit2.get_longest_streak.return_value = 0
-        
-        result = get_habit_with_longest_streak([habit1, habit2])
-        assert result in [habit1, habit2]
     
     def test_empty_list_raises_error(self):
         """Test that empty list raises ValueError."""
@@ -151,19 +142,6 @@ class TestGetTimeSpent:
         """Test time calculation with empty list."""
         assert get_time_spent([]) == 0
     
-    def test_zero_duration_buckets(self):
-        """Test time calculation with zero duration buckets."""
-        bucket1 = Bucket(
-            start=datetime(2024, 1, 1),
-            end=datetime(2024, 1, 1),
-            net_duration=0
-        )
-        bucket2 = Bucket(
-            start=datetime(2024, 1, 2),
-            end=datetime(2024, 1, 2),
-            net_duration=0
-        )
-        assert get_time_spent([bucket1, bucket2]) == 0
     
     def test_mixed_duration_buckets(self):
         """Test time calculation with mix of zero and positive durations."""

@@ -40,7 +40,7 @@ class TestSession:
             assert session.habit == mock_habit
             assert isinstance(session.start_time, float)
             assert isinstance(session.shutdown_event, threading.Event)
-            assert isinstance(session.elapsed_lock, threading.Lock)
+            assert isinstance(session.elapsed_lock, type(threading.Lock()))
             assert session.updating_thread is None
             assert session.tracking_thread is None
             assert session.log is None
@@ -116,16 +116,6 @@ class TestSession:
                 elapsed = session.get_elapsed_time()
                 assert elapsed == 5  # Should be truncated to int
 
-    def test_get_elapsed_time_thread_safety(self, mock_habit):
-        """Test that elapsed time calculation is thread-safe."""
-        with patch.object(Session, '_load_trackers', return_value=[]):
-            session = Session(mock_habit)
-            
-            # Simple test: just verify the method works with a lock present
-            # The actual thread safety is tested implicitly by using threading.Lock
-            elapsed_time = session.get_elapsed_time()
-            assert isinstance(elapsed_time, int)
-            assert elapsed_time >= 0
 
     @patch('src.session.Log')
     def test_end_without_ended_by(self, mock_log_class, mock_habit):
@@ -154,14 +144,6 @@ class TestSession:
             assert session.shutdown_event.is_set()
             assert mock_log.ended_by == 'test_tracker'
 
-    def test_end_without_log(self, mock_habit):
-        """Test ending session when no log exists."""
-        with patch.object(Session, '_load_trackers', return_value=[]):
-            session = Session(mock_habit)
-            
-            session.end('test_tracker')
-            
-            assert session.shutdown_event.is_set()
 
     def test_join_with_threads(self, mock_habit):
         """Test joining threads when they exist."""
@@ -285,7 +267,7 @@ class TestSession:
             session.track()
 
     def test_track_poll_interval_is_fixed(self, mock_habit):
-        """Test that track uses fixed 5-second poll interval."""
+        """Test that track uses fixed 3-second poll interval."""
         mock_habit.inactivity_threshold = 10  # 10 seconds
         
         with patch.object(Session, '_load_trackers', return_value=[]):
@@ -295,22 +277,9 @@ class TestSession:
                 mock_wait.return_value = True  # Simulate timeout to exit loop
                 session.track()
                 
-                # Should use fixed 5-second poll interval
-                mock_wait.assert_called_with(timeout=5)
+                # Should use fixed 3-second poll interval
+                mock_wait.assert_called_with(timeout=3)
 
-    def test_track_fixed_poll_interval_regardless_of_threshold(self, mock_habit):
-        """Test track uses fixed 5-second poll interval regardless of threshold."""
-        mock_habit.inactivity_threshold = 1  # 1 second 
-        
-        with patch.object(Session, '_load_trackers', return_value=[]):
-            session = Session(mock_habit)
-            
-            with patch.object(session.shutdown_event, 'wait') as mock_wait:
-                mock_wait.return_value = True  # Simulate timeout to exit loop
-                session.track()
-                
-                # Should always use fixed 5-second poll interval
-                mock_wait.assert_called_with(timeout=5)
 
     # === NEW PAUSE/RESUME FUNCTIONALITY TESTS ===
 

@@ -1,6 +1,5 @@
 import time
 from datetime import datetime
-from itertools import islice
 
 import click
 from peewee import DoesNotExist
@@ -87,13 +86,28 @@ def delete(name):
     Example:
         python cli.py delete "old_habit"
     """
-    try:
-        habit = Habit.get(Habit.name == name)
-        habit.delete_instance()
-        click.echo(f"Successfully deleted habit '{name}'")
-    except Exception as e:
-        click.echo(f"Habit '{name}' does not exist or there was an error deleting it")
+    habit = _get_habit(name)
+    habit.delete_instance()
+    click.echo(f"Successfully deleted habit '{name}'")
 
+@cli.command()
+@click.argument('name')
+def hit(name):
+    """
+    Manually record a completed task for a habit (non-interactive).
+
+    Args:
+        name: Name of the habit to mark as exercised.
+
+    Example:
+        python cli.py hit "reading"
+    """
+    habit = _get_habit(name)
+    session = Session(habit)
+    session.start()
+    session.end()
+    session.join()
+    click.echo(f"Practiced habit '{name}' on {get_friendly_datetime(datetime.now())}")
 
 @cli.command()
 @click.argument('name')
@@ -111,11 +125,7 @@ def play(name):
         python cli.py play "piano"
     """
     # Get habit from database
-    try:
-        habit = Habit.get(Habit.name == name)
-    except DoesNotExist:
-        click.echo(f"Habit '{name}' was not found")
-        return
+    habit = _get_habit(name)
 
     session = Session(habit)
     session.start()
@@ -174,11 +184,8 @@ def stats(name):
         python cli.py stats piano   # Detailed habit analysis
     """
     if name:
-        try:
-            habit = Habit.get(Habit.name == name)
-            _display_habit_stats(habit)
-        except DoesNotExist:
-            click.echo(f"Habit '{name}' not found")
+        habit = _get_habit(name)
+        _display_habit_stats(habit)
     else:
         habits = list(Habit.select())
         if not habits:
@@ -259,6 +266,13 @@ def _display_all_habits_stats(habits):
     longest_streak_habit = analytics.get_habit_with_longest_streak(habits)
     click.echo(f"Longest streak of all habits: {longest_streak_habit.get_longest_streak()} ({longest_streak_habit.name})")
 
+def _get_habit(name) -> Habit:
+    """Retrieve a habit by name or exit if not found."""
+    try:
+        return Habit.get(Habit.name == name)
+    except DoesNotExist:
+        click.echo(f"Habit '{name}' does not exist")
+        exit(1)
 
 if __name__ == '__main__':
     cli()

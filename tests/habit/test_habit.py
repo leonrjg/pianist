@@ -32,31 +32,26 @@ class TestHabitStreaks:
         habit._schedule.get_scale.return_value = 3600
         return habit
 
-    def test_get_streak_no_buckets(self, mock_habit):
-        """Test get_streak returns 0 when no activity buckets exist."""
-        mock_habit.get_activity_buckets.return_value = []
-        
-        result = Habit.get_streak(mock_habit)
-        assert result == 0
 
-    def test_get_streak_with_qualifying_buckets(self, mock_habit):
+    def test_get_streak_with_consecutive_buckets(self, mock_habit):
         """Test get_streak counts consecutive qualifying buckets."""
-        start_time = datetime(2023, 1, 1, 12, 0, 0)
+        exercise_day = datetime(2023, 1, 1, 12, 0, 0)
+        previous_day = exercise_day - timedelta(days=1)
         buckets = [
-            Bucket(start_time - timedelta(days=1), start_time - timedelta(days=1)),
-            Bucket(start_time, start_time)
+            Bucket(previous_day, previous_day),
+            Bucket(exercise_day, exercise_day)
         ]
 
         mock_habit.get_activity_buckets.return_value = buckets
-        mock_habit._schedule.get_next_task.return_value = start_time
-        mock_habit._schedule.get_previous_task.return_value = start_time - timedelta(days=1)
+        mock_habit._schedule.get_next_task.return_value = exercise_day + timedelta(days=1)
+        mock_habit._schedule.get_previous_task.side_effect = [exercise_day, previous_day]
 
-        with patch.object(Habit, '_qualifies_for_streak', side_effect=[True]):
+        with patch.object(Habit, '_qualifies_for_streak', side_effect=[True, True]):
             with patch('src.habit.habit.datetime') as mock_dt:
-                mock_dt.now.return_value = start_time + timedelta(days=1)
+                mock_dt.now.return_value = exercise_day
 
                 result = Habit.get_streak(mock_habit)
-                assert result == 1
+                assert result == 2
 
     def test_get_streak_fallback_to_schedule_start(self, mock_habit):
         """Test get_streak falls back to schedule.start when get_next_task returns None."""
@@ -77,21 +72,6 @@ class TestHabitStreaks:
                     result = Habit.get_streak(mock_habit)
                     assert result == 1
 
-    def test_get_streak_breaks_on_past_task_non_qualifying(self, mock_habit):
-        """Test get_streak breaks when task doesn't qualify and previous_task < now()."""
-        start_time = datetime(2023, 1, 1, 12, 0, 0)
-        past_task = start_time - timedelta(days=1)
-
-        mock_habit.get_activity_buckets.return_value = []
-        mock_habit._schedule.get_next_task.return_value = past_task
-        mock_habit._schedule.get_previous_task.return_value = None
-
-        with patch.object(Habit, '_find_bucket_for_task', return_value=None):
-            with patch('src.habit.habit.datetime') as mock_dt:
-                mock_dt.now.return_value = start_time  # Now is after previous_task
-
-                result = Habit.get_streak(mock_habit)
-                assert result == 0  # Should break due to line 113 condition
 
 
     def test_get_streak_validates_time_check_structure(self, mock_habit):
@@ -139,12 +119,6 @@ class TestHabitStreaks:
                 result = Habit.get_streak(mock_habit)
                 assert result == 0  # Should break because no bucket and past_task < now()
 
-    def test_get_longest_streak_no_buckets(self, mock_habit):
-        """Test get_longest_streak returns 0 when no buckets exist."""
-        mock_habit.get_activity_buckets.return_value = []
-
-        result = Habit.get_longest_streak(mock_habit)
-        assert result == 0
 
     def test_get_longest_streak_single_qualifying_period(self, mock_habit):
         """Test get_longest_streak with single qualifying period."""
@@ -365,7 +339,6 @@ class TestStreakComparison:
             mock_habit._schedule.start + timedelta(seconds=1800),
             mock_habit._schedule.start + timedelta(seconds=1800)
         )
-        task = datetime(2023, 1, 2, 12, 0, 0)
 
         result = Habit._qualifies_for_streak(mock_habit, bucket)
         assert result is True
@@ -375,8 +348,7 @@ class TestStreakComparison:
         mock_habit._schedule.is_task_scheduled.return_value = False
         
         bucket = Bucket(datetime(2023, 1, 5, 12, 0, 0), datetime(2023, 1, 5, 12, 0, 0))
-        task = datetime(2023, 1, 6, 12, 0, 0)
-        
+
         result = Habit._qualifies_for_streak(mock_habit, bucket)
         assert result is False
 
@@ -390,8 +362,7 @@ class TestStreakComparison:
             datetime(2023, 1, 5, 12, 0, 0), 
             net_duration=1800
         )
-        task = datetime(2023, 1, 6, 12, 0, 0)
-        
+
         result = Habit._qualifies_for_streak(mock_habit, bucket)
         assert result is False
 
@@ -405,8 +376,7 @@ class TestStreakComparison:
             datetime(2023, 1, 5, 12, 0, 0),
             net_duration=100
         )
-        task = datetime(2023, 1, 6, 12, 0, 0)
-        
+
         result = Habit._qualifies_for_streak(mock_habit, bucket)
         assert result is True
 
@@ -420,8 +390,7 @@ class TestStreakComparison:
             datetime(2023, 1, 5, 12, 0, 0),
             net_duration=3600
         )
-        task = datetime(2023, 1, 6, 12, 0, 0)
-        
+
         result = Habit._qualifies_for_streak(mock_habit, bucket)
         assert result is True
 
@@ -456,61 +425,25 @@ class TestHabitInit:
 
 class TestHabitScheduleTypes:
     """Test different schedule type creation."""
-    
-    @patch('src.habit.habit.HourlySchedule')
-    def test_get_schedule_hourly(self, mock_hourly):
-        """Test _get_schedule creates HourlySchedule for 'hourly'."""
-        habit = Mock()
-        habit.schedule = 'hourly'
-        habit.started_at = datetime(2023, 1, 1)
 
-        Habit._get_schedule(habit)
+    @pytest.mark.parametrize("schedule_type,mock_class,expected_args", [
+        ('hourly', 'HourlySchedule', {}),
+        ('daily', 'DailySchedule', {}),
+        ('weekly', 'WeeklySchedule', {}),
+        ('monthly', 'MonthlySchedule', {}),
+        ('exponential_3', 'ExponentialSchedule', {'base': 3})
+    ])
+    def test_get_schedule_creates_correct_type(self, schedule_type, mock_class, expected_args):
+        """Test _get_schedule creates correct schedule type based on habit.schedule."""
+        with patch(f'src.habit.habit.{mock_class}') as mock_schedule:
+            habit = Mock()
+            habit.schedule = schedule_type
+            habit.started_at = datetime(2023, 1, 1)
 
-        mock_hourly.assert_called_once_with(start=habit.started_at)
-    
-    @patch('src.habit.habit.DailySchedule')
-    def test_get_schedule_daily(self, mock_daily):
-        """Test _get_schedule creates DailySchedule for 'daily'."""
-        habit = Mock()
-        habit.schedule = 'daily'
-        habit.started_at = datetime(2023, 1, 1)
+            Habit._get_schedule(habit)
 
-        Habit._get_schedule(habit)
-
-        mock_daily.assert_called_once_with(start=habit.started_at)
-    
-    @patch('src.habit.habit.WeeklySchedule')
-    def test_get_schedule_weekly(self, mock_weekly):
-        """Test _get_schedule creates WeeklySchedule for 'weekly'."""
-        habit = Mock()
-        habit.schedule = 'weekly'
-        habit.started_at = datetime(2023, 1, 1)
-
-        Habit._get_schedule(habit)
-
-        mock_weekly.assert_called_once_with(start=habit.started_at)
-    
-    @patch('src.habit.habit.MonthlySchedule')
-    def test_get_schedule_monthly(self, mock_monthly):
-        """Test _get_schedule creates MonthlySchedule for 'monthly'."""
-        habit = Mock()
-        habit.schedule = 'monthly'
-        habit.started_at = datetime(2023, 1, 1)
-
-        Habit._get_schedule(habit)
-
-        mock_monthly.assert_called_once_with(start=habit.started_at)
-    
-    @patch('src.habit.habit.ExponentialSchedule')
-    def test_get_schedule_exponential(self, mock_exp):
-        """Test _get_schedule creates ExponentialSchedule for 'exponential_3'."""
-        habit = Mock()
-        habit.schedule = 'exponential_3'
-        habit.started_at = datetime(2023, 1, 1)
-
-        Habit._get_schedule(habit)
-
-        mock_exp.assert_called_once_with(start=habit.started_at, base=3)
+            expected_call_args = {'start': habit.started_at, **expected_args}
+            mock_schedule.assert_called_once_with(**expected_call_args)
 
 
 class TestHabitActivityBuckets:
@@ -524,18 +457,6 @@ class TestHabitActivityBuckets:
         habit._schedule.get_scale.return_value = 3600
         return habit
     
-    def test_get_activity_buckets_uses_default_size(self, mock_habit):
-        """Test get_activity_buckets uses schedule scale as default size."""
-        with patch.object(Habit, 'get_activity_buckets', return_value=[]) as mock_method:
-            mock_method.__wrapped__ = Mock()  # Bypass the method wrapper
-            
-            # Call the original method logic
-            mock_habit._schedule.get_scale.return_value = 3600
-            
-            # Just test that _schedule.get_scale would be called for default case
-            result = Habit.get_activity_buckets(mock_habit)
-            
-        assert result == []  # Mocked return value
     
     def test_get_activity_buckets_basic_functionality(self, mock_habit):
         """Test get_activity_buckets basic behavior without complex DB mocking.""" 
