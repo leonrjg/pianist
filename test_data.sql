@@ -48,14 +48,14 @@ INSERT INTO habit (id, name, schedule, created_at, updated_at, started_at, inact
 (2, 'emails', 'daily', '2025-08-16 06:00:00', '2025-08-16 06:00:00', '2025-08-16 06:00:00', 10, 0),
 
 -- Weekly habits
-(3, 'focus', 'daily', '2025-08-17 09:00:00', '2025-08-17 09:00:00', '2025-08-17 09:00:00', 10, 0),
+(3, 'goal_review', 'weekly', '2025-08-17 09:00:00', '2025-08-17 09:00:00', '2025-08-17 09:00:00', 10, 0),
 (4, 'meditation', 'weekly', '2025-08-18 14:00:00', '2025-08-18 14:00:00', '2025-08-18 14:00:00', 20, 0),
 
 -- Monthly habit
 (5, 'budgeting', 'monthly', '2025-08-01 19:00:00', '2025-08-01 19:00:00', '2025-08-01 19:00:00', 15, 0),
 
--- Hourly habit for intensive testing
-(6, 'posture_check', 'hourly', '2025-09-13 09:00:00', '2025-09-13 09:00:00', '2025-09-13 09:00:00', 10, 5), -- 5 min allocated
+-- Hourly habit
+(6, 'posture_check', 'hourly', '2025-09-13 09:00:00', '2025-09-13 09:00:00', '2025-09-13 09:00:00', 10, 0),
 
 -- Exponential habit
 (7, 'chess', 'exponential_3', '2025-08-20 10:00:00', '2025-08-20 10:00:00', '2025-08-20 10:00:00', 10, 0);
@@ -70,7 +70,7 @@ INSERT INTO habittracker (habit_id, tracker, config, is_enabled, created_at) VAL
 (7, 'window', '{"keywords": ["Chess.com"]}', 1, '2025-08-20 10:00:00'),
 (7, 'io', '{}', 1, '2025-08-17 09:00:00');
 
--- Generate 4 weeks of realistic log data (from 2025-08-15 to 2025-09-14)
+-- Generate 4 weeks of log data (from 2025-08-15 to 2025-09-14)
 -- This creates varied patterns to test streaks, gaps, and analytics
 
 -- Piano Practice (daily) - Strong streak with some gaps
@@ -114,7 +114,7 @@ INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 (1, '2025-09-12 08:00:00', '2025-09-12 08:30:00', NULL, NULL, 0), -- 30min
 (1, '2025-09-13 07:30:00', '2025-09-13 08:15:00', NULL, NULL, 240); -- 45min
 
--- Morning Meditation (daily) - More sporadic pattern
+-- Focus (daily) - More sporadic pattern
 INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 -- Week 1 - Good start
 (2, '2025-08-16 06:00:00', '2025-08-16 06:15:00', NULL, NULL, 0), -- 15min
@@ -170,7 +170,7 @@ INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 -- Week 4
 (4, '2025-09-08 13:45:00', '2025-09-08 15:20:00', NULL, NULL, 420); -- 1h 35m with 7min idle
 
--- Financial Review (monthly) - First Saturday of month
+-- Budgeting (monthly) - First Saturday of month
 INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 -- August session
 (5, '2025-08-03 19:00:00', '2025-08-03 21:15:00', NULL, NULL, 600), -- 2h 15m with 10min idle
@@ -189,7 +189,7 @@ INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 (6, '2025-09-14 09:30:00', '2025-09-14 09:35:00', NULL, NULL, 0), -- 5min
 (6, '2025-09-14 11:15:00', '2025-09-14 11:22:00', NULL, NULL, 30); -- 7min with 30s idle
 
--- Skill Challenge (exponential_3) - Growing intervals
+-- Chess (exponential_3) - Growing intervals
 INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 -- Day 1
 (7, '2025-08-20 10:00:00', '2025-08-20 10:50:00', NULL, NULL, 240), -- 50min with 4min idle
@@ -197,8 +197,3 @@ INSERT INTO log (habit_id, start, end, started_by, ended_by, idle_time) VALUES
 (7, '2025-08-23 15:30:00', '2025-08-23 16:25:00', NULL, NULL, 180), -- 55min with 3min idle
 -- Day 13 (9 days later)
 (7, '2025-09-01 11:00:00', '2025-09-01 12:10:00', NULL, 'IOTracker', 360); -- 1h 10m with 6min idle
-
--- Create indexes for better query performance
-CREATE INDEX idx_log_habit_start ON log(habit_id, start);
-CREATE INDEX idx_log_habit_end ON log(habit_id, end);
-CREATE INDEX idx_habit_schedule ON habit(schedule);

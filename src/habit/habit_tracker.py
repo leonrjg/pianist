@@ -21,7 +21,7 @@ class HabitTracker(BaseModel):
     class Meta:
         primary_key = CompositeKey('habit', 'tracker')
 
-    habit = ForeignKeyField(Habit, backref='trackers')
+    habit = ForeignKeyField(Habit, backref='trackers', on_delete='CASCADE')
     tracker = CharField()
     config = TextField(null=True)
     is_enabled = BooleanField(default=True)

@@ -7,7 +7,7 @@ from .habit import Habit
 
 class Log(BaseModel):
     id = AutoField()
-    habit = ForeignKeyField(Habit, backref='logs')
+    habit = ForeignKeyField(Habit, backref='logs', on_delete='CASCADE')
     start: datetime = DateTimeField(index=True)
     end: Optional[datetime] = DateTimeField(null=True, index=True)
     started_by = CharField(null=True)
