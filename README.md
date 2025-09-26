@@ -53,12 +53,13 @@ pianist --stats "name"
 To load predefined habits with 4 weeks of sample data for testing:
 
 ```bash
+# From the root directory
 sqlite3 src/habits.db < test_data.sql
 ```
 
 This will create 7 sample habits:
 - **Daily**: piano, emails
-- **Weekly**: focus, language_study
+- **Weekly**: focus, meditation
 - **Monthly**: budgeting
 - **Hourly**: posture_check
 - **Exponential (base 3)**: chess

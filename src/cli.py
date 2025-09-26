@@ -92,7 +92,7 @@ def delete(name):
         habit.delete_instance()
         click.echo(f"Successfully deleted habit '{name}'")
     except Exception as e:
-        click.echo(f"Error deleting habit '{name}'")
+        click.echo(f"Habit '{name}' does not exist or there was an error deleting it")
 
 
 @cli.command()
@@ -248,7 +248,7 @@ def _display_all_habits_stats(habits):
 
     click.secho(f"\n=== Habits by periodicity ===", bold=True)
     for schedule, group in analytics.group_habits_by_schedule(habits):
-        click.echo(f'- {schedule.capitalize()}: {','.join(h.name for h in group)}')
+        click.echo(f'- {schedule.capitalize()}: {",".join(h.name for h in group)}')
 
     click.secho(f"\n=== Habits by completion rate (least struggle to most) ===", bold=True)
     sorted_habits = analytics.sort_habits_by_completion_rate(habits)

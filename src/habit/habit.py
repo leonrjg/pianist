@@ -31,7 +31,7 @@ class Habit(BaseModel):
     """
     id = AutoField()
     name = CharField(unique=True)
-    schedule: str = CharField()
+    schedule: str = CharField(index=True)
     created_at = DateTimeField(default=datetime.now)
     updated_at = DateTimeField(default=datetime.now)
     started_at = DateTimeField(default=datetime.now)

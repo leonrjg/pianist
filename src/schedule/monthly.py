@@ -99,8 +99,6 @@ class MonthlySchedule(Schedule):
             next_task = self.start + timedelta(days=30 * (months_since_start + 1))
 
         return next_task
-        
-
 
     def get_scale(self) -> int:
         return time.WEEK

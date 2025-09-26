@@ -102,7 +102,7 @@ class Session:
         """Background thread for querying trackers."""
         inactivity_threshold = self.habit.inactivity_threshold
 
-        while not self.shutdown_event.wait(timeout=5):
+        while not self.shutdown_event.wait(timeout=3):
             if not self.is_active() or not self.trackers:
                 break
                 
@@ -114,7 +114,7 @@ class Session:
             elif not all_trackers_active and not self.is_paused():
                 # Check if we should pause due to inactivity
                 for tracker in self.trackers:
-                    if tracker.get_last_active():
+                    if not tracker.is_active():
                         if time.time() - tracker.get_last_active() >= inactivity_threshold:
                             self._pause(tracker.__class__.__name__)
             #elif self.is_paused() and time.time() - self.pause_start_time > MAX_IDLE_FACTOR * inactivity_threshold:
@@ -182,7 +182,7 @@ class Session:
         with self.state_lock:
             return self.state
 
-    def get_transition_reason(self) -> str | None:
+    def get_transition_reason(self) -> str:
         """Get the reason for the last state transition."""
         with self.state_lock:
             return self.transition_reason
