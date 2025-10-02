@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
-from src.schedule.monthly import MonthlySchedule
-from src.util import time
+from src.core.schedule import MonthlySchedule
+from src.core.util import time
 
 
 class TestMonthlySchedule:

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from peewee import *
-from db import BaseModel
+from core.db import BaseModel
 from .habit import Habit
 
 class Log(BaseModel):

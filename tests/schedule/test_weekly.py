@@ -1,8 +1,7 @@
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
-from src.schedule.weekly import WeeklySchedule
-from src.util import time
+from src.core.schedule import WeeklySchedule
+from src.core.util import time
 
 
 class TestWeeklySchedule:

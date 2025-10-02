@@ -2,8 +2,8 @@
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
-from src.habit.habit import Habit
-from src.habit.bucket import Bucket
+from src.core.habit import Habit
+from src.core.habit import Bucket
 
 
 class TestHabitSchedule:

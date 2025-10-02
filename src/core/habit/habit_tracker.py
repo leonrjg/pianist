@@ -3,8 +3,8 @@ from datetime import datetime
 from typing import Dict, Any
 from urllib.parse import parse_qs
 from peewee import *
-from db import BaseModel
-from .habit import Habit
+from core.db import BaseModel
+from core.habit.habit import Habit
 
 
 class HabitTracker(BaseModel):
@@ -36,8 +36,8 @@ class HabitTracker(BaseModel):
     @property
     def tracker_instance(self):
         """Get actual Tracker instance."""
-        from tracker.io import IOTracker
-        from tracker.window import WindowTracker
+        from core.tracker.io import IOTracker
+        from core.tracker.window import WindowTracker
         
         config = self.get_config()
         if self.tracker == 'io':

@@ -18,9 +18,9 @@ def initialize_database():
 
     Create the database schema for habits, logs, and a junction table for habit trackers.
     """
-    from habit.habit import Habit
-    from habit.log import Log
-    from habit.habit_tracker import HabitTracker
+    from core.habit.habit import Habit
+    from core.habit.log import Log
+    from core.habit.habit_tracker import HabitTracker
 
     db.connect()
     db.create_tables([Habit, Log, HabitTracker])

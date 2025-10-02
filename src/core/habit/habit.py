@@ -3,14 +3,14 @@ from datetime import timedelta
 from typing import Optional
 
 from peewee import *
-from schedule.schedule import Schedule
-from db import BaseModel
+from core.schedule.schedule import Schedule
+from core.db import BaseModel
 
-from schedule.daily import DailySchedule
-from schedule.exponential import ExponentialSchedule
-from schedule.weekly import WeeklySchedule
-from schedule.monthly import MonthlySchedule
-from schedule.hourly import HourlySchedule
+from core.schedule.daily import DailySchedule
+from core.schedule.exponential import ExponentialSchedule
+from core.schedule.weekly import WeeklySchedule
+from core.schedule.monthly import MonthlySchedule
+from core.schedule.hourly import HourlySchedule
 
 from .bucket import Bucket
 
@@ -67,7 +67,7 @@ class Habit(BaseModel):
             Get log buckets of the given `size` in seconds.
             Returns: Descending list of Buckets ordered by start date.
         """
-        from . import Log
+        from core.habit.log import Log
 
         if not size:
             size = self._schedule.get_scale()

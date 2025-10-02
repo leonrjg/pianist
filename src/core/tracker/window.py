@@ -24,8 +24,14 @@ class WindowTracker(Tracker):
 
     def is_active(self) -> bool:
         """Check if any active window matches target keywords."""
+        """
         for title in self._get_active_windows():
             if any(keyword.lower() in title.lower() for keyword in self.keywords):
                 self.last_active = int(time.time())
                 return True
         return False
+        """
+        is_active = any(keyword.lower() in pywinctl.getActiveWindowTitle().lower() for keyword in self.keywords)
+        if is_active:
+            self.last_active = int(time.time())
+        return is_active

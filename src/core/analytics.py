@@ -1,6 +1,6 @@
-from habit.habit import Habit
-from habit.bucket import Bucket
-from util.time import get_timespan
+from core.habit.habit import Habit
+from core.habit.habit import Bucket
+from core.util.time import get_timespan
 
 
 def get_habit_with_longest_streak(habits: list[Habit]) -> Habit:

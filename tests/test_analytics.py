@@ -1,13 +1,13 @@
 import pytest
 from datetime import datetime
 from unittest.mock import Mock
-from src.analytics import (
+from src.core.analytics import (
     get_habit_with_longest_streak,
     group_habits_by_schedule,
     get_time_spent,
     get_completion_rate
 )
-from src.habit.bucket import Bucket
+from src.core.habit import Bucket
 
 
 class TestGetHabitWithLongestStreak:

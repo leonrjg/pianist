@@ -4,10 +4,10 @@ import time
 from datetime import datetime
 from enum import Enum
 
-from habit.habit import Habit
-from habit.habit_tracker import HabitTracker
-from habit.log import Log
-from util.time import MINUTE
+from core.habit.habit import Habit
+from core.habit.habit_tracker import HabitTracker
+from core.habit.log import Log
+from core.util.time import MINUTE
 
 MAX_IDLE_FACTOR = 3
 

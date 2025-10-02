@@ -1,8 +1,7 @@
 import json
 import pytest
-from datetime import datetime
-from unittest.mock import Mock, patch
-from src.habit.habit_tracker import HabitTracker
+from unittest.mock import patch
+from src.core.habit.habit_tracker import HabitTracker
 
 
 class TestHabitTracker:

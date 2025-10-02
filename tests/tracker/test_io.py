@@ -1,8 +1,6 @@
 """Tests for src.tracker.io module."""
-import pytest
-import time
 from unittest.mock import Mock, patch
-from src.tracker.io import IOTracker, EPSILON
+from src.core.tracker.io import IOTracker, EPSILON
 
 
 class TestIOTracker:

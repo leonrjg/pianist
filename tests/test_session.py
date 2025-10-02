@@ -1,9 +1,9 @@
 import pytest
 import time
 import threading
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import Mock, patch
 from datetime import datetime
-from src.session import Session, SessionStatus
+from src.core.session import Session, SessionStatus
 
 
 class TestSession:
@@ -499,7 +499,7 @@ class TestSession:
 
     def test_tracker_initialization_with_timestamp(self):
         """Test trackers initialize with current timestamp."""
-        from src.tracker.tracker import Tracker
+        from src.core.tracker.tracker import Tracker
         
         class TestTracker(Tracker):
             def is_active(self):

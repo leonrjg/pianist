@@ -1,8 +1,8 @@
 """Tests for src.schedule.exponential module."""
 import pytest
 from datetime import datetime, timedelta
-from src.schedule.exponential import ExponentialSchedule
-from src.util.time import DAY
+from src.core.schedule import ExponentialSchedule
+from src.core.util.time import DAY
 
 
 @pytest.fixture
@@ -93,9 +93,9 @@ class TestExponentialSchedule:
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
 
-        import src.schedule.exponential
-        original_datetime = src.schedule.exponential.datetime
-        src.schedule.exponential.datetime = MockDateTime()
+        import src.core.schedule.exponential
+        original_datetime = src.core.schedule.exponential.datetime
+        src.core.schedule.exponential.datetime = MockDateTime()
 
         try:
             # The implementation calculates forward from start date
@@ -111,7 +111,7 @@ class TestExponentialSchedule:
             ]
             assert result == expected
         finally:
-            src.schedule.exponential.datetime = original_datetime
+            src.core.schedule.exponential.datetime = original_datetime
     
     def test_get_next_tasks(self, exp_schedule):
         """Test get_next_tasks returns future exponentially spaced tasks."""
@@ -125,9 +125,9 @@ class TestExponentialSchedule:
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
-        import src.schedule.exponential
-        original_datetime = src.schedule.exponential.datetime
-        src.schedule.exponential.datetime = MockDateTime()
+        import src.core.schedule.exponential
+        original_datetime = src.core.schedule.exponential.datetime
+        src.core.schedule.exponential.datetime = MockDateTime()
         
         try:
             # Look ahead 20 days: should find tasks at days 2, 6, 14
@@ -141,7 +141,7 @@ class TestExponentialSchedule:
             ]
             assert result == expected
         finally:
-            src.schedule.exponential.datetime = original_datetime
+            src.core.schedule.exponential.datetime = original_datetime
     
     def test_different_base_values(self):
         """Test exponential schedule with different base values."""
@@ -171,9 +171,9 @@ class TestExponentialSchedule:
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
-        import src.schedule.exponential
-        original_datetime = src.schedule.exponential.datetime
-        src.schedule.exponential.datetime = MockDateTime()
+        import src.core.schedule.exponential
+        original_datetime = src.core.schedule.exponential.datetime
+        src.core.schedule.exponential.datetime = MockDateTime()
         
         try:
             # Very large timespan should not cause infinite loop
@@ -182,7 +182,7 @@ class TestExponentialSchedule:
             assert isinstance(result, list)
             assert len(result) <= 20  # Due to exp > 20 protection
         finally:
-            src.schedule.exponential.datetime = original_datetime
+            src.core.schedule.exponential.datetime = original_datetime
     
     def test_edge_case_zero_timespan(self, exp_schedule):
         """Test behavior with zero timespan parameter."""
@@ -195,9 +195,9 @@ class TestExponentialSchedule:
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
 
-        import src.schedule.exponential
-        original_datetime = src.schedule.exponential.datetime
-        src.schedule.exponential.datetime = MockDateTime()
+        import src.core.schedule.exponential
+        original_datetime = src.core.schedule.exponential.datetime
+        src.core.schedule.exponential.datetime = MockDateTime()
 
         try:
             result = exp_schedule.get_previous_tasks(0)
@@ -206,7 +206,7 @@ class TestExponentialSchedule:
             result = exp_schedule.get_next_tasks(0)
             assert result == []
         finally:
-            src.schedule.exponential.datetime = original_datetime
+            src.core.schedule.exponential.datetime = original_datetime
 
     def test_get_previous_task_get_next_task_consistency(self):
         """Test consistency between get_previous_task and get_next_task methods."""

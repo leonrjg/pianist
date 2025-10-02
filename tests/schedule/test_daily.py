@@ -1,8 +1,8 @@
 """Tests for src.schedule.daily module."""
 import pytest
 from datetime import datetime, timedelta
-from src.schedule.daily import DailySchedule
-from src.util.time import DAY
+from src.core.schedule import DailySchedule
+from src.core.util.time import DAY
 
 
 @pytest.fixture

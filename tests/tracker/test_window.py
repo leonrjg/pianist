@@ -1,8 +1,6 @@
 """Tests for src.tracker.window module."""
-import pytest
-import time
-from unittest.mock import Mock, patch
-from src.tracker.window import WindowTracker
+from unittest.mock import patch
+from src.core.tracker.window import WindowTracker
 
 
 class TestWindowTracker:

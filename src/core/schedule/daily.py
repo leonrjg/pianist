@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 from .schedule import Schedule
-from util import time
+from core.util import time
 
 
 class DailySchedule(Schedule):

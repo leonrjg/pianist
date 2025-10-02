@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from src.schedule.hourly import HourlySchedule
-from src.util.time import HOUR
+from src.core.schedule import HourlySchedule
+from src.core.util.time import HOUR
 
 
 class TestHourlySchedule:

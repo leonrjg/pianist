@@ -1,7 +1,6 @@
 """Tests for src.util.time module."""
-import pytest
 from datetime import datetime
-from src.util.time import get_friendly_elapsed, get_friendly_datetime, get_timespan, DAY
+from src.core.util.time import get_friendly_elapsed, get_friendly_datetime, get_timespan, DAY
 
 def test_get_friendly_elapsed():
     """Test get_friendly_elapsed formats seconds into HH:MM:SS."""

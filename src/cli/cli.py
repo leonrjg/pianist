@@ -4,12 +4,12 @@ from datetime import datetime
 import click
 from peewee import DoesNotExist
 
-import analytics
-from db import db, initialize_database
-from habit.habit import Habit
-from habit.habit_tracker import HabitTracker
-from session import Session, SessionStatus
-from util.time import get_friendly_elapsed, get_friendly_datetime, get_timespan
+from core import analytics
+from core.db import db, initialize_database
+from core.habit.habit import Habit
+from core.habit.habit_tracker import HabitTracker
+from core.session import Session, SessionStatus
+from core.util.time import get_friendly_elapsed, get_friendly_datetime, get_timespan
 
 
 @click.group(invoke_without_command=True)
