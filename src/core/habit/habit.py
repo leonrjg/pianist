@@ -37,6 +37,7 @@ class Habit(BaseModel):
     started_at = DateTimeField(default=datetime.now)
     inactivity_threshold = IntegerField(default=120)
     allocated_time: Optional[int] = IntegerField(null=True)
+    display_order = IntegerField(default=0)
     
     def __init__(self, *args, **kwargs):
         """Initialize habit with schedule instance."""

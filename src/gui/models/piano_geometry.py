@@ -14,59 +14,71 @@ from ..constants import PianoLayout
 class PianoGeometry:
     """Calculates all geometric properties for the piano interface"""
 
-    def __init__(self, window_width: int, window_height: int, fallboard_visible: bool = False):
+    def __init__(self, window_width: int, window_height: int, toggleable_drawer_visible: bool = False):
         self.window_width = window_width
         self.window_height = window_height
-        self.fallboard_visible = fallboard_visible
+        self.toggleable_drawer_visible = toggleable_drawer_visible
 
-    def update(self, window_width: int = None, window_height: int = None, fallboard_visible: bool = None):
+    def update(self, window_width: int = None, window_height: int = None, toggleable_drawer_visible: bool = None):
         """Update geometry parameters"""
         if window_width is not None:
             self.window_width = window_width
         if window_height is not None:
             self.window_height = window_height
-        if fallboard_visible is not None:
-            self.fallboard_visible = fallboard_visible
+        if toggleable_drawer_visible is not None:
+            self.toggleable_drawer_visible = toggleable_drawer_visible
 
     # ===== Frame Geometry =====
+    # The "toggleable drawer" is the toggleable wooden panel with music sheet
+    # It's only visible when toggled via the brass hinges
 
     @property
-    def drawer_width(self) -> int:
-        """Width of the drawer (left wooden panel)"""
+    def toggleable_drawer_width(self) -> int:
+        """Width of the toggleable drawer (toggleable wooden panel with music sheet)"""
         return PianoLayout.HINGE_OFFSET
 
     @property
-    def drawer_rect(self) -> QRect:
+    def toggleable_drawer_rect(self) -> QRect:
         """
-        Rectangle for the drawer (left wooden panel).
+        Rectangle for the toggleable drawer.
 
-        The drawer is always painted at the same position. Visibility is controlled
+        The toggleable drawer is always painted at the same position. Visibility is controlled
         by the window mask animation in the main window, not by conditional rendering.
         """
-        return QRect(0, 0, self.drawer_width, self.window_height)
+        return QRect(0, 0, self.toggleable_drawer_width, self.window_height)
 
     @property
     def hinge_x(self) -> int:
-        """X position of drawer opener (brass hinges) - always at drawer edge"""
-        return self.drawer_width
+        """X position of toggleable drawer opener (brass hinges) - always at toggleable drawer edge"""
+        return self.toggleable_drawer_width
+
+    # ===== Main Content Panel Geometry =====
+    # The main content panel is the always-visible area containing the habit list
+    # It has a fallboard on its left edge
 
     @property
-    def keybed_rect(self) -> QRect:
-        """Rectangle for the keybed (black strip after drawer)"""
-        # Keybed always after drawer
-        return QRect(self.drawer_width, 0, PianoLayout.KEYBED_WIDTH, self.window_height)
+    def fallboard_width(self) -> int:
+        """Width of the fallboard (narrow brown panel on left of content with indicator dots)"""
+        return PianoLayout.FALLBOARD_WIDTH
+
+    @property
+    def fallboard_rect(self) -> QRect:
+        """Rectangle for the fallboard (always visible, left edge of content panel)"""
+        # Starts right after toggleable drawer
+        start_x = self.toggleable_drawer_width
+        return QRect(start_x, 0, self.fallboard_width, self.window_height)
 
     # ===== Keys Geometry =====
 
     @property
     def keys_start_x(self) -> int:
-        """X position where piano keys start - always after drawer + keybed"""
-        return self.drawer_width + PianoLayout.KEYBED_WIDTH
+        """X position where piano keys start - after toggleable drawer + fallboard"""
+        return self.toggleable_drawer_width + self.fallboard_width
 
     @property
     def keys_end_x(self) -> int:
         """X position where piano keys end"""
-        return self.window_width - PianoLayout.RIGHT_FRAME_WIDTH
+        return self.window_width - PianoLayout.CONTROL_PANEL_WIDTH
 
     @property
     def keys_width(self) -> int:
@@ -85,7 +97,7 @@ class PianoGeometry:
 
     def get_key_rect(self, key_index: int) -> QRect:
         """Get rectangle for a white key at given index"""
-        y = 5 + (key_index * PianoLayout.KEY_HEIGHT)
+        y = (key_index * PianoLayout.KEY_HEIGHT)
         return QRect(
             self.keys_start_x,
             int(y + 1),
@@ -95,12 +107,12 @@ class PianoGeometry:
 
     def get_black_key_rect(self, key_index: int) -> QRect:
         """Get rectangle for a black key (between white keys)"""
-        y = 5 + ((key_index + 1) * PianoLayout.KEY_HEIGHT) - (self.black_key_height / 2)
+        y = ((key_index + 1) * PianoLayout.KEY_HEIGHT) - (self.black_key_height / 2)
         x = self.keys_end_x - self.black_key_width
         return QRect(
             int(x),
             int(y),
-            self.black_key_width,
+            self.black_key_width + 1,
             int(self.black_key_height)
         )
 
@@ -126,12 +138,14 @@ class PianoGeometry:
         ]
 
     def get_hinge_click_areas(self) -> list[QRect]:
-        """Get clickable areas for brass hinges"""
-        from ..constants import Interactions
-        tolerance = Interactions.HINGE_CLICK_TOLERANCE
+        """Get clickable area for fallboard « symbol (drawer toggle)"""
+        # Click area centered on the « symbol in the middle of fallboard
+        fallboard_rect = self.fallboard_rect
+        x_center = fallboard_rect.x() + (self.fallboard_width // 2)
+        y_center = fallboard_rect.y() + (self.window_height // 2)
+        # Create a clickable area around the « symbol
         return [
-            QRect(self.hinge_x, PianoLayout.BRASS_HINGE_TOP_Y - tolerance, 18, 16),
-            QRect(self.hinge_x, self.window_height - PianoLayout.BRASS_HINGE_BOTTOM_OFFSET - tolerance, 18, 16)
+            QRect(int(x_center - 15), int(y_center - 15), 30, 30)
         ]
 
     def get_pedal_positions(self) -> list[tuple[int, int, int, int]]:
@@ -190,17 +204,17 @@ class PianoGeometry:
         return QRect(center.x() - half_size, center.y() - half_size,
                     PianoLayout.CONTROL_BUTTON_SIZE, PianoLayout.CONTROL_BUTTON_SIZE)
 
-    # ===== Right Frame Geometry =====
+    # ===== Control Panel Geometry =====
 
     @property
-    def right_frame_x(self) -> int:
-        """X position of right frame"""
-        return self.window_width - PianoLayout.RIGHT_FRAME_WIDTH
+    def control_panel_x(self) -> int:
+        """X position of control panel (right side)"""
+        return self.window_width - PianoLayout.CONTROL_PANEL_WIDTH
 
     @property
-    def right_frame_rect(self) -> QRect:
-        """Rectangle for right frame"""
-        return QRect(self.right_frame_x, 0, PianoLayout.RIGHT_FRAME_WIDTH, self.window_height)
+    def control_panel_rect(self) -> QRect:
+        """Rectangle for control panel (right side with window controls and pedals)"""
+        return QRect(self.control_panel_x, 0, PianoLayout.CONTROL_PANEL_WIDTH, self.window_height)
 
     # ===== Scroll Indicators Geometry =====
 
@@ -296,6 +310,27 @@ class PianoGeometry:
         pedal_x = self.window_width - PianoLayout.PEDAL_X_OFFSET
         brass_area = QRect(pedal_x - 20, self.window_height // 2 - 60, 40, 120)
         return brass_area.contains(pos)
+
+    def is_point_on_pedal(self, pos: QPoint) -> bool:
+        """
+        Check if point is on any pedal (for toggling reorder mode).
+
+        Returns:
+            True if the click is on any of the three pedals
+        """
+        from ..constants import Interactions
+
+        pedal_positions = self.get_pedal_positions()
+        for x, y, width, height in pedal_positions:
+            # Create a point from pedal center
+            pedal_center = QPoint(x + width // 2, y + height // 2)
+
+            # Check if click is within radius
+            distance = (pos - pedal_center).manhattanLength()
+            if distance < Interactions.PEDAL_CLICK_RADIUS:
+                return True
+
+        return False
 
     def is_point_in_piano_frame(self, pos: QPoint) -> bool:
         """Check if point is on piano frame (not keybed area)"""

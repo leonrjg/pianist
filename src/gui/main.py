@@ -17,7 +17,7 @@ def main():
     multiprocessing.set_start_method('spawn', force=True)
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Piano Activity Tracker")
+    app.setApplicationName("Pianist")
 
     # Create and show the window
     window = PianoFloatingWindow()

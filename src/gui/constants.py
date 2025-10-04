@@ -9,33 +9,30 @@ from PyQt6.QtGui import QColor
 class PianoLayout:
     """Layout dimensions and positioning constants"""
 
-    # Frame dimensions
-    FRAME_WIDTH_EXTENDED = 90  # Full width with fallboard
-    FALLBOARD_WIDTH = 25  # Width of the fallboard panel
-    HINGE_OFFSET = 65  # Position where hinges attach (FRAME_WIDTH_EXTENDED - FALLBOARD_WIDTH)
+    # ===== Component Widths (the values you actually want to change) =====
+    TOGGLEABLE_DRAWER_WIDTH = 250  # Width of the toggleable drawer panel (music sheet panel)
+    FALLBOARD_WIDTH = 30  # Width of the fallboard (narrow brown indicator panel)
+    CONTROL_PANEL_WIDTH = 40  # Width of the control panel (right side)
+
+    # ===== Derived/Computed Values (don't change these directly) =====
+    # The hinge is positioned at the right edge of the toggleable drawer
+    HINGE_OFFSET = TOGGLEABLE_DRAWER_WIDTH
 
     # Window dimensions
-    DEFAULT_WINDOW_WIDTH = 280
+    DEFAULT_WINDOW_WIDTH = 300  # Default width (can be larger than minimum)
     DEFAULT_WINDOW_HEIGHT = 315
-    MIN_WINDOW_WIDTH = 250
+    MIN_KEYS_WIDTH = 100
+    MIN_WINDOW_WIDTH = TOGGLEABLE_DRAWER_WIDTH + FALLBOARD_WIDTH + MIN_KEYS_WIDTH + CONTROL_PANEL_WIDTH
     MIN_WINDOW_HEIGHT = 200
 
     # Keys
     KEY_HEIGHT = 40  # Height of each piano key
-    KEYS_START_X_EXTENDED = 95  # Left edge of keys when fallboard visible
-    KEYS_START_X_RETRACTED = 70  # Left edge of keys when fallboard hidden (95 - 25)
     BLACK_KEY_WIDTH_RATIO = 0.45  # Black key width as ratio of white key width
     BLACK_KEY_HEIGHT_RATIO = 0.5  # Black key height as ratio of white key height
 
-    # Right frame and controls
-    RIGHT_FRAME_WIDTH = 40
-
-    # Keybed (black strip between frame and keys)
-    KEYBED_WIDTH = 5
-
     # Padding
     FRAME_PADDING_VERTICAL = 60  # Top and bottom padding
-    FALLBOARD_PADDING_VERTICAL = 10  # Padding around fallboard
+    TOGGLEABLE_DRAWER_PADDING_VERTICAL = 10  # Padding around toggleable drawer
 
     # Brass elements
     BRASS_HINGE_SIZE = 8
@@ -54,7 +51,11 @@ class PianoLayout:
     CONTROL_BUTTON_CLICK_RADIUS = 10  # Click detection radius
     CONTROL_X_OFFSET = 40  # From right edge
 
-    # Scroll indicators
+    # Window appearance
+    WINDOW_BORDER_RADIUS = 6  # Rounded corner radius
+
+    # Fallboard (narrow brown panel with indicator dots)
+    FALLBOARD_DOT_SIZE = 8  # Size of indicator dots on fallboard
     SCROLL_INDICATOR_X = 15
     SCROLL_TRACK_WIDTH = 4
     SCROLL_TRACK_PADDING = 20
@@ -69,8 +70,8 @@ class PianoColors:
     WHITE_KEY = QColor(253, 252, 248)
     WHITE_KEY_PRESSED = QColor(245, 243, 237)
     WHITE_KEY_SHADOW = QColor(232, 230, 224)
-    BLACK_KEY = QColor(26, 25, 22)
-    BLACK_KEY_SHINE = QColor(42, 41, 37)
+    BLACK_KEY = QColor(20, 20, 18)
+    BLACK_KEY_SHINE = QColor(55, 55, 50)
     BLACK_KEY_TEXT = QColor(180, 180, 180)
     KEY_GAP = QColor(26, 26, 26)
 
@@ -80,18 +81,12 @@ class PianoColors:
     WOOD_LIGHT = QColor(122, 80, 64)
     WOOD_HIGHLIGHT = QColor(141, 95, 74)
 
-    # Fallboard
-    FALLBOARD = QColor(44, 24, 16)
-
     # Brass elements
     BRASS = QColor(184, 134, 11)
     BRASS_LIGHT = QColor(218, 165, 32)
 
     # Text
     TEXT_PRIMARY = QColor(74, 74, 74)
-
-    # Keybed
-    KEYBED = QColor(10, 10, 10)
 
     # Background
     BACKGROUND = QColor(26, 26, 26)
@@ -110,8 +105,15 @@ class Animations:
     SLIDE_EASING = "InOutQuad"
 
     # Opacity values
-    WINDOW_OPACITY_NORMAL = 0.97
+    WINDOW_OPACITY_NORMAL = 1
     WINDOW_OPACITY_HIDDEN = 0.0
+
+    # Reorder mode animations
+    PULSE_INTERVAL = 250 # milliseconds between pulse updates
+    PULSE_MIN_SCALE = 0.99  # Minimum scale (98%)
+    PULSE_MAX_SCALE = 1.005  # Maximum scale (102%)
+    PULSE_SPEED = 0.02  # Speed of scale change per interval
+    KEY_DRAG_OPACITY = 0.6  # Opacity of dragged key during reorder
 
 
 class Interactions:
@@ -119,6 +121,8 @@ class Interactions:
 
     # Dragging
     DRAG_THRESHOLD = 5  # Minimum pixels to consider it a drag
+    CLICK_TOLERANCE = 5  # Maximum distance between press and release for a click
+    KEY_REORDER_THRESHOLD = 8  # Minimum vertical pixels to start key reorder
 
     # Double-click
     DOUBLE_CLICK_THRESHOLD = 200  # milliseconds
@@ -127,6 +131,7 @@ class Interactions:
     # Click detection zones (radii/tolerances)
     CONTROL_BUTTON_CLICK_RADIUS = 10
     HINGE_CLICK_TOLERANCE = 8  # Padding around hinge for click detection
+    PEDAL_CLICK_RADIUS = 12  # Click detection radius for pedals
 
 
 class Audio:
@@ -134,7 +139,9 @@ class Audio:
 
     SOUND_FILES = {
         'start': "gui/sounds/play.wav",
-        'end': "gui/sounds/stop.wav"
+        'end': "gui/sounds/stop.wav",
+        'drawer': "gui/sounds/drawer.wav",
+        'page': "gui/sounds/page.wav",
     }
 
 

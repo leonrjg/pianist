@@ -16,8 +16,8 @@ Heavy lifting is delegated to:
 import sys
 import time
 from PyQt6.QtWidgets import QWidget, QApplication
-from PyQt6.QtCore import Qt, QTimer, QRect, QPoint
-from PyQt6.QtGui import QPainter, QIcon, QPen, QBrush
+from PyQt6.QtCore import Qt, QTimer, QRect, QPoint, QRectF
+from PyQt6.QtGui import QPainter, QIcon, QPen, QBrush, QPainterPath
 
 from core.db import initialize_database
 from core.habit.habit import Habit
@@ -25,8 +25,9 @@ from core.util.time import get_friendly_elapsed
 
 from ..constants import PianoLayout, PianoColors, Animations, Interactions
 from ..models import PianoGeometry, PianoState
-from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager
+from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager
 from ..painters import FramePainter, KeyPainter, BrassPainter
+from .music_sheet_widget import MusicSheetWidget
 
 
 class PianoFloatingWindow(QWidget):
@@ -56,16 +57,16 @@ class PianoFloatingWindow(QWidget):
 
         self.state = PianoState()
         self.state.set_window_size(initial_width, initial_height)
-        self.state.fallboard_visible = False
+        self.state.toggleable_drawer_visible = False
 
         self.geometry_model = PianoGeometry(
             window_width=initial_width,
             window_height=initial_height,
-            fallboard_visible=False
+            toggleable_drawer_visible=False
         )
 
         # ===== Load Habits =====
-        self.habits = list(Habit.select())
+        self.habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
         self.state.num_habits = len(self.habits)
         self.keys = []  # Will be populated by update_keys_for_window_size()
 
@@ -82,6 +83,11 @@ class PianoFloatingWindow(QWidget):
         self.drawer_animation_manager = DrawerAnimationManager(self)
 
         self.sound_manager = SoundManager()
+
+        self.reorder_mode_manager = ReorderModeManager(self)
+        self.reorder_mode_manager.pulse_updated.connect(self.update)
+        self.reorder_mode_manager.reorder_mode_toggled.connect(self.on_reorder_mode_toggled)
+        self.reorder_mode_manager.set_num_keys(len(self.keys))
 
         # ===== Window Sizing =====
         self.resize(initial_width, initial_height)
@@ -102,6 +108,12 @@ class PianoFloatingWindow(QWidget):
         # ===== Management Window =====
         self.management_window = None
 
+        # ===== Music Sheet Widget (Interactive Drawer Content) =====
+        self.music_sheet_widget = MusicSheetWidget(self, sound_manager=self.sound_manager)
+        self.music_sheet_widget.habit_updated.connect(self.on_habit_updated_from_sheet)
+        self.music_sheet_widget.hide()  # Initially hidden
+        self._position_music_sheet_widget()
+
         # ===== Initialize Keys =====
         self.update_keys_for_window_size()
 
@@ -116,11 +128,11 @@ class PianoFloatingWindow(QWidget):
 
         # ===== Connect State Signals =====
         self.state.window_resized.connect(self.on_window_resized)
-        self.state.fallboard_toggled.connect(self.on_fallboard_toggled)
+        self.state.toggleable_drawer_toggled.connect(self.on_toggleable_drawer_toggled)
         self.size_manager.size_changed.connect(self.on_window_resized)
 
-        # ===== Initialize Drawer State =====
-        self.drawer_animation_manager.initialize_state(self.state.fallboard_visible)
+        # ===== Initialize Toggleable Drawer State =====
+        self.drawer_animation_manager.initialize_state(self.state.toggleable_drawer_visible)
 
     # ===== Window Management =====
 
@@ -153,6 +165,7 @@ class PianoFloatingWindow(QWidget):
         """Handle window resize state change"""
         self.geometry_model.update(window_width=width, window_height=height)
         self.update_keys_for_window_size()
+        self._position_music_sheet_widget()  # Reposition music sheet widget
         self.update()
 
     # ===== Keys Management =====
@@ -200,6 +213,9 @@ class PianoFloatingWindow(QWidget):
 
         self.keys = new_keys
 
+        # Update reorder manager with new key count
+        self.reorder_mode_manager.set_num_keys(len(new_keys))
+
     # ===== Painting =====
 
     def paintEvent(self, event):
@@ -207,15 +223,19 @@ class PianoFloatingWindow(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Create rounded rectangle clip path
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(self.rect()), PianoLayout.WINDOW_BORDER_RADIUS, PianoLayout.WINDOW_BORDER_RADIUS)
+        painter.setClipPath(path)
+
         # Draw background
         painter.fillRect(self.rect(), PianoColors.BACKGROUND)
 
         # Delegate to painters (window mask controls visibility)
         FramePainter.draw_frame(painter, self.geometry_model)
-        KeyPainter.draw_keys(painter, self.geometry_model, self.state, self.keys)
+        KeyPainter.draw_keys(painter, self.geometry_model, self.state, self.keys, self.reorder_mode_manager)
 
-        # Draw brass elements (hinges and pedals)
-        BrassPainter.draw_brass_elements(painter, self.geometry_model.get_hinge_positions())
+        # Draw brass elements (pedals only, hinges replaced by « on fallboard)
         BrassPainter.draw_brass_elements(painter, self.geometry_model.get_pedal_positions())
         BrassPainter.draw_pedal_rods(painter, self.geometry_model.get_pedal_rod_positions())
 
@@ -247,13 +267,14 @@ class PianoFloatingWindow(QWidget):
     def mousePressEvent(self, event):
         """Handle mouse press"""
         if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.globalPosition().toPoint()
-            self.state.start_drag(pos.x(), pos.y())
+            global_pos = event.globalPosition().toPoint()
+            local_pos = event.position().toPoint()
+            self.state.start_drag(global_pos.x(), global_pos.y(), local_pos.x(), local_pos.y())
 
             # Check for double-click on piano frame
             current_time = time.time() * 1000
             if current_time - self.state.last_click_time < Interactions.DOUBLE_CLICK_THRESHOLD:
-                if self.geometry_model.is_point_in_piano_frame(event.position().toPoint()):
+                if self.geometry_model.is_point_in_piano_frame(local_pos):
                     self.hide_window_for_seconds(Interactions.DOUBLE_CLICK_HIDE_DURATION)
                     return
 
@@ -262,22 +283,53 @@ class PianoFloatingWindow(QWidget):
     def mouseMoveEvent(self, event):
         """Handle mouse move"""
         if event.buttons() == Qt.MouseButton.LeftButton:
+            local_pos = event.position().toPoint()
+
+            # Handle key reordering in reorder mode
+            if self.reorder_mode_manager.is_reorder_mode and self.state.is_dragging_key():
+                # Update drag position
+                self.state.update_key_drag(local_pos.y(), self.calculate_drop_target(local_pos.y()))
+                self.update()
+                return
+
+            # Handle normal window dragging
             drag_start_x, drag_start_y = self.state.get_drag_start()
             if drag_start_x != 0 or drag_start_y != 0:
                 current_pos = event.globalPosition().toPoint()
                 diff_x = current_pos.x() - drag_start_x
                 diff_y = current_pos.y() - drag_start_y
 
-                # Check if we've moved enough to consider this a drag
-                if not self.state.is_dragging:
-                    distance = (diff_x ** 2 + diff_y ** 2) ** 0.5
+                # Calculate total distance for drag detection
+                distance = (diff_x ** 2 + diff_y ** 2) ** 0.5
+
+                # In reorder mode, check if press was on a key FIRST (before allowing window drag)
+                if self.reorder_mode_manager.is_reorder_mode and not self.state.is_dragging and not self.state.is_dragging_key():
+                    press_local_x, press_local_y = self.state.get_press_local()
+                    press_pos = QPoint(press_local_x, press_local_y)
+
+                    # Check if press was on a key
+                    key_index = self.geometry_model.get_key_index_at_point(press_pos)
+                    if key_index >= 0 and key_index < len(self.keys):
+                        # If on a key and moved beyond threshold, start key drag
+                        if distance > Interactions.KEY_REORDER_THRESHOLD:
+                            self.state.start_key_drag(key_index, local_pos.y())
+                            self.update()
+                            return
+                        # If on a key but haven't moved enough yet, DON'T start window drag
+                        else:
+                            return
+
+                # Check if we've moved enough to consider this a window drag
+                if not self.state.is_dragging and not self.state.is_dragging_key():
                     if distance > Interactions.DRAG_THRESHOLD:
                         self.state.is_dragging = True
 
-                # Move window if dragging
-                if self.state.is_dragging:
+                # Move window if dragging (and not dragging a key)
+                if self.state.is_dragging and not self.state.is_dragging_key():
                     self.move(self.pos() + QPoint(diff_x, diff_y))
-                    self.state.start_drag(current_pos.x(), current_pos.y())
+                    self.state.mark_window_moved()  # Mark that window was actually moved
+                    # Update drag position without resetting the moved flag
+                    self.state.start_drag(current_pos.x(), current_pos.y(), reset_moved_flag=False)
         else:
             # Update cursor based on hover position
             self.update_cursor_for_position(event.position().toPoint())
@@ -285,34 +337,90 @@ class PianoFloatingWindow(QWidget):
     def mouseReleaseEvent(self, event):
         """Handle mouse release"""
         if event.button() == Qt.MouseButton.LeftButton:
-            # Only handle clicks if we haven't moved (not a drag)
-            if not self.state.is_dragging:
-                click_pos = event.position().toPoint()
+            # Handle key reorder drop
+            if self.state.is_dragging_key():
+                self.perform_key_reorder()
+                self.state.end_key_drag()
+                self.update()
+                self.state.end_drag()
+                return
 
-                # Check for control button clicks
-                if (self.geometry_model.close_button_center - click_pos).manhattanLength() < Interactions.CONTROL_BUTTON_CLICK_RADIUS:
-                    self.close()
-                    return
+            # Determine if this was a click (not a window drag)
+            press_local_x, press_local_y = self.state.get_press_local()
+            release_pos = event.position().toPoint()
 
-                if (self.geometry_model.minimize_button_center - click_pos).manhattanLength() < Interactions.CONTROL_BUTTON_CLICK_RADIUS:
-                    self.showMinimized()
-                    return
+            # Calculate distance between press and release in local coordinates
+            is_valid_click = False
+            if press_local_x != 0 or press_local_y != 0:
+                diff_x = release_pos.x() - press_local_x
+                diff_y = release_pos.y() - press_local_y
+                distance = (diff_x ** 2 + diff_y ** 2) ** 0.5
+                is_valid_click = distance <= Interactions.CLICK_TOLERANCE
 
-                # Check for brass hinge clicks (drawer toggle)
-                if self.geometry_model.is_point_in_hinge(click_pos):
-                    self.toggle_fallboard()
-                    return
-
-                # Check for brass section clicks (management area)
-                if self.geometry_model.is_point_in_brass_section(click_pos):
-                    self.open_management_window()
-                    return
-
-                # Check for key clicks
-                self.handle_key_click(click_pos)
+            # Process click if:
+            # - Window was not moved (not a window drag), AND
+            # - Release is close to press (not a large mouse movement)
+            if not self.state.window_was_moved and is_valid_click:
+                self.handle_click(release_pos)
 
             # Reset drag state
             self.state.end_drag()
+
+    def handle_click(self, pos: QPoint):
+        """
+        Handle a click at the given position using a declarative click handler registry.
+
+        Click handlers are checked in priority order (highest first).
+        Each handler can specify which modes it's active in.
+        """
+        # Define click handlers with their conditions and actions
+        # Format: (condition_fn, action_fn, active_in_reorder_mode)
+        click_handlers = [
+            # Always-active controls (work in all modes)
+            (
+                lambda p: (self.geometry_model.close_button_center - p).manhattanLength() < Interactions.CONTROL_BUTTON_CLICK_RADIUS,
+                lambda p: self.close(),
+                True  # Active in reorder mode
+            ),
+            (
+                lambda p: (self.geometry_model.minimize_button_center - p).manhattanLength() < Interactions.CONTROL_BUTTON_CLICK_RADIUS,
+                lambda p: self.showMinimized(),
+                True  # Active in reorder mode
+            ),
+            (
+                lambda p: self.geometry_model.is_point_on_pedal(p),
+                lambda p: self.reorder_mode_manager.toggle_reorder_mode(),
+                True  # Active in reorder mode
+            ),
+
+            # Normal-mode-only controls
+            (
+                lambda p: self.geometry_model.is_point_in_hinge(p),
+                lambda p: self.toggle_toggleable_drawer(),
+                False  # Only active in normal mode
+            ),
+            (
+                lambda p: self.geometry_model.is_point_in_brass_section(p),
+                lambda p: None,  # Consume click, no action
+                False  # Only active in normal mode
+            ),
+            (
+                lambda p: self.geometry_model.is_point_in_keys(p),
+                lambda p: self.handle_key_click(p),
+                False  # Only active in normal mode
+            ),
+        ]
+
+        # Process click handlers in order
+        for condition, action, active_in_reorder in click_handlers:
+            # Skip handlers that aren't active in current mode
+            if self.reorder_mode_manager.is_reorder_mode and not active_in_reorder:
+                continue
+
+            # Check if this handler matches the click position
+            if condition(pos):
+                action(pos)
+                return  # Handler processed the click, stop checking
 
     def update_cursor_for_position(self, pos: QPoint):
         """Update cursor based on mouse position"""
@@ -381,10 +489,10 @@ class PianoFloatingWindow(QWidget):
     def toggle_session(self, habit):
         """Start or stop a session for the given habit"""
         if self.session_manager.has_active_session(habit.id):
-            self.sound_manager.play_end_sound()
+            self.sound_manager.play_sound('end')
             self.end_session(habit)
         else:
-            self.sound_manager.play_start_sound()
+            self.sound_manager.play_sound('start')
             self.start_session(habit)
 
     def start_session(self, habit):
@@ -424,21 +532,135 @@ class PianoFloatingWindow(QWidget):
         """Handle session error from process"""
         print(f"Session error: {error_message}")
 
-    # ===== Fallboard Toggle =====
+    # ===== Reorder Mode =====
 
-    def toggle_fallboard(self):
-        """Toggle the fallboard visibility"""
-        self.state.toggle_fallboard()
-
-    def on_fallboard_toggled(self, visible: bool):
+    def calculate_drop_target(self, y_position: int) -> int:
         """
-        Handle drawer toggle state change.
+        Calculate the target index for dropping a key based on Y position.
 
-        Delegates animation to DrawerAnimationManager which handles the window mask
+        Args:
+            y_position: Current Y position of the dragged key
+
+        Returns:
+            Index where the key should be dropped
+        """
+        # Find which key position this Y coordinate corresponds to
+        for i in range(len(self.keys)):
+            key_rect = self.geometry_model.get_key_rect(i)
+            key_center_y = key_rect.y() + key_rect.height() // 2
+
+            if y_position < key_center_y:
+                return i
+
+        # If beyond all keys, drop at the end
+        return len(self.keys) - 1
+
+    def perform_key_reorder(self):
+        """
+        Perform the actual reordering of habits in the database.
+
+        Updates display_order values based on the new arrangement.
+        """
+        if self.state.dragged_key_index is None or self.state.drop_target_index is None:
+            return
+
+        from_index = self.state.dragged_key_index
+        to_index = self.state.drop_target_index
+
+        # Don't reorder if dropping in the same position
+        if from_index == to_index:
+            return
+
+        # Get the habit that was dragged
+        dragged_key = self.keys[from_index]
+        dragged_habit = dragged_key.get('habit')
+
+        if not dragged_habit:
+            return
+
+        # Reorder the habits list
+        reordered_habits = list(self.habits)
+        dragged = reordered_habits.pop(from_index)
+        reordered_habits.insert(to_index, dragged)
+
+        # Update display_order in database
+        for i, habit in enumerate(reordered_habits):
+            habit.display_order = i
+            habit.save()
+
+        # Update local state
+        self.habits = reordered_habits
+        self.update_keys_for_window_size()
+
+        # Play sound
+        self.sound_manager.play_sound('page')
+
+    def on_reorder_mode_toggled(self, is_active: bool):
+        """Handle reorder mode toggle"""
+        # Exit any active key drag
+        if self.state.is_dragging_key():
+            self.state.end_key_drag()
+
+        # Play sound effect
+        if is_active:
+            self.sound_manager.play_sound('drawer')
+        else:
+            self.sound_manager.play_sound('page')
+
+        self.update()
+
+    # ===== Toggleable Drawer Toggle =====
+
+    def toggle_toggleable_drawer(self):
+        """Toggle the toggleable drawer visibility"""
+        self.state.toggle_toggleable_drawer()
+
+    def on_toggleable_drawer_toggled(self, visible: bool):
+        """
+        Handle toggleable drawer toggle state change.
+
+        Shows/hides the music sheet widget and delegates mask animation
+        to DrawerAnimationManager which handles the window mask
         reveal/hide effect.
         """
-        self.geometry_model.update(fallboard_visible=visible)
-        self.drawer_animation_manager.start_animation(visible, self.geometry_model.drawer_width)
+        self.geometry_model.update(toggleable_drawer_visible=visible)
+
+        # Play drawer open sound
+        self.sound_manager.play_sound('drawer')
+
+        # Show/hide the music sheet widget
+        if visible:
+            self.music_sheet_widget.show()
+            self.music_sheet_widget.raise_()  # Bring to front
+        else:
+            self.music_sheet_widget.hide()
+
+        self.drawer_animation_manager.start_animation(visible, self.geometry_model.toggleable_drawer_width)
+
+    # ===== Music Sheet Widget Management =====
+
+    def _position_music_sheet_widget(self):
+        """Position the music sheet widget in the toggleable drawer area"""
+        drawer_rect = self.geometry_model.toggleable_drawer_rect
+
+        # Add margins for the dark wood container
+        margin = 6
+        x = drawer_rect.x() + margin
+        y = drawer_rect.y() + margin + 5
+        width = drawer_rect.width() - (margin * 2)
+        height = drawer_rect.height() - (margin * 2) - 20
+
+        self.music_sheet_widget.setGeometry(x, y, width, height)
+
+    def on_habit_updated_from_sheet(self):
+        """Handle habit updates from the music sheet widget"""
+        # Reload habits
+        self.habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        self.state.num_habits = len(self.habits)
+
+        # Refresh keys
+        self.update_keys_for_window_size()
+        self.update()
 
     # ===== Window Hiding =====
 
@@ -459,22 +681,9 @@ class PianoFloatingWindow(QWidget):
         self.state.is_fading_out = False
         self.animation_manager.fade_in()
 
-    # ===== Management Window =====
-
-    def open_management_window(self):
-        """Open the management window"""
-        if self.management_window is None:
-            from gui.management_window import HabitManagementWindow
-            self.management_window = HabitManagementWindow()
-            self.management_window.habit_updated.connect(self.refresh_habits)
-
-        self.management_window.show()
-        self.management_window.raise_()
-        self.management_window.activateWindow()
-
     def refresh_habits(self):
         """Refresh habits list when management window updates them"""
-        self.habits = list(Habit.select())
+        self.habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
         self.state.num_habits = len(self.habits)
         self.update_keys_for_window_size()
         self.update()
@@ -489,6 +698,9 @@ class PianoFloatingWindow(QWidget):
 
         if hasattr(self, 'drawer_animation_manager'):
             self.drawer_animation_manager.cleanup()
+
+        if hasattr(self, 'reorder_mode_manager'):
+            self.reorder_mode_manager.cleanup()
 
         if self.management_window is not None:
             self.management_window.close()

@@ -16,7 +16,7 @@ class PianoState(QObject):
     """Manages all state for the piano interface"""
 
     # Signals emitted when state changes
-    fallboard_toggled = pyqtSignal(bool)  # fallboard_visible
+    toggleable_drawer_toggled = pyqtSignal(bool)  # toggleable_drawer_visible
     key_pressed = pyqtSignal(int)  # key_index
     key_released = pyqtSignal(int)  # key_index
     scrolled = pyqtSignal(int)  # new scroll_offset
@@ -25,8 +25,8 @@ class PianoState(QObject):
     def __init__(self):
         super().__init__()
 
-        # ===== Fallboard State =====
-        self._fallboard_visible = False
+        # ===== Toggleable Drawer State =====
+        self._toggleable_drawer_visible = False
 
         # ===== Window State =====
         self._window_width = 0
@@ -46,6 +46,9 @@ class PianoState(QObject):
         self._is_dragging = False
         self._drag_start_x = 0
         self._drag_start_y = 0
+        self._press_local_x = 0  # Local (widget) coordinates of press
+        self._press_local_y = 0
+        self._window_was_moved = False  # Track if window actually moved during drag
 
         # ===== Double-Click State =====
         self._last_click_time = 0  # For double-click detection
@@ -57,21 +60,26 @@ class PianoState(QObject):
         # ===== Habit Data =====
         self._num_habits = 0  # Total number of habits loaded
 
-    # ===== Fallboard Properties =====
+        # ===== Key Reorder State =====
+        self._dragged_key_index: Optional[int] = None  # Index of key being dragged
+        self._drag_current_y: int = 0  # Current Y position during drag
+        self._drop_target_index: Optional[int] = None  # Target position for drop
+
+    # ===== Toggleable Drawer Properties =====
 
     @property
-    def fallboard_visible(self) -> bool:
-        return self._fallboard_visible
+    def toggleable_drawer_visible(self) -> bool:
+        return self._toggleable_drawer_visible
 
-    @fallboard_visible.setter
-    def fallboard_visible(self, value: bool):
-        if self._fallboard_visible != value:
-            self._fallboard_visible = value
-            self.fallboard_toggled.emit(value)
+    @toggleable_drawer_visible.setter
+    def toggleable_drawer_visible(self, value: bool):
+        if self._toggleable_drawer_visible != value:
+            self._toggleable_drawer_visible = value
+            self.toggleable_drawer_toggled.emit(value)
 
-    def toggle_fallboard(self):
-        """Toggle the drawer visibility state"""
-        self.fallboard_visible = not self._fallboard_visible
+    def toggle_toggleable_drawer(self):
+        """Toggle the toggleable drawer visibility state"""
+        self.toggleable_drawer_visible = not self._toggleable_drawer_visible
 
     # ===== Window Properties =====
 
@@ -178,21 +186,50 @@ class PianoState(QObject):
     def is_dragging(self, value: bool):
         self._is_dragging = value
 
-    def start_drag(self, x: int, y: int):
-        """Start a drag operation"""
+    def start_drag(self, x: int, y: int, local_x: int = 0, local_y: int = 0, reset_moved_flag: bool = True):
+        """
+        Start a drag operation.
+
+        Args:
+            x, y: Global coordinates of drag start
+            local_x, local_y: Local (widget) coordinates of drag start
+            reset_moved_flag: If True, reset the window_was_moved flag (for initial press).
+                             If False, keep the flag (for position updates during drag).
+        """
         self._drag_start_x = x
         self._drag_start_y = y
+        if local_x != 0 or local_y != 0:  # Only update local coords if provided
+            self._press_local_x = local_x
+            self._press_local_y = local_y
         self._is_dragging = False  # Not yet confirmed as drag
+        if reset_moved_flag:
+            self._window_was_moved = False  # Reset window moved flag only on initial press
 
     def get_drag_start(self) -> tuple[int, int]:
-        """Get drag start position"""
+        """Get drag start position (global coordinates)"""
         return self._drag_start_x, self._drag_start_y
+
+    def get_press_local(self) -> tuple[int, int]:
+        """Get press position in local (widget) coordinates"""
+        return self._press_local_x, self._press_local_y
 
     def end_drag(self):
         """End drag operation"""
         self._is_dragging = False
         self._drag_start_x = 0
         self._drag_start_y = 0
+        self._press_local_x = 0
+        self._press_local_y = 0
+        self._window_was_moved = False
+
+    @property
+    def window_was_moved(self) -> bool:
+        """Check if window was actually moved during this drag"""
+        return self._window_was_moved
+
+    def mark_window_moved(self):
+        """Mark that the window was moved during this drag"""
+        self._window_was_moved = True
 
     # ===== Double-Click Properties =====
 
@@ -233,11 +270,61 @@ class PianoState(QObject):
     def num_habits(self, value: int):
         self._num_habits = value
 
+    # ===== Key Reorder Properties =====
+
+    @property
+    def dragged_key_index(self) -> Optional[int]:
+        """Index of the key currently being dragged"""
+        return self._dragged_key_index
+
+    @property
+    def drag_current_y(self) -> int:
+        """Current Y position during key drag"""
+        return self._drag_current_y
+
+    @property
+    def drop_target_index(self) -> Optional[int]:
+        """Target index for dropping the dragged key"""
+        return self._drop_target_index
+
+    def start_key_drag(self, key_index: int, y_position: int):
+        """
+        Start dragging a key.
+
+        Args:
+            key_index: Index of the key being dragged
+            y_position: Initial Y position
+        """
+        self._dragged_key_index = key_index
+        self._drag_current_y = y_position
+        self._drop_target_index = None
+
+    def update_key_drag(self, y_position: int, target_index: Optional[int] = None):
+        """
+        Update key drag position.
+
+        Args:
+            y_position: Current Y position
+            target_index: Index where the key would be dropped
+        """
+        self._drag_current_y = y_position
+        self._drop_target_index = target_index
+
+    def end_key_drag(self):
+        """End key drag operation"""
+        self._dragged_key_index = None
+        self._drag_current_y = 0
+        self._drop_target_index = None
+
+    def is_dragging_key(self) -> bool:
+        """Check if currently dragging a key"""
+        return self._dragged_key_index is not None
+
     # ===== State Reset =====
 
     def reset(self):
         """Reset all state to initial values"""
-        self._fallboard_visible = False
+        self._toggleable_drawer_visible = False
         self._pressed_key_index = None
         self._scroll_offset = 0
         self._max_scroll_offset = 0
@@ -246,6 +333,11 @@ class PianoState(QObject):
         self._is_dragging = False
         self._drag_start_x = 0
         self._drag_start_y = 0
+        self._press_local_x = 0
+        self._press_local_y = 0
         self._last_click_time = 0
         self._time_displays.clear()
         self._is_fading_out = False
+        self._dragged_key_index = None
+        self._drag_current_y = 0
+        self._drop_target_index = None
