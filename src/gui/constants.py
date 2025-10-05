@@ -12,7 +12,7 @@ class PianoLayout:
     # ===== Component Widths (the values you actually want to change) =====
     TOGGLEABLE_DRAWER_WIDTH = 250  # Width of the toggleable drawer panel (music sheet panel)
     FALLBOARD_WIDTH = 30  # Width of the fallboard (narrow brown indicator panel)
-    CONTROL_PANEL_WIDTH = 40  # Width of the control panel (right side)
+    CONTROL_PANEL_WIDTH = 35  # Width of the control panel (right side)
 
     # ===== Derived/Computed Values (don't change these directly) =====
     # The hinge is positioned at the right edge of the toggleable drawer
@@ -21,9 +21,9 @@ class PianoLayout:
     # Window dimensions
     DEFAULT_WINDOW_WIDTH = 300  # Default width (can be larger than minimum)
     DEFAULT_WINDOW_HEIGHT = 315
-    MIN_KEYS_WIDTH = 100
+    MIN_KEYS_WIDTH = 90
     MIN_WINDOW_WIDTH = TOGGLEABLE_DRAWER_WIDTH + FALLBOARD_WIDTH + MIN_KEYS_WIDTH + CONTROL_PANEL_WIDTH
-    MIN_WINDOW_HEIGHT = 200
+    MIN_WINDOW_HEIGHT = 160
 
     # Keys
     KEY_HEIGHT = 40  # Height of each piano key
@@ -47,7 +47,7 @@ class PianoLayout:
     # Window controls
     CONTROL_BUTTON_SIZE = 16
     CONTROL_BUTTON_CLOSE_Y = 20
-    CONTROL_BUTTON_MINIMIZE_Y = 40
+    CONTROL_BUTTON_REORDER_Y = 44
     CONTROL_BUTTON_CLICK_RADIUS = 10  # Click detection radius
     CONTROL_X_OFFSET = 40  # From right edge
 
@@ -142,6 +142,7 @@ class Audio:
         'end': "gui/sounds/stop.wav",
         'drawer': "gui/sounds/drawer.wav",
         'page': "gui/sounds/page.wav",
+        'thunk': "gui/sounds/thunk.wav",
     }
 
 

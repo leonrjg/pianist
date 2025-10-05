@@ -11,6 +11,12 @@ class Tracker(ABC):
     def is_active(self) -> bool:
         pass
 
+    @staticmethod
+    @abstractmethod
+    def get_help(**kwargs) -> str:
+        """Get help message to explain tracker arguments to users."""
+        pass
+
     def get_last_active(self) -> int:
         """Get timestamp of last detected activity."""
         return self.last_active

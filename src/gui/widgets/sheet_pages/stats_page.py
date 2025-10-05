@@ -24,6 +24,9 @@ class StatsPage(SheetPage):
     def get_page_title(self) -> str:
         return "Statistics"
 
+    def get_page_type(self) -> str:
+        return "stats"
+
     def build_content(self):
         """Build the stats page content"""
         layout = self.layout()
@@ -31,8 +34,6 @@ class StatsPage(SheetPage):
         # Page title
         title = self._create_section_header("Statistics")
         layout.addWidget(title)
-
-        layout.addWidget(self._create_separator())
 
         # Text edit for monospaced stats display
         stats_text = QTextEdit()
@@ -62,8 +63,7 @@ class StatsPage(SheetPage):
                 schedule = habit.get_schedule()
                 scale = schedule.get_scale()
 
-                lines.append(f"• {habit.name.upper()}")
-                lines.append(f"  Schedule: {habit.schedule}")
+                lines.append(f"• {habit.name.upper()} ({habit.schedule})")
 
                 from datetime import datetime
                 lines.append(f"  Next: {get_friendly_datetime(schedule.get_next_task(datetime.now()), scale)}")
@@ -73,7 +73,7 @@ class StatsPage(SheetPage):
                 if buckets:
                     total_time = analytics.get_time_spent(buckets)
                     lines.append(f"  Total time: {get_friendly_elapsed(total_time)}")
-                    lines.append(f"  Sessions: {len(buckets)}")
+                    lines.append(f"  Total sessions: {len(buckets)}")
                 lines.append("")
 
             # Global analytics

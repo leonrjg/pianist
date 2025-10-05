@@ -4,22 +4,62 @@ Music Sheet Widget - Interactive content widget for the toggleable drawer.
 Replaces the decorative music sheet with a multi-page book-style interface
 that displays habit management functionality.
 """
-
+import traceback
 from enum import Enum
 import random
 
 from PyQt6.QtWidgets import QWidget, QStackedWidget, QVBoxLayout
-from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient
+from PyQt6.QtCore import pyqtSignal, Qt, QPointF
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPolygonF
 
 from .page_turn_animation import PageTurnAnimation
-from .sheet_pages import IndexPage, HabitDetailPage, StatsPage, ActivityPage
+from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, StatsPage, ActivityPage
 from ..managers import SoundManager
+
+
+class DogEarOverlay(QWidget):
+    """Transparent overlay widget that draws only the dog ear on top of everything"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setStyleSheet("background: transparent;")
+
+    def paintEvent(self, event):
+        """Paint only the dog ear"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Calculate paper rect (same logic as parent)
+        sheet_margin = 10
+        widget_rect = self.parentWidget().rect()
+        paper_rect = widget_rect.adjusted(sheet_margin, sheet_margin, -sheet_margin, -sheet_margin)
+
+        # Dog ear size
+        ear_size = 18
+
+        # Define the triangular fold
+        fold_corner = QPointF(paper_rect.right() - ear_size, paper_rect.top() + ear_size)
+        vertical_point = QPointF(paper_rect.right(), paper_rect.top() + ear_size)
+        horizontal_point = QPointF(paper_rect.right() - ear_size, paper_rect.top())
+
+        # Draw the folded part (darker, shows back of paper)
+        fold_triangle = QPolygonF([horizontal_point, vertical_point, fold_corner])
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(220, 210, 185)))
+        painter.drawPolygon(fold_triangle)
+
+        # Draw shadow under the fold
+        painter.setPen(QPen(QColor(150, 140, 120, 60), 3))
+        painter.drawLine(horizontal_point, fold_corner)
+        painter.drawLine(fold_corner, vertical_point)
 
 
 class PageType(Enum):
     """Enum for page types to avoid magic strings"""
     INDEX = "index"
+    REPERTOIRE = "repertoire"
     HABIT_DETAIL = "habit_detail"
     STATS = "stats"
     ACTIVITY = "activity"
@@ -65,6 +105,11 @@ class MusicSheetWidget(QWidget):
         self._stack = QStackedWidget()
         self._stack.setStyleSheet("background: transparent; border: none;")
         layout.addWidget(self._stack)
+
+        # Dog ear overlay - always on top
+        self._dog_ear_overlay = DogEarOverlay(self)
+        self._dog_ear_overlay.setGeometry(self.rect())
+        self._dog_ear_overlay.raise_()
 
         # Widget itself is transparent, we paint the container manually
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
@@ -139,15 +184,12 @@ class MusicSheetWidget(QWidget):
         binding_gradient.setColorAt(1, QColor(0, 0, 0, 0))
         painter.fillRect(paper_rect.adjusted(0, 0, -paper_rect.width() + 12, 0), binding_gradient)
 
-        # Draw dog ear (folded corner) on top-right
-        self._draw_dog_ear(painter, paper_rect)
-
         # Draw music stand holder below container
         self._draw_music_stand_holder(painter, widget_rect)
 
     def _navigate_to_index(self):
         """Navigate to the index page (habit list)"""
-        self._navigate_to(PageType.INDEX.value, None)
+        self._navigate_to(PageType.REPERTOIRE.value, None)
 
     def _navigate_to(self, page_type: str, data=None):
         """
@@ -247,6 +289,8 @@ class MusicSheetWidget(QWidget):
         try:
             if page_type == PageType.INDEX.value:
                 return IndexPage(self)
+            elif page_type == PageType.REPERTOIRE.value:
+                return RepertoirePage(self)
             elif page_type == PageType.HABIT_DETAIL.value:
                 return HabitDetailPage(habit_id=data, parent=self)
             elif page_type == PageType.STATS.value:
@@ -257,7 +301,7 @@ class MusicSheetWidget(QWidget):
                 print(f"Unknown page type: {page_type}")
                 return None
         except Exception as e:
-            print(f"Error creating page {page_type}: {e}")
+            traceback.print_exc()
             return None
 
     def refresh_current_page(self):
@@ -265,29 +309,20 @@ class MusicSheetWidget(QWidget):
         if self._current_page:
             self._current_page.refresh()
 
-    def _draw_dog_ear(self, painter, paper_rect):
-        """Draw a folded corner (dog ear) on the top-right of the paper"""
-        from PyQt6.QtCore import QPointF
-        from PyQt6.QtGui import QPolygonF
+    def navigate_to_habit_detail(self, habit):
+        """
+        Navigate to the habit detail page for the given habit.
 
-        # Dog ear size
-        ear_size = 18
+        Args:
+            habit: Habit object to view/edit
+        """
+        self._navigate_to(PageType.HABIT_DETAIL.value, habit.id)
 
-        # Define the triangular fold (folded down and to the left)
-        fold_corner = QPointF(paper_rect.right() - ear_size, paper_rect.top() + ear_size)
-        vertical_point = QPointF(paper_rect.right(), paper_rect.top() + ear_size)
-        horizontal_point = QPointF(paper_rect.right() - ear_size, paper_rect.top())
-
-        # Draw the folded part (darker, shows back of paper) - triangle pointing inward
-        fold_triangle = QPolygonF([horizontal_point, vertical_point, fold_corner])
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(220, 210, 185)))  # Darker aged paper
-        painter.drawPolygon(fold_triangle)
-
-        # Draw shadow under the fold
-        painter.setPen(QPen(QColor(150, 140, 120, 60), 3))
-        painter.drawLine(horizontal_point, fold_corner)
-        painter.drawLine(fold_corner, vertical_point)
+    def resizeEvent(self, event):
+        """Update overlay geometry when widget is resized"""
+        super().resizeEvent(event)
+        if hasattr(self, '_dog_ear_overlay'):
+            self._dog_ear_overlay.setGeometry(self.rect())
 
     def _draw_music_stand_holder(self, painter, widget_rect):
         """Draw a music stand holder/ledge at the bottom of the container"""

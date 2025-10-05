@@ -102,3 +102,37 @@ def sort_habits_by_completion_rate(habits: list[Habit]) -> list[tuple[Habit, flo
         rate = get_completion_rate(buckets, previous_tasks)
         habit_rates.append((habit, rate))
     return sorted(habit_rates, key=lambda x: x[1], reverse=True)
+
+def get_upcoming_tasks(habits: list[Habit], timespan: int) -> list[dict]:
+    """
+    Get upcoming scheduled tasks from all habits within a given timespan.
+
+    This function collects the next scheduled task from each habit that falls
+    within the specified future timespan and returns them sorted chronologically.
+
+    Args:
+        habits: List of Habit objects to check for upcoming tasks.
+        timespan: Time range in seconds to look ahead from now.
+
+    Returns:
+        List of dictionaries sorted by datetime, each containing:
+        - 'habit': The Habit object
+        - 'datetime': The datetime of the next scheduled task
+    """
+    from datetime import datetime, timedelta
+
+    upcoming_tasks = []
+    now = datetime.now()
+    end_time = now + timedelta(seconds=timespan)
+
+    for habit in habits:
+        schedule = habit.get_schedule()
+        next_task = schedule.get_next_task(now)
+
+        if next_task and next_task <= end_time:
+            upcoming_tasks.append({
+                'habit': habit,
+                'datetime': next_task
+            })
+
+    return sorted(upcoming_tasks, key=lambda x: x['datetime'])

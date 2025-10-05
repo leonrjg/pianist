@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
+from core.tracker.window import WindowTracker
 from .base_page import SheetPage
 from .vintage_dropdown import VintageDropdown
 
@@ -41,6 +42,9 @@ class HabitDetailPage(SheetPage):
             return f"Edit: {self.habit.name}"
         return "New Habit"
 
+    def get_page_type(self) -> str:
+        return "habit_detail"
+
     def build_content(self):
         """Build the habit detail form"""
         layout = self.layout()
@@ -57,7 +61,7 @@ class HabitDetailPage(SheetPage):
                 return
 
         # Page title
-        title_text = f"{self.habit.name}" if self.habit else "♪ New Habit"
+        title_text = f"{self.habit.name}" if self.habit else "New Habit"
         title = self._create_section_header(title_text)
         layout.addWidget(title)
 
@@ -185,7 +189,7 @@ class HabitDetailPage(SheetPage):
         layout.addLayout(button_layout)
 
         # Back link
-        back_link = self._create_link_label("← Back to Index", lambda: self.go_back.emit())
+        back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
         layout.addWidget(back_link)
 
     def _save_habit(self):
@@ -217,8 +221,6 @@ class HabitDetailPage(SheetPage):
 
                 if timeout > 0:
                     self.habit.inactivity_threshold = timeout
-                else:
-                    self.habit.inactivity_threshold = None
 
                 self.habit.save()
 
@@ -246,6 +248,11 @@ class HabitDetailPage(SheetPage):
             self.go_back.emit()
 
         except Exception as e:
+            # Clear the habit reference on failure so retry will create new
+            if self.habit and not self.habit.id:
+                self.habit = None
+            import traceback
+            traceback.print_exc()
             QMessageBox.critical(self, "Error", f"Failed to save: {e}")
 
     def _delete_habit(self):

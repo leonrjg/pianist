@@ -190,6 +190,12 @@ class PianoGeometry:
         x = self.window_width - PianoLayout.CONTROL_X_OFFSET + 20
         return QPoint(x, PianoLayout.CONTROL_BUTTON_MINIMIZE_Y)
 
+    @property
+    def reorder_button_center(self) -> QPoint:
+        """Center point of reorder button"""
+        x = self.window_width - PianoLayout.CONTROL_X_OFFSET + 20
+        return QPoint(x, PianoLayout.CONTROL_BUTTON_REORDER_Y)
+
     def get_close_button_rect(self) -> QRect:
         """Rectangle for close button"""
         center = self.close_button_center
@@ -289,14 +295,8 @@ class PianoGeometry:
         return int(y_relative // PianoLayout.KEY_HEIGHT)
 
     def is_point_in_control_button(self, pos: QPoint) -> bool:
-        """Check if point is in a control button"""
-        from ..constants import Interactions
-        close_center = self.close_button_center
-        min_center = self.minimize_button_center
-        radius = Interactions.CONTROL_BUTTON_CLICK_RADIUS
-
-        return ((pos - close_center).manhattanLength() < radius or
-                (pos - min_center).manhattanLength() < radius)
+        """Check if point is in a control button (now handled by QPushButton widgets)"""
+        return False
 
     def is_point_in_hinge(self, pos: QPoint) -> bool:
         """Check if point is in a brass hinge clickable area"""

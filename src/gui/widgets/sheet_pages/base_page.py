@@ -94,16 +94,20 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         main_layout.setSpacing(0)
         super().setLayout(main_layout)
 
+        # Import and add menu widget at the top
+        from ..sheet_menu import SheetMenu
+        # Get page type from get_page_type() if it exists, otherwise derive from class name
+        current_page_type = self.get_page_type() if hasattr(self, 'get_page_type') else None
+        self._menu = SheetMenu(self, current_page_type=current_page_type)
+        self._menu.navigate_to.connect(self.navigate_to.emit)
+        main_layout.addWidget(self._menu)
+
         # Create scroll area with wood-styled scrollbar
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
-
-        # Move scrollbar to the left side
-        from PyQt6.QtWidgets import QAbstractScrollArea
-        scroll_area.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
 
         # Wood piano-themed scrollbar styling (matching painted scroll indicators)
         scroll_area.setStyleSheet("""
@@ -114,7 +118,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
             QScrollBar:vertical {
                 background: rgb(61, 40, 23);  /* wood_dark */
                 width: 8px;
-                margin: 2px;
+                margin: 30px 2px 20px 2px;  /* top right bottom left */
                 border: none;
                 border-radius: 2px;
             }
@@ -150,7 +154,6 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         # Container widget for scroll content
         scroll_content = QWidget()
         scroll_content.setStyleSheet("background: transparent;")
-        scroll_content.setLayoutDirection(Qt.LayoutDirection.LeftToRight)  # Keep content left-to-right
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(12, 12, 12, 12)
         content_layout.setSpacing(6)
@@ -178,6 +181,11 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
     @abstractmethod
     def get_page_title(self) -> str:
         """Return the page title"""
+        pass
+
+    @abstractmethod
+    def get_page_type(self) -> str:
+        """Return the page type for navigation"""
         pass
 
     def refresh(self):
@@ -222,12 +230,10 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
 
         label = QLabel(f'♫ {text}')
 
-        # Handwriting-style font for headers
         font = QFont("Palatino", 14)
         font.setBold(True)
         label.setFont(font)
-
-        label.setStyleSheet("color: rgb(70, 50, 35); padding: 4px 0px;")
+        label.setStyleSheet("color: rgb(70, 50, 35); padding: 2px 0px;")
         return label
 
     def _create_text_label(self, text: str, secondary=False) -> 'QLabel':

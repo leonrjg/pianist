@@ -15,9 +15,9 @@ Heavy lifting is delegated to:
 
 import sys
 import time
-from PyQt6.QtWidgets import QWidget, QApplication
-from PyQt6.QtCore import Qt, QTimer, QRect, QPoint, QRectF
-from PyQt6.QtGui import QPainter, QIcon, QPen, QBrush, QPainterPath
+from PyQt6.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout
+from PyQt6.QtCore import Qt, QTimer, QRect, QPoint, QRectF, QSize
+from PyQt6.QtGui import QPainter, QIcon, QPen, QBrush, QPainterPath, QPixmap
 
 from core.db import initialize_database
 from core.habit.habit import Habit
@@ -134,6 +134,55 @@ class PianoFloatingWindow(QWidget):
         # ===== Initialize Toggleable Drawer State =====
         self.drawer_animation_manager.initialize_state(self.state.toggleable_drawer_visible)
 
+        # ===== Create Control Buttons Container =====
+        self.control_buttons_container = QWidget(self)
+        control_layout = QVBoxLayout(self.control_buttons_container)
+        control_layout.setContentsMargins(0, 0, 0, 0)
+        control_layout.setSpacing(4)
+
+        # Close button
+        self.close_button = QPushButton()
+        self.close_button.setIcon(QIcon('gui/icons/min.svg'))
+        self.close_button.setIconSize(QSize(14, 14))
+        self.close_button.setFixedSize(20, 20)
+        self.close_button.clicked.connect(self.showMinimized)
+        self.close_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid rgb(184, 134, 11);
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                border-color: rgb(218, 165, 32);
+            }}
+        """)
+        self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        # Reorder button
+        self.reorder_button = QPushButton()
+        self.reorder_button.setIcon(QIcon('gui/icons/reorder.svg'))
+        self.reorder_button.setIconSize(QSize(14, 14))
+        self.reorder_button.setFixedSize(20, 20)
+        self.reorder_button.setToolTip('Reorder keys')
+        self.reorder_button.clicked.connect(self.reorder_mode_manager.toggle_reorder_mode)
+        self.reorder_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid rgb(184, 134, 11);
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                border-color: rgb(218, 165, 32);
+            }}
+        """)
+        self.reorder_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        control_layout.addWidget(self.close_button)
+        control_layout.addWidget(self.reorder_button)
+        control_layout.addStretch()
+
+        self._position_control_buttons_container()
+
     # ===== Window Management =====
 
     def center_window(self):
@@ -166,7 +215,18 @@ class PianoFloatingWindow(QWidget):
         self.geometry_model.update(window_width=width, window_height=height)
         self.update_keys_for_window_size()
         self._position_music_sheet_widget()  # Reposition music sheet widget
+        self._position_control_buttons_container()  # Reposition control buttons
         self.update()
+
+    def _position_control_buttons_container(self):
+        """Position the control buttons container centered horizontally in the control panel"""
+        # Center horizontally in the control panel
+        control_panel_start_x = self.state.window_width - PianoLayout.CONTROL_PANEL_WIDTH
+        container_width = 20  # Button width
+        x = control_panel_start_x + (PianoLayout.CONTROL_PANEL_WIDTH - container_width) // 2
+        y = 10
+
+        self.control_buttons_container.move(x, y)
 
     # ===== Keys Management =====
 
@@ -235,32 +295,12 @@ class PianoFloatingWindow(QWidget):
         FramePainter.draw_frame(painter, self.geometry_model)
         KeyPainter.draw_keys(painter, self.geometry_model, self.state, self.keys, self.reorder_mode_manager)
 
-        # Draw brass elements (pedals only, hinges replaced by « on fallboard)
-        BrassPainter.draw_brass_elements(painter, self.geometry_model.get_pedal_positions())
-        BrassPainter.draw_pedal_rods(painter, self.geometry_model.get_pedal_rod_positions())
-
         # Draw window controls
         self.draw_window_controls(painter)
 
     def draw_window_controls(self, painter):
-        """Draw close and minimize buttons"""
-        x_position = self.state.window_width - PianoLayout.CONTROL_X_OFFSET
-
-        # Close button
-        close_center = self.geometry_model.close_button_center
-        painter.setPen(QPen(PianoColors.BRASS, 1))
-        painter.setBrush(QBrush(PianoColors.WOOD_DARK))
-        painter.drawEllipse(close_center.x() - 8, close_center.y() - 8, 16, 16)
-        painter.setPen(QPen(PianoColors.BRASS_LIGHT))
-        painter.drawText(close_center.x() - 4, close_center.y() + 4, '✕')
-
-        # Minimize button
-        min_center = self.geometry_model.minimize_button_center
-        painter.setPen(QPen(PianoColors.BRASS, 1))
-        painter.setBrush(QBrush(PianoColors.WOOD_DARK))
-        painter.drawEllipse(min_center.x() - 8, min_center.y() - 8, 16, 16)
-        painter.setPen(QPen(PianoColors.BRASS_LIGHT))
-        painter.drawText(min_center.x() - 4, min_center.y() + 4, '−')
+        """Draw window controls (now handled by QPushButton widgets)"""
+        pass
 
     # ===== Mouse Events =====
 
@@ -279,6 +319,10 @@ class PianoFloatingWindow(QWidget):
                     return
 
             self.state.last_click_time = current_time
+
+        elif event.button() == Qt.MouseButton.RightButton:
+            local_pos = event.position().toPoint()
+            self.handle_right_click(local_pos)
 
     def mouseMoveEvent(self, event):
         """Handle mouse move"""
@@ -368,59 +412,40 @@ class PianoFloatingWindow(QWidget):
 
     def handle_click(self, pos: QPoint):
         """
-        Handle a click at the given position using a declarative click handler registry.
+        Handle a click at the given position.
 
-        Click handlers are checked in priority order (highest first).
-        Each handler can specify which modes it's active in.
+        Checks clickable regions in priority order. First match handles the click.
+        No mode restrictions needed - key dragging already prevents key clicks in reorder mode.
         """
-        # Define click handlers with their conditions and actions
-        # Format: (condition_fn, action_fn, active_in_reorder_mode)
-        click_handlers = [
-            # Always-active controls (work in all modes)
-            (
-                lambda p: (self.geometry_model.close_button_center - p).manhattanLength() < Interactions.CONTROL_BUTTON_CLICK_RADIUS,
-                lambda p: self.close(),
-                True  # Active in reorder mode
-            ),
-            (
-                lambda p: (self.geometry_model.minimize_button_center - p).manhattanLength() < Interactions.CONTROL_BUTTON_CLICK_RADIUS,
-                lambda p: self.showMinimized(),
-                True  # Active in reorder mode
-            ),
-            (
-                lambda p: self.geometry_model.is_point_on_pedal(p),
-                lambda p: self.reorder_mode_manager.toggle_reorder_mode(),
-                True  # Active in reorder mode
-            ),
+        # Drawer toggle
+        if self.geometry_model.is_point_in_hinge(pos):
+            self.toggle_toggleable_drawer()
+            return
 
-            # Normal-mode-only controls
-            (
-                lambda p: self.geometry_model.is_point_in_hinge(p),
-                lambda p: self.toggle_toggleable_drawer(),
-                False  # Only active in normal mode
-            ),
-            (
-                lambda p: self.geometry_model.is_point_in_brass_section(p),
-                lambda p: None,  # Consume click, no action
-                False  # Only active in normal mode
-            ),
-            (
-                lambda p: self.geometry_model.is_point_in_keys(p),
-                lambda p: self.handle_key_click(p),
-                False  # Only active in normal mode
-            ),
-        ]
+        # Keys (start habit session)
+        if self.geometry_model.is_point_in_keys(pos):
+            self.handle_key_click(pos)
 
-        # Process click handlers in order
-        for condition, action, active_in_reorder in click_handlers:
-            # Skip handlers that aren't active in current mode
-            if self.reorder_mode_manager.is_reorder_mode and not active_in_reorder:
-                continue
+    def handle_right_click(self, pos: QPoint):
+        """
+        Handle a right-click at the given position.
 
-            # Check if this handler matches the click position
-            if condition(pos):
-                action(pos)
-                return  # Handler processed the click, stop checking
+        Opens the drawer and navigates to the habit's detail page if clicked on a key.
+        """
+        if self.geometry_model.is_point_in_keys(pos):
+            key_index = self.geometry_model.get_key_index_at_point(pos)
+
+            if key_index >= 0 and key_index < len(self.keys):
+                key_data = self.keys[key_index]
+                habit = key_data.get('habit')
+
+                if habit:
+                    # Open drawer if not already open
+                    if not self.state.toggleable_drawer_visible:
+                        self.toggle_toggleable_drawer()
+
+                    # Navigate to habit detail page
+                    self.music_sheet_widget.navigate_to_habit_detail(habit)
 
     def update_cursor_for_position(self, pos: QPoint):
         """Update cursor based on mouse position"""
@@ -428,7 +453,6 @@ class PianoFloatingWindow(QWidget):
 
         if (self.geometry_model.is_point_in_control_button(pos) or
             self.geometry_model.is_point_in_keys(pos) or
-            self.geometry_model.is_point_in_brass_section(pos) or
             self.geometry_model.is_point_in_hinge(pos)):
             cursor = Qt.CursorShape.PointingHandCursor
 
@@ -581,7 +605,9 @@ class PianoFloatingWindow(QWidget):
         # Reorder the habits list
         reordered_habits = list(self.habits)
         dragged = reordered_habits.pop(from_index)
-        reordered_habits.insert(to_index, dragged)
+        # Adjust target index if dragging downward (after pop, indices shift)
+        adjusted_to_index = to_index if to_index <= from_index else to_index - 1
+        reordered_habits.insert(adjusted_to_index, dragged)
 
         # Update display_order in database
         for i, habit in enumerate(reordered_habits):
@@ -593,19 +619,13 @@ class PianoFloatingWindow(QWidget):
         self.update_keys_for_window_size()
 
         # Play sound
-        self.sound_manager.play_sound('page')
+        self.sound_manager.play_sound('thunk')
 
     def on_reorder_mode_toggled(self, is_active: bool):
         """Handle reorder mode toggle"""
         # Exit any active key drag
         if self.state.is_dragging_key():
             self.state.end_key_drag()
-
-        # Play sound effect
-        if is_active:
-            self.sound_manager.play_sound('drawer')
-        else:
-            self.sound_manager.play_sound('page')
 
         self.update()
 

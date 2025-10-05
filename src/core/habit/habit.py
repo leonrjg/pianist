@@ -87,7 +87,7 @@ class Habit(BaseModel):
             fn.SUM(duration).alias('net_duration'),
             fn.COUNT().alias('row_count'))
             .group_by(bucket)
-            .where(Log.habit == self)
+            .where((Log.habit == self) & (Log.end.is_null(False)))
             .limit(limit)
             .order_by(fn.MIN(Log.start).desc()))
 
