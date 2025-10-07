@@ -110,9 +110,9 @@ class SheetMenu(QWidget):
 
     # Menu items configuration - centralized for easy modification
     MENU_ITEMS = [
-        MenuItem('habit_detail', 'New Habit', 'gui/icons/new.svg'),
         MenuItem('index', 'Next Tasks', 'gui/icons/next.svg'),
         MenuItem('repertoire', 'Repertoire', 'gui/icons/list.svg'),
+        MenuItem('habit_detail', 'New Habit', 'gui/icons/new.svg'),
         MenuItem('stats', 'Stats', 'gui/icons/stats.svg'),
         MenuItem('activity', 'Activity', 'gui/icons/activity.svg'),
     ]

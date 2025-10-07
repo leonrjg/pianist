@@ -7,9 +7,10 @@ from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
-from core.tracker.window import WindowTracker
+from core.tracker.registry import TrackerRegistry
 from .base_page import SheetPage
 from .vintage_dropdown import VintageDropdown
+from ..tracker_help_widget import TrackerHelpWidget
 
 # Import database models
 import sys
@@ -31,9 +32,13 @@ class HabitDetailPage(SheetPage):
         self._schedule_dropdown = None
         self._duration_spin = None
         self._timeout_spin = None
-        self._io_tracker_cb = None
-        self._window_tracker_cb = None
-        self._tracker_args_edit = None
+
+        # Dynamic tracker widgets - populated during build_content
+        self._tracker_checkboxes = {}  # {tracker_name: QCheckBox}
+        self._tracker_config_edits = {}  # {tracker_name: QLineEdit}
+        self._tracker_help_widgets = {}  # {tracker_name: TrackerHelpWidget}
+        self._tracker_help_containers = {}  # {tracker_name: QWidget}
+        self._initially_enabled_trackers = set()  # Track which trackers were enabled from DB
 
         super().__init__(parent)
 
@@ -65,8 +70,6 @@ class HabitDetailPage(SheetPage):
         title = self._create_section_header(title_text)
         layout.addWidget(title)
 
-        layout.addWidget(self._create_separator())
-
         form_widget = QWidget()
         form_layout = QVBoxLayout()
         form_layout.setContentsMargins(0, 0, 0, 0)
@@ -96,8 +99,6 @@ class HabitDetailPage(SheetPage):
             stats_text = "\n".join(stats_lines)
             stats_label = self._create_text_label(stats_text, secondary=False)
             form_layout.addWidget(stats_label)
-
-            form_layout.addWidget(self._create_separator())
 
         # Name field
         name_label = self._create_text_label("Name:", secondary=True)
@@ -137,31 +138,72 @@ class HabitDetailPage(SheetPage):
             self._timeout_spin.setValue(self.habit.inactivity_threshold)
         form_layout.addWidget(self._timeout_spin)
 
-        # Trackers section
+        # Trackers section - dynamically generated from registry
         form_layout.addWidget(self._create_text_label("Tracking:", secondary=True))
 
-        self._io_tracker_cb = QCheckBox("IO Tracker")
-        self._window_tracker_cb = QCheckBox("Window Tracker")
-
+        # Get enabled trackers for this habit
+        enabled_trackers = {}
         if self.habit:
-            trackers = list(self.habit.trackers.where(HabitTracker.is_enabled == True))
-            self._io_tracker_cb.setChecked(any(t.tracker == 'io' for t in trackers))
-            self._window_tracker_cb.setChecked(any(t.tracker == 'window' for t in trackers))
+            for ht in self.habit.trackers.where(HabitTracker.is_enabled == True):
+                enabled_trackers[ht.tracker] = ht.get_config()
+                self._initially_enabled_trackers.add(ht.tracker)
 
-        form_layout.addWidget(self._io_tracker_cb)
-        form_layout.addWidget(self._window_tracker_cb)
+        # Create UI for each available tracker
+        tracker_names = TrackerRegistry.get_tracker_names()
+        for tracker_name in sorted(tracker_names):
+            # Create checkbox for this tracker
+            checkbox = QCheckBox(f"{tracker_name.upper()} Tracker")
+            checkbox.setChecked(tracker_name in enabled_trackers)
+            checkbox.stateChanged.connect(lambda state, tn=tracker_name: self._on_tracker_toggled(tn, state))
+            self._tracker_checkboxes[tracker_name] = checkbox
+            form_layout.addWidget(checkbox)
 
-        config_label = self._create_text_label("Tracker Config:", secondary=True)
-        form_layout.addWidget(config_label)
-        self._tracker_args_edit = QLineEdit()
-        self._tracker_args_edit.setPlaceholderText("key=value&key2=value2")
-        if self.habit:
-            trackers = list(self.habit.trackers.where(HabitTracker.is_enabled == True))
-            if trackers:
-                config = trackers[0].get_config()
-                if config and config != ' ()':
-                    self._tracker_args_edit.setText(str(config))
-        form_layout.addWidget(self._tracker_args_edit)
+            # Create container for config and help (shown when checked)
+            help_container = QWidget()
+            help_layout = QVBoxLayout()
+            help_layout.setContentsMargins(0, 5, 0, 10)
+            help_container.setLayout(help_layout)
+
+            # Slightly darker background to differentiate from other form elements
+            help_container.setStyleSheet("""
+                QWidget {
+                    background-color: rgb(245, 240, 225);
+                    padding: 5px;
+                }
+            """)
+
+            # Config input field
+            config_label = self._create_text_label(f"Config:", secondary=True)
+            help_layout.addWidget(config_label)
+
+            config_edit = QLineEdit()
+            config_edit.setPlaceholderText(self._get_config_placeholder(tracker_name))
+            if tracker_name in enabled_trackers:
+                config_dict = enabled_trackers[tracker_name]
+                config_edit.setText(self._config_dict_to_string(config_dict))
+            config_edit.textChanged.connect(lambda: self._on_config_changed())
+            self._tracker_config_edits[tracker_name] = config_edit
+            help_layout.addWidget(config_edit)
+
+            # Help widget
+            help_widget = TrackerHelpWidget()
+            self._tracker_help_widgets[tracker_name] = help_widget
+            help_layout.addWidget(help_widget)
+
+            # Show config container if tracker is checked
+            help_container.setVisible(checkbox.isChecked())
+            self._tracker_help_containers[tracker_name] = help_container
+            form_layout.addWidget(help_container)
+
+            # Only show/start help widget if tracker is newly checked (not from DB)
+            is_newly_checked = checkbox.isChecked() and tracker_name not in self._initially_enabled_trackers
+            if is_newly_checked:
+                config_dict = self._parse_config_string(config_edit.text())
+                help_widget.set_tracker(tracker_name, config_dict)
+                help_widget.start_updates()
+            else:
+                # Hide help widget for initially enabled trackers
+                help_widget.hide()
 
         form_layout.addStretch()
         layout.addWidget(form_widget)
@@ -192,6 +234,88 @@ class HabitDetailPage(SheetPage):
         back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
         layout.addWidget(back_link)
 
+    def _get_config_placeholder(self, tracker_name: str) -> str:
+        """Get placeholder text for tracker config field."""
+        if tracker_name == 'window':
+            return "keywords=piano,synthesia"
+        elif tracker_name == 'io':
+            return "No config required"
+        else:
+            return "key=value"
+
+    def _config_dict_to_string(self, config_dict: dict) -> str:
+        """Convert config dictionary to string format."""
+        import json
+        if not config_dict:
+            return ""
+        # Handle list values (e.g., keywords: ['piano', 'synthesia'])
+        parts = []
+        for key, value in config_dict.items():
+            if isinstance(value, list):
+                parts.append(f"{key}={','.join(value)}")
+            else:
+                parts.append(f"{key}={value}")
+        return "&".join(parts)
+
+    def _parse_config_string(self, config_str: str) -> dict:
+        """Parse config string to dictionary."""
+        if not config_str.strip():
+            return {}
+
+        config = {}
+        for pair in config_str.split('&'):
+            if '=' in pair:
+                key, value = pair.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                # Convert comma-separated values to lists
+                if ',' in value:
+                    config[key] = [v.strip() for v in value.split(',')]
+                else:
+                    config[key] = value
+        return config
+
+    def _on_tracker_toggled(self, tracker_name: str, state: int):
+        """Handle tracker checkbox toggle."""
+        is_checked = state == Qt.CheckState.Checked.value
+        container = self._tracker_help_containers.get(tracker_name)
+        help_widget = self._tracker_help_widgets.get(tracker_name)
+
+        # Show/hide the config container
+        if container:
+            container.setVisible(is_checked)
+
+        # Only show help widget for trackers that weren't initially enabled
+        was_initially_enabled = tracker_name in self._initially_enabled_trackers
+        should_show_help = is_checked and not was_initially_enabled
+
+        if help_widget:
+            if should_show_help:
+                config_edit = self._tracker_config_edits.get(tracker_name)
+                config_dict = self._parse_config_string(config_edit.text() if config_edit else "")
+                help_widget.set_tracker(tracker_name, config_dict)
+                help_widget.start_updates()
+                help_widget.show()
+            else:
+                help_widget.stop_updates()
+                help_widget.hide()
+
+        # If user is re-checking a tracker that was initially enabled, remove it from the set
+        # so help will show next time they check it
+        if not is_checked and was_initially_enabled:
+            self._initially_enabled_trackers.discard(tracker_name)
+
+    def _on_config_changed(self):
+        """Handle config text change - update help widgets with new config."""
+        for tracker_name, checkbox in self._tracker_checkboxes.items():
+            # Only update help widgets that are visible (newly checked trackers)
+            if checkbox.isChecked() and tracker_name not in self._initially_enabled_trackers:
+                config_edit = self._tracker_config_edits.get(tracker_name)
+                help_widget = self._tracker_help_widgets.get(tracker_name)
+                if config_edit and help_widget and help_widget.isVisible():
+                    config_dict = self._parse_config_string(config_edit.text())
+                    help_widget.set_tracker(tracker_name, config_dict)
+
     def _save_habit(self):
         """Save the habit"""
         name = self._name_edit.text().strip()
@@ -202,7 +326,6 @@ class HabitDetailPage(SheetPage):
         schedule = self._schedule_dropdown.get_selected()
         duration = self._duration_spin.value()
         timeout = self._timeout_spin.value()
-        track_args = self._tracker_args_edit.text().strip()
 
         try:
             with db.atomic():
@@ -224,22 +347,30 @@ class HabitDetailPage(SheetPage):
 
                 self.habit.save()
 
-                # Update trackers
+                # Update trackers - delete all and recreate from checkboxes
                 HabitTracker.delete().where(HabitTracker.habit == self.habit).execute()
 
-                trackers = []
-                if self._io_tracker_cb.isChecked():
-                    trackers.append('io')
-                if self._window_tracker_cb.isChecked():
-                    trackers.append('window')
+                # Create HabitTracker records for each checked tracker
+                for tracker_name, checkbox in self._tracker_checkboxes.items():
+                    if checkbox.isChecked():
+                        config_edit = self._tracker_config_edits.get(tracker_name)
+                        config_str = config_edit.text().strip() if config_edit else ""
+                        config_dict = self._parse_config_string(config_str)
 
-                for tracker in trackers:
-                    HabitTracker.insert(
-                        habit=self.habit,
-                        tracker=tracker,
-                        config=HabitTracker.create_json_config(track_args),
-                        is_enabled=True
-                    ).on_conflict_replace().execute()
+                        # Convert dict to JSON
+                        import json
+                        config_json = json.dumps(config_dict)
+
+                        HabitTracker.insert(
+                            habit=self.habit,
+                            tracker=tracker_name,
+                            config=config_json,
+                            is_enabled=True
+                        ).on_conflict_replace().execute()
+
+            # Stop all help widget updates before leaving
+            for help_widget in self._tracker_help_widgets.values():
+                help_widget.stop_updates()
 
             # Emit signal to refresh piano window
             self.content_updated.emit()
@@ -268,8 +399,41 @@ class HabitDetailPage(SheetPage):
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
+                # Stop all help widget updates before deleting
+                for help_widget in self._tracker_help_widgets.values():
+                    help_widget.stop_updates()
+
                 self.habit.delete_instance()
                 self.content_updated.emit()
                 self.go_back.emit()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to delete: {e}")
+
+    def hideEvent(self, event):
+        """Stop updates when page is hidden."""
+        # Stop all help widget updates when navigating away
+        for help_widget in self._tracker_help_widgets.values():
+            if help_widget:
+                help_widget.stop_updates()
+        super().hideEvent(event)
+
+    def showEvent(self, event):
+        """Restart updates when page is shown."""
+        # Restart updates only for visible help widgets (newly checked trackers)
+        for tracker_name, checkbox in self._tracker_checkboxes.items():
+            if checkbox.isChecked() and tracker_name not in self._initially_enabled_trackers:
+                help_widget = self._tracker_help_widgets.get(tracker_name)
+                config_edit = self._tracker_config_edits.get(tracker_name)
+                if help_widget and help_widget.isVisible() and config_edit:
+                    config_dict = self._parse_config_string(config_edit.text())
+                    help_widget.set_tracker(tracker_name, config_dict)
+                    help_widget.start_updates()
+        super().showEvent(event)
+
+    def closeEvent(self, event):
+        """Clean up resources when page is closed."""
+        # Stop all help widget updates
+        for help_widget in self._tracker_help_widgets.values():
+            if help_widget:
+                help_widget.stop_updates()
+        super().closeEvent(event)

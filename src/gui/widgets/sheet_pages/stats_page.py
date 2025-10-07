@@ -49,7 +49,6 @@ class StatsPage(SheetPage):
 
         back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
         layout.addWidget(back_link)
-        layout.addSpacing(4)
 
     def _generate_stats_text(self) -> str:
         """Generate formatted statistics text"""

@@ -36,16 +36,10 @@ class HabitTracker(BaseModel):
     @property
     def tracker_instance(self):
         """Get actual Tracker instance."""
-        from core.tracker.io import IOTracker
-        from core.tracker.window import WindowTracker
-        
+        from core.tracker.registry import TrackerRegistry
+
         config = self.get_config()
-        if self.tracker == 'io':
-            return IOTracker()
-        elif self.tracker == 'window':
-            return WindowTracker(config.get('keywords', []))
-        else:
-            raise ValueError(f"Unknown tracker type: {self.tracker}")
+        return TrackerRegistry.instantiate_tracker(self.tracker, config)
     
     @classmethod
     def create_json_config(cls, config_string: str) -> str:

@@ -231,7 +231,7 @@ class KeyPainter(BasePainter):
                           index: int, keys_data: list):
         """Draw time display text on a black key"""
         painter.setPen(QPen(PianoColors.BLACK_KEY_TEXT))
-        painter.setFont(QFont('Avenir', 11))
+        painter.setFont(QFont('Avenir'))
 
         # Find if there's a time display for the corresponding habit
         time_text = ""

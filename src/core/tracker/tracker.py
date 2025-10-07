@@ -14,7 +14,7 @@ class Tracker(ABC):
     @staticmethod
     @abstractmethod
     def get_help(**kwargs) -> str:
-        """Get help message to explain tracker arguments to users."""
+        """Get help message to explain tracker arguments to users (Markdown allowed)."""
         pass
 
     def get_last_active(self) -> int:

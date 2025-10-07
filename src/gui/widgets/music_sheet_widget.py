@@ -188,8 +188,8 @@ class MusicSheetWidget(QWidget):
         self._draw_music_stand_holder(painter, widget_rect)
 
     def _navigate_to_index(self):
-        """Navigate to the index page (habit list)"""
-        self._navigate_to(PageType.REPERTOIRE.value, None)
+        """Navigate to the index page"""
+        self._navigate_to(PageType.INDEX.value, None)
 
     def _navigate_to(self, page_type: str, data=None):
         """

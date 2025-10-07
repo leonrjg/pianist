@@ -58,11 +58,12 @@ class IndexPage(SheetPage):
                     time_str = get_friendly_datetime(task_dt)
                     if time_str == get_friendly_datetime(datetime.now()):
                         time_str = "Today"
-                    task_lines.append(f"• {habit.name} ({habit.schedule}) — {time_str}")
+                    task_lines.append(f"• {habit.name} ({habit.schedule})")
+                    task_lines.append(f"    {time_str}\n")
 
                 # Create single text label with all tasks
                 tasks_text = "\n".join(task_lines)
-                tasks_label = self._create_text_label(tasks_text, secondary=True)
+                tasks_label = self._create_text_label(tasks_text)
                 layout.addWidget(tasks_label)
             else:
                 tasks_label = self._create_text_label("No upcoming tasks in the next 7 days.", secondary=True)

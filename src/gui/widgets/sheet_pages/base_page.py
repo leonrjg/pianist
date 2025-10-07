@@ -50,12 +50,14 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
             QLabel {{
                 background: transparent;
                 color: rgb(70, 50, 35);
+                margin: 0;
+                padding: 0;
             }}
             QLineEdit {{
                 background-color: rgba(255, 252, 245, 180);
                 border: none;
-                border-bottom: 1px dotted rgb(150, 130, 100);
-                border-radius: 0px;
+                border: 1px dotted rgb(150, 130, 100);
+                margin: 0 4px 0 4px;
                 padding: 4px 6px;
                 color: rgb(70, 50, 35);
             }}

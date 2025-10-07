@@ -59,5 +59,3 @@ class RepertoirePage(SheetPage):
         except Exception as e:
             error_label = self._create_text_label(f"Error loading habits: {e}", secondary=True)
             layout.addWidget(error_label)
-
-        layout.addWidget(self._create_separator())

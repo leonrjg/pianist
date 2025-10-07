@@ -10,7 +10,7 @@ class PianoLayout:
     """Layout dimensions and positioning constants"""
 
     # ===== Component Widths (the values you actually want to change) =====
-    TOGGLEABLE_DRAWER_WIDTH = 250  # Width of the toggleable drawer panel (music sheet panel)
+    TOGGLEABLE_DRAWER_WIDTH = 275  # Width of the toggleable drawer panel (music sheet panel)
     FALLBOARD_WIDTH = 30  # Width of the fallboard (narrow brown indicator panel)
     CONTROL_PANEL_WIDTH = 35  # Width of the control panel (right side)
 

@@ -28,3 +28,7 @@ class IOTracker(Tracker):
         """Check if recent input activity was detected."""
         return self.last_active and (time.time() - self.last_active) < EPSILON
 
+    @staticmethod
+    def get_help(**kwargs) -> str:
+        """Get help message to explain tracker arguments to users."""
+        return ''
