@@ -8,6 +8,7 @@ from .base_page import SheetPage
 from .index_page import IndexPage
 from .repertoire_page import RepertoirePage
 from .habit_detail_page import HabitDetailPage
+from .settings_page import SettingsPage
 from .stats_page import StatsPage
 from .activity_page import ActivityPage
 
@@ -17,5 +18,6 @@ __all__ = [
     'RepertoirePage',
     'HabitDetailPage',
     'StatsPage',
-    'ActivityPage'
+    'ActivityPage',
+    'SettingsPage',
 ]

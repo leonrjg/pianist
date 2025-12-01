@@ -32,11 +32,13 @@ class MenuTheme:
     ICON_SIZE = 18
     BORDER_RADIUS = 6
     BUTTON_SPACING = 4
-    TOP_MARGIN = 8
+    TOP_MARGIN = 4
     BOTTOM_MARGIN = 2
+    BUTTON_BOTTOM_MARGIN = 2
     SIDE_MARGIN = 6
-    SCROLLBAR_HEIGHT = 6
+    SCROLLBAR_HEIGHT = 3
     SCROLLBAR_MIN_WIDTH = 20
+    SCROLLBAR_TOP_MARGIN = 2
 
     # Typography
     FONT_SIZE = 14
@@ -115,6 +117,7 @@ class SheetMenu(QWidget):
         MenuItem('habit_detail', 'New Habit', 'gui/icons/new.svg'),
         MenuItem('stats', 'Stats', 'gui/icons/stats.svg'),
         MenuItem('activity', 'Activity', 'gui/icons/activity.svg'),
+        MenuItem('settings', 'Settings', 'gui/icons/settings.svg'),
     ]
 
     def __init__(self, parent=None, current_page_type: Optional[str] = None):
@@ -131,23 +134,22 @@ class SheetMenu(QWidget):
 
         self.setStyleSheet("background: transparent;")
 
-        # Prevent menu from being stretched vertically
-        self.setMaximumHeight(MenuTheme.BUTTON_SIZE + MenuTheme.TOP_MARGIN + MenuTheme.BOTTOM_MARGIN)
-
         scroll_area = self._create_scroll_area()
         button_container = self._create_button_container()
 
         scroll_area.setWidget(button_container)
         main_layout.addWidget(scroll_area)
 
+        # Set maximum height dynamically based on actual content size
+        self.setMaximumHeight(button_container.sizeHint().height() + MenuTheme.TOP_MARGIN + MenuTheme.BOTTOM_MARGIN + MenuTheme.SCROLLBAR_HEIGHT + MenuTheme.SCROLLBAR_TOP_MARGIN)
+
     def _create_scroll_area(self) -> QScrollArea:
         """Create and configure the horizontal scroll area."""
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll_area.setMaximumHeight(MenuTheme.BUTTON_SIZE + MenuTheme.TOP_MARGIN)
 
         scroll_area.setStyleSheet(f"""
             QScrollArea {{
@@ -157,9 +159,10 @@ class SheetMenu(QWidget):
             QScrollBar:horizontal {{
                 background: {MenuTheme.PAPER_BORDER};
                 height: {MenuTheme.SCROLLBAR_HEIGHT}px;
-                margin: 0px;
                 border: none;
                 border-radius: 3px;
+                margin-left: 10%;
+                margin-right: 10%;
             }}
             QScrollBar::handle:horizontal {{
                 background: {MenuTheme.BRASS_PRIMARY};
@@ -185,7 +188,7 @@ class SheetMenu(QWidget):
         button_container.setStyleSheet("background: transparent;")
 
         button_layout = QHBoxLayout()
-        button_layout.setContentsMargins(MenuTheme.SIDE_MARGIN, 0, MenuTheme.SIDE_MARGIN, 0)
+        button_layout.setContentsMargins(MenuTheme.SIDE_MARGIN, 0, MenuTheme.SIDE_MARGIN, MenuTheme.BUTTON_BOTTOM_MARGIN)
         button_layout.setSpacing(MenuTheme.BUTTON_SPACING)
         button_container.setLayout(button_layout)
 

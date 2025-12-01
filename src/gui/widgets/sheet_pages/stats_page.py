@@ -2,9 +2,7 @@
 Stats Page - View habit statistics and analytics.
 """
 
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QTextEdit
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QTextEdit
 
 from .base_page import SheetPage
 
@@ -13,7 +11,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.habit import Habit
-from core.habit.habit_tracker import HabitTracker
 from core.util.time import get_friendly_elapsed, get_friendly_datetime
 from core import analytics
 

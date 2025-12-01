@@ -30,7 +30,7 @@ class ActivityPage(SheetPage):
         layout = self.layout()
 
         # Page title
-        title = self._create_section_header("Recent Activity")
+        title = self._create_section_header(self.get_page_title())
         layout.addWidget(title)
 
         # Text edit for activity display
@@ -61,7 +61,7 @@ class ActivityPage(SheetPage):
         all_buckets = []
         for habit in habits:
             buckets = habit.get_activity_buckets()
-            for bucket in buckets[-5:]:  # Last 5 per habit
+            for bucket in buckets[:5]:  # First 5 per habit
                 all_buckets.append((habit, bucket))
 
         # Sort by end time

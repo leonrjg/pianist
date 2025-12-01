@@ -1,11 +1,18 @@
 """
 Habit Detail Page - View and edit individual habit details.
 """
+import os
+import platform
+import subprocess
+import time
+import traceback
 
+import Quartz
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-                              QSpinBox, QCheckBox, QPushButton, QMessageBox, QWidget)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+                             QSpinBox, QCheckBox, QPushButton, QMessageBox, QWidget, QToolTip)
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QFont, QCursor
+from pynput.keyboard import Controller, Key, KeyCode
 
 from core.tracker.registry import TrackerRegistry
 from .base_page import SheetPage
@@ -102,12 +109,18 @@ class HabitDetailPage(SheetPage):
 
         # Name field
         name_label = self._create_text_label("Name:", secondary=True)
+        form_layout.addWidget(name_label)
+
+        # Name input
+        name_layout = QHBoxLayout()
+        name_layout.setContentsMargins(0, 0, 0, 0)
         self._name_edit = QLineEdit()
         self._name_edit.setPlaceholderText("e.g., Reading")
         if self.habit:
             self._name_edit.setText(self.habit.name)
-        form_layout.addWidget(name_label)
-        form_layout.addWidget(self._name_edit)
+        name_layout.addWidget(self._name_edit)
+
+        form_layout.addLayout(name_layout)
 
         # Schedule field
         schedule_label = self._create_text_label("Schedule:", secondary=True)
@@ -151,59 +164,62 @@ class HabitDetailPage(SheetPage):
         # Create UI for each available tracker
         tracker_names = TrackerRegistry.get_tracker_names()
         for tracker_name in sorted(tracker_names):
+            config = TrackerRegistry.get_config_schema(tracker_name)
+
             # Create checkbox for this tracker
-            checkbox = QCheckBox(f"{tracker_name.upper()} Tracker")
+            checkbox = QCheckBox(f"{tracker_name}")
             checkbox.setChecked(tracker_name in enabled_trackers)
             checkbox.stateChanged.connect(lambda state, tn=tracker_name: self._on_tracker_toggled(tn, state))
             self._tracker_checkboxes[tracker_name] = checkbox
             form_layout.addWidget(checkbox)
 
-            # Create container for config and help (shown when checked)
-            help_container = QWidget()
-            help_layout = QVBoxLayout()
-            help_layout.setContentsMargins(0, 5, 0, 10)
-            help_container.setLayout(help_layout)
+            if config:
+                # Create container for config and help (shown when checked)
+                help_container = QWidget()
+                help_layout = QVBoxLayout()
+                help_layout.setContentsMargins(0, 5, 0, 10)
+                help_container.setLayout(help_layout)
 
-            # Slightly darker background to differentiate from other form elements
-            help_container.setStyleSheet("""
-                QWidget {
-                    background-color: rgb(245, 240, 225);
-                    padding: 5px;
-                }
-            """)
+                # Slightly darker background to differentiate from other form elements
+                help_container.setStyleSheet("""
+                    QWidget {
+                        background-color: rgb(245, 240, 225);
+                        padding: 5px;
+                    }
+                """)
 
-            # Config input field
-            config_label = self._create_text_label(f"Config:", secondary=True)
-            help_layout.addWidget(config_label)
+                # Config input field
+                config_label = self._create_text_label(f"Config:", secondary=True)
+                help_layout.addWidget(config_label)
 
-            config_edit = QLineEdit()
-            config_edit.setPlaceholderText(self._get_config_placeholder(tracker_name))
-            if tracker_name in enabled_trackers:
-                config_dict = enabled_trackers[tracker_name]
-                config_edit.setText(self._config_dict_to_string(config_dict))
-            config_edit.textChanged.connect(lambda: self._on_config_changed())
-            self._tracker_config_edits[tracker_name] = config_edit
-            help_layout.addWidget(config_edit)
+                config_edit = QLineEdit()
+                config_edit.setPlaceholderText(self._get_config_placeholder(tracker_name))
+                if tracker_name in enabled_trackers:
+                    config_dict = enabled_trackers[tracker_name]
+                    config_edit.setText(self._config_dict_to_string(config_dict))
+                config_edit.textChanged.connect(lambda: self._on_config_changed())
+                self._tracker_config_edits[tracker_name] = config_edit
+                help_layout.addWidget(config_edit)
 
-            # Help widget
-            help_widget = TrackerHelpWidget()
-            self._tracker_help_widgets[tracker_name] = help_widget
-            help_layout.addWidget(help_widget)
+                # Help widget
+                help_widget = TrackerHelpWidget()
+                self._tracker_help_widgets[tracker_name] = help_widget
+                help_layout.addWidget(help_widget)
 
-            # Show config container if tracker is checked
-            help_container.setVisible(checkbox.isChecked())
-            self._tracker_help_containers[tracker_name] = help_container
-            form_layout.addWidget(help_container)
+                # Show config container if tracker is checked
+                help_container.setVisible(checkbox.isChecked())
+                self._tracker_help_containers[tracker_name] = help_container
+                form_layout.addWidget(help_container)
 
-            # Only show/start help widget if tracker is newly checked (not from DB)
-            is_newly_checked = checkbox.isChecked() and tracker_name not in self._initially_enabled_trackers
-            if is_newly_checked:
-                config_dict = self._parse_config_string(config_edit.text())
-                help_widget.set_tracker(tracker_name, config_dict)
-                help_widget.start_updates()
-            else:
-                # Hide help widget for initially enabled trackers
-                help_widget.hide()
+                # Only show/start help widget if tracker is newly checked (not from DB)
+                is_newly_checked = checkbox.isChecked() and tracker_name not in self._initially_enabled_trackers
+                if is_newly_checked:
+                    config_dict = self._parse_config_string(config_edit.text())
+                    help_widget.set_tracker(tracker_name, config_dict)
+                    help_widget.start_updates()
+                else:
+                    # Hide help widget for initially enabled trackers
+                    help_widget.hide()
 
         form_layout.addStretch()
         layout.addWidget(form_widget)
@@ -237,43 +253,23 @@ class HabitDetailPage(SheetPage):
     def _get_config_placeholder(self, tracker_name: str) -> str:
         """Get placeholder text for tracker config field."""
         if tracker_name == 'window':
-            return "keywords=piano,synthesia"
+            return 'keywords = ["piano", "synthesia"]'
         elif tracker_name == 'io':
             return "No config required"
         else:
-            return "key=value"
+            return 'key = "value"'
 
     def _config_dict_to_string(self, config_dict: dict) -> str:
-        """Convert config dictionary to string format."""
-        import json
-        if not config_dict:
-            return ""
-        # Handle list values (e.g., keywords: ['piano', 'synthesia'])
-        parts = []
-        for key, value in config_dict.items():
-            if isinstance(value, list):
-                parts.append(f"{key}={','.join(value)}")
-            else:
-                parts.append(f"{key}={value}")
-        return "&".join(parts)
+        """Convert config dictionary to TOML format string."""
+        return TrackerRegistry.config_to_string(config_dict)
 
     def _parse_config_string(self, config_str: str) -> dict:
-        """Parse config string to dictionary."""
-        if not config_str.strip():
+        """Parse TOML config string to dictionary."""
+        try:
+            return TrackerRegistry.parse_config(config_str)
+        except ValueError as e:
+            # Return empty dict on parse error - the UI will show it in real-time
             return {}
-
-        config = {}
-        for pair in config_str.split('&'):
-            if '=' in pair:
-                key, value = pair.split('=', 1)
-                key = key.strip()
-                value = value.strip()
-                # Convert comma-separated values to lists
-                if ',' in value:
-                    config[key] = [v.strip() for v in value.split(',')]
-                else:
-                    config[key] = value
-        return config
 
     def _on_tracker_toggled(self, tracker_name: str, state: int):
         """Handle tracker checkbox toggle."""

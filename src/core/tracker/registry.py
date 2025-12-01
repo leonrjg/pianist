@@ -5,11 +5,11 @@ This module provides a centralized way to discover all available tracker impleme
 and instantiate them based on their name and configuration. This eliminates hardcoded
 tracker references throughout the codebase and makes adding new trackers easier.
 """
-
 import inspect
 import logging
+import toml
 from typing import Dict, List, Type, Any
-from .tracker import Tracker
+from . import io, window, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -32,27 +32,8 @@ class TrackerRegistry:
         except ImportError as e:
             logger.warning(f"Failed to import some tracker modules: {e}")
 
-        # Find all concrete Tracker subclasses
-        from . import tracker as tracker_module
-
-        for name, obj in inspect.getmembers(inspect.getmodule(tracker_module)):
-            if inspect.isclass(obj) and issubclass(obj, Tracker) and obj != Tracker:
-                # Extract tracker name from class name (e.g., IOTracker -> io, WindowTracker -> window)
-                tracker_name = obj.__name__.replace('Tracker', '').lower()
-                cls._trackers[tracker_name] = obj
-
-        # Also check io and window modules directly
-        try:
-            from .io import IOTracker
-            cls._trackers['io'] = IOTracker
-        except ImportError:
-            pass
-
-        try:
-            from .window import WindowTracker
-            cls._trackers['window'] = WindowTracker
-        except ImportError:
-            pass
+        for tracker_class in Tracker.__subclasses__():
+            cls._trackers[tracker_class.__name__] = tracker_class
 
         cls._initialized = True
         logger.info(f"Discovered trackers: {list(cls._trackers.keys())}")
@@ -88,6 +69,20 @@ class TrackerRegistry:
         return cls._trackers[name]
 
     @classmethod
+    def get_config_schema(cls, name: str) -> dict[str, type]:
+        """
+        Get initialization parameters for a tracker by name.
+
+        Args:
+            name: The tracker name
+
+        Returns:
+            List of parameter names and types for the tracker's __init__ method
+        """
+        tracker_class = cls.get_tracker_class(name)
+        return inspect.getfullargspec(tracker_class.__init__).annotations
+
+    @classmethod
     def get_tracker_names(cls) -> List[str]:
         """
         Get list of all available tracker names.
@@ -115,21 +110,12 @@ class TrackerRegistry:
         """
         tracker_class = cls.get_tracker_class(name)
 
-        # Handle different tracker initialization signatures
-        if name == 'io':
-            # IOTracker takes no arguments
+        # Try generic instantiation with config
+        try:
+            return tracker_class(**config)
+        except TypeError:
+            # Fall back to no-arg constructor
             return tracker_class()
-        elif name == 'window':
-            # WindowTracker expects keywords list
-            keywords = config.get('keywords', [])
-            return tracker_class(keywords)
-        else:
-            # Try generic instantiation with config
-            try:
-                return tracker_class(**config)
-            except TypeError:
-                # Fall back to no-arg constructor
-                return tracker_class()
 
     @classmethod
     def get_tracker_help(cls, name: str, config: Dict[str, Any]) -> str:
@@ -145,3 +131,43 @@ class TrackerRegistry:
         """
         tracker_class = cls.get_tracker_class(name)
         return tracker_class.get_help(**config)
+
+    @classmethod
+    def parse_config(cls, config_str: str) -> Dict[str, Any]:
+        """
+        Parse a TOML configuration string into a dictionary.
+
+        Args:
+            config_str: TOML format configuration string
+                       e.g., 'keywords = ["piano", "synthesia"]'
+                       or 'keywords = ["PyCharm"]'
+
+        Returns:
+            Configuration dictionary
+
+        Raises:
+            ValueError: If the TOML string is invalid
+        """
+        result = {}
+        try:
+            result = toml.loads(config_str)
+        except:
+            pass
+        return result
+
+    @classmethod
+    def config_to_string(cls, config: Dict[str, Any]) -> str:
+        """
+        Convert a configuration dictionary to TOML format string.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            TOML format string
+        """
+        if not config:
+            return ""
+
+        return toml.dumps(config)
+

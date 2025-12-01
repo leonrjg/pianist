@@ -1,3 +1,4 @@
+import json
 import logging
 import threading
 import time
@@ -7,6 +8,7 @@ from enum import Enum
 from core.habit.habit import Habit
 from core.habit.habit_tracker import HabitTracker
 from core.habit.log import Log
+from core.tracker import TrackerRegistry
 from core.util.time import MINUTE
 
 MAX_IDLE_FACTOR = 3
@@ -55,7 +57,8 @@ class Session:
         for habit_tracker in get_habit_trackers(self.habit):
             try:
                 logging.info(f"Loading tracker {habit_tracker.tracker} with config: {habit_tracker.config}")
-                trackers.append(habit_tracker.tracker_instance)
+                trackers.append(TrackerRegistry.instantiate_tracker(habit_tracker.tracker,
+                                                                    json.loads(habit_tracker.config)))
             except ValueError as e:
                 logging.error(f"Warning: Could not load tracker {habit_tracker.tracker}: {e}")
         return trackers

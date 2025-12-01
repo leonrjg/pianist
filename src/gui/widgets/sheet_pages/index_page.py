@@ -56,8 +56,6 @@ class IndexPage(SheetPage):
                     habit = task['habit']
                     task_dt = task['datetime']
                     time_str = get_friendly_datetime(task_dt)
-                    if time_str == get_friendly_datetime(datetime.now()):
-                        time_str = "Today"
                     task_lines.append(f"• {habit.name} ({habit.schedule})")
                     task_lines.append(f"    {time_str}\n")
 

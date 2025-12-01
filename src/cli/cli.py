@@ -1,3 +1,4 @@
+import json
 import time
 from datetime import datetime
 
@@ -9,6 +10,7 @@ from core.db import db, initialize_database
 from core.habit.habit import Habit
 from core.habit.habit_tracker import HabitTracker
 from core.session import Session, SessionStatus
+from core.tracker import TrackerRegistry
 from core.util.time import get_friendly_elapsed, get_friendly_datetime, get_timespan
 
 
@@ -28,8 +30,9 @@ def cli(ctx):
               help='Schedule type for the habit')
 @click.option('--duration', type=int, help='Allocated time per period in minutes')
 @click.option('--timeout', type=int, help='Inactivity threshold for trackers in seconds')
-@click.option('--track', 'trackers', multiple=True, default=[], type=click.Choice(['io', 'window']), help='Trackers (one or more)')
-@click.option('--track-args', help='Tracker arguments in "key=value&key2=value2" format (query string)')
+@click.option('--track', 'trackers', multiple=True, default=[],
+              type=click.Choice(TrackerRegistry.get_tracker_names()), help='Trackers (one or more)')
+@click.option('--track-args', help='Tracker arguments in TOML format (e.g., \'keywords = ["VSCode"]\')')
 def save(name, schedule, duration, timeout, trackers, track_args):
     """
     Add or edit a habit with the specified parameters.
@@ -40,11 +43,11 @@ def save(name, schedule, duration, timeout, trackers, track_args):
         duration: Allocated time per period in minutes (minimum for streak qualification).
         timeout: Inactivity threshold in seconds before session pause.
         trackers: List of tracking methods ('io' for activity, 'window' for app detection).
-        track_args: Configuration for trackers in "key=value&key2=value2" format.
+        track_args: Configuration for trackers in TOML format.
 
     Examples:
         python cli.py save "meditation" --schedule daily --duration 15
-        python cli.py save "coding" --schedule daily --track window --track-args "keywords=VSCode"
+        python cli.py save "coding" --schedule daily --track window --track-args 'keywords = ["VSCode"]'
         python cli.py save "review" --schedule weekly --duration 60 --track io
     """
     with db.atomic():
@@ -69,7 +72,7 @@ def save(name, schedule, duration, timeout, trackers, track_args):
 
         for tracker in trackers:
             click.echo(f"Enabling tracker '{tracker}'")
-            HabitTracker.insert(habit=habit, tracker=tracker, config=HabitTracker.create_json_config(track_args),
+            HabitTracker.insert(habit=habit, tracker=tracker, config=json.dumps(TrackerRegistry.parse_config(track_args)),
                                  is_enabled=True).on_conflict_replace().execute()
     
     click.echo(f"Saved habit '{habit.name}' with schedule '{habit.schedule}'")
@@ -215,7 +218,7 @@ def _display_habit_stats(habit):
     if trackers:
         click.echo(f"\nTrackers ({len(trackers)}):")
         for tracker in trackers:
-            click.echo(f"  • {tracker.tracker}{tracker.get_config()}")
+            click.echo(f"  • {tracker.tracker}{TrackerRegistry.get_config_schema(tracker.tracker)}")
     else:
         click.echo("\nNo trackers configured")
 

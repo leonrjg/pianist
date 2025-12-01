@@ -230,9 +230,6 @@ class KeyPainter(BasePainter):
     def draw_time_display(painter: QPainter, black_key_rect: QRect, state: PianoState,
                           index: int, keys_data: list):
         """Draw time display text on a black key"""
-        painter.setPen(QPen(PianoColors.BLACK_KEY_TEXT))
-        painter.setFont(QFont('Avenir'))
-
         # Find if there's a time display for the corresponding habit
         time_text = ""
         if index < len(keys_data):
@@ -240,6 +237,9 @@ class KeyPainter(BasePainter):
             if habit:
                 time_text = state.get_time_display(habit.id) or ""
 
+        font_size = 12 if len(time_text) <= 5 else 11
+        painter.setPen(QPen(PianoColors.BLACK_KEY_TEXT))
+        painter.setFont(QFont('Avenir', font_size))
         painter.drawText(
             black_key_rect,
             Qt.AlignmentFlag.AlignCenter,

@@ -1,7 +1,6 @@
 import json
 from datetime import datetime
 from typing import Dict, Any
-from urllib.parse import parse_qs
 from peewee import *
 from core.db import BaseModel
 from core.habit.habit import Habit
@@ -32,16 +31,3 @@ class HabitTracker(BaseModel):
         if self.config:
             return json.loads(str(self.config))
         return {}
-    
-    @property
-    def tracker_instance(self):
-        """Get actual Tracker instance."""
-        from core.tracker.registry import TrackerRegistry
-
-        config = self.get_config()
-        return TrackerRegistry.instantiate_tracker(self.tracker, config)
-    
-    @classmethod
-    def create_json_config(cls, config_string: str) -> str:
-        """Parse URL query string format configuration and return JSON."""
-        return json.dumps(parse_qs(config_string) or {})

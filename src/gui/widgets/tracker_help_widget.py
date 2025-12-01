@@ -116,7 +116,7 @@ class TrackerHelpWidget(QWidget):
         if self._timer is None and not self._is_destroyed:
             self._timer = QTimer()
             self._timer.timeout.connect(self._update_help)
-            self._timer.start(3000)  # Update every 3 seconds (reduced frequency)
+            self._timer.start(2500)  # Update every 2.5 seconds
             logger.info(f"Started help updates for tracker: {self._tracker_name}")
             # Do first update immediately
             self._update_help()
@@ -144,6 +144,11 @@ class TrackerHelpWidget(QWidget):
         """Trigger an asynchronous help update."""
         if self._tracker_name is None or self._is_destroyed:
             return
+
+        # Cancel all existing workers to prevent out-of-order results
+        for worker in self._active_workers:
+            worker.cancel()
+        self._active_workers.clear()
 
         # Show loading indicator
         self._set_loading(True)
