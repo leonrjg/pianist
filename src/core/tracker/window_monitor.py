@@ -15,7 +15,7 @@ class WindowMonitor:
     # Simple cache
     _cached_title = ""
     _last_update = 0
-    _poll_interval = 1.0
+    _poll_interval = 2
 
     # Callbacks for window changes
     _callbacks = []
