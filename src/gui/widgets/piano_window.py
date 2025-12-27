@@ -16,7 +16,7 @@ Heavy lifting is delegated to:
 import sys
 import time
 from PyQt6.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout
-from PyQt6.QtCore import Qt, QTimer, QRect, QPoint, QRectF, QSize
+from PyQt6.QtCore import Qt, QTimer, QRect, QPoint, QRectF, QSize, pyqtSignal
 from PyQt6.QtGui import QPainter, QIcon, QPen, QBrush, QPainterPath, QPixmap
 
 from core.db import initialize_database
@@ -25,13 +25,17 @@ from core.util.time import get_friendly_elapsed
 
 from ..constants import PianoLayout, PianoColors, Animations, Interactions
 from ..models import PianoGeometry, PianoState
-from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager
+from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager
 from ..painters import FramePainter, KeyPainter, BrassPainter
 from .music_sheet_widget import MusicSheetWidget
 
 
 class PianoFloatingWindow(QWidget):
     """Main piano interface window - orchestrates all components"""
+
+    # Session management signals
+    session_start_requested = pyqtSignal(object)  # Emits Habit object
+    session_stop_requested = pyqtSignal(object)   # Emits Habit object
 
     def __init__(self):
         super().__init__()
@@ -76,6 +80,14 @@ class PianoFloatingWindow(QWidget):
         self.session_manager.session_ended.connect(self.on_session_ended)
         self.session_manager.error_occurred.connect(self.on_session_error)
         self.session_manager.start()
+
+        # Auto-session manager for window-based session triggering
+        self.auto_session_manager = AutoSessionManager(habits=self.habits)
+        self.auto_session_manager.session_start_requested.connect(self.on_session_start_requested)
+
+        # Connect session management signals
+        self.session_start_requested.connect(self.on_session_start_requested)
+        self.session_stop_requested.connect(self.on_session_stop_requested)
 
         self.animation_manager = AnimationManager(self)
         self.animation_manager.fade_finished.connect(self.on_fade_finished)
@@ -511,13 +523,11 @@ class PianoFloatingWindow(QWidget):
     # ===== Session Management =====
 
     def toggle_session(self, habit):
-        """Start or stop a session for the given habit"""
+        """Request to start or stop a session for the given habit"""
         if self.session_manager.has_active_session(habit.id):
-            self.sound_manager.play_sound('end')
-            self.end_session(habit)
+            self.session_stop_requested.emit(habit)
         else:
-            self.sound_manager.play_sound('start')
-            self.start_session(habit)
+            self.session_start_requested.emit(habit)
 
     def start_session(self, habit):
         """Start a session in separate process"""
@@ -555,6 +565,26 @@ class PianoFloatingWindow(QWidget):
     def on_session_error(self, error_message: str):
         """Handle session error from process"""
         print(f"Session error: {error_message}")
+
+    def on_session_start_requested(self, habit):
+        """Handle session start request (manual or auto) - play sound and start session"""
+        # Check if session is already running
+        if self.session_manager.has_active_session(habit.id):
+            return
+
+        # Play start sound
+        self.sound_manager.play_sound('start')
+
+        # Start the session
+        self.start_session(habit)
+
+    def on_session_stop_requested(self, habit):
+        """Handle session stop request - play sound and stop session"""
+        # Play end sound
+        self.sound_manager.play_sound('end')
+
+        # Stop the session
+        self.end_session(habit)
 
     # ===== Reorder Mode =====
 

@@ -6,6 +6,7 @@ from .sound_manager import SoundManager
 from .drawer_animation_manager import DrawerAnimationManager
 from .window_size_manager import WindowSizeManager
 from .reorder_mode_manager import ReorderModeManager
+from .auto_session_manager import AutoSessionManager
 
 __all__ = [
     'SessionProcessManager',
@@ -14,5 +15,6 @@ __all__ = [
     'SoundManager',
     'DrawerAnimationManager',
     'WindowSizeManager',
-    'ReorderModeManager'
+    'ReorderModeManager',
+    'AutoSessionManager'
 ]

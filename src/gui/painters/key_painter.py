@@ -11,7 +11,7 @@ Responsible for painting:
 """
 
 from typing import Optional, TYPE_CHECKING
-from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont
+from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QFontMetrics
 from PyQt6.QtCore import Qt, QRect
 
 from .base_painter import BasePainter
@@ -132,17 +132,24 @@ class KeyPainter(BasePainter):
     def draw_key_label(painter: QPainter, geometry: PianoGeometry, key_rect: QRect, label: str):
         """Draw the label text on a piano key"""
         painter.setPen(QPen(PianoColors.TEXT_PRIMARY))
-        painter.setFont(QFont('Avenir', 13))
+        font = QFont('Avenir', 13)
+        painter.setFont(font)
+
         label_rect = QRect(
             geometry.keys_start_x + 15,
             int(key_rect.y()),
             geometry.keys_width - 25,
             int(key_rect.height())
         )
+
+        # Elide text if it doesn't fit
+        metrics = QFontMetrics(font)
+        elided_text = metrics.elidedText(label, Qt.TextElideMode.ElideRight, label_rect.width())
+
         painter.drawText(
             label_rect,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            label
+            elided_text
         )
 
     @staticmethod

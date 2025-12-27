@@ -30,6 +30,25 @@ def initialize_database():
     # Run any pending migrations
     run_migrations()
 
+    # Start WindowMonitor if any habit uses it
+    _initialize_window_monitor()
+
+# TODO: Extract to a better place
+def _initialize_window_monitor():
+    """Start WindowMonitor if any habit has WindowTracker configured."""
+    import logging
+    from core.habit.habit_tracker import HabitTracker
+    from core.tracker.window_monitor import WindowMonitor
+
+    has_window_tracker = HabitTracker.select().where(
+        (HabitTracker.tracker == 'window') &
+        (HabitTracker.is_enabled == True)
+    ).exists()
+
+    if has_window_tracker:
+        WindowMonitor.get_instance()
+        logging.info("WindowMonitor initialized")
+
 
 if __name__ == '__main__':
     initialize_database()
