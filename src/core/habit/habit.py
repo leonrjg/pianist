@@ -28,6 +28,7 @@ class Habit(BaseModel):
         started_at: Timestamp when the habit tracking started.
         inactivity_threshold: Time in seconds to consider inactivity (only relevant for trackers).
         allocated_time: Total allocated time for the habit in seconds (minimum time to qualify for streaks).
+        visible: Whether the habit appears as a piano key (True) or only in drawer lists (False).
     """
     id = AutoField()
     name = CharField(unique=True)
@@ -38,6 +39,7 @@ class Habit(BaseModel):
     inactivity_threshold = IntegerField(default=120)
     allocated_time: Optional[int] = IntegerField(null=True)
     display_order = IntegerField(default=0)
+    visible = BooleanField(default=True)
     
     def __init__(self, *args, **kwargs):
         """Initialize habit with schedule instance."""

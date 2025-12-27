@@ -70,7 +70,10 @@ class PianoFloatingWindow(QWidget):
         )
 
         # ===== Load Habits =====
-        self.habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        # Load all habits for AutoSessionManager (includes non-visible)
+        all_habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        # Load only visible habits for piano keys
+        self.habits = [h for h in all_habits if h.visible]
         self.state.num_habits = len(self.habits)
         self.keys = []  # Will be populated by update_keys_for_window_size()
 
@@ -82,7 +85,7 @@ class PianoFloatingWindow(QWidget):
         self.session_manager.start()
 
         # Auto-session manager for window-based session triggering
-        self.auto_session_manager = AutoSessionManager(habits=self.habits)
+        self.auto_session_manager = AutoSessionManager(habits=all_habits)
         self.auto_session_manager.session_start_requested.connect(self.on_session_start_requested)
 
         # Connect session management signals
@@ -704,8 +707,9 @@ class PianoFloatingWindow(QWidget):
 
     def on_habit_updated_from_sheet(self):
         """Handle habit updates from the music sheet widget"""
-        # Reload habits
-        self.habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        # Reload all habits and filter visible ones for piano keys
+        all_habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        self.habits = [h for h in all_habits if h.visible]
         self.state.num_habits = len(self.habits)
 
         # Refresh keys
@@ -733,8 +737,11 @@ class PianoFloatingWindow(QWidget):
 
     def refresh_habits(self):
         """Refresh habits list when management window updates them"""
-        self.habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        # Reload all habits and filter visible ones for piano keys
+        all_habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        self.habits = [h for h in all_habits if h.visible]
         self.state.num_habits = len(self.habits)
+
         self.update_keys_for_window_size()
         self.update()
 

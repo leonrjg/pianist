@@ -39,6 +39,7 @@ class HabitDetailPage(SheetPage):
         self._schedule_dropdown = None
         self._duration_spin = None
         self._timeout_spin = None
+        self._visible_checkbox = None
 
         # Dynamic tracker widgets - populated during build_content
         self._tracker_checkboxes = {}  # {tracker_name: QCheckBox}
@@ -150,6 +151,11 @@ class HabitDetailPage(SheetPage):
         if self.habit and self.habit.inactivity_threshold:
             self._timeout_spin.setValue(self.habit.inactivity_threshold)
         form_layout.addWidget(self._timeout_spin)
+
+        # Show as key checkbox
+        self._visible_checkbox = QCheckBox("Show as key")
+        self._visible_checkbox.setChecked(self.habit.visible if self.habit else True)
+        form_layout.addWidget(self._visible_checkbox)
 
         # Trackers section - dynamically generated from registry
         form_layout.addWidget(self._create_text_label("Tracking:", secondary=True))
@@ -322,6 +328,7 @@ class HabitDetailPage(SheetPage):
         schedule = self._schedule_dropdown.get_selected()
         duration = self._duration_spin.value()
         timeout = self._timeout_spin.value()
+        visible = self._visible_checkbox.isChecked()
 
         try:
             with db.atomic():
@@ -340,6 +347,8 @@ class HabitDetailPage(SheetPage):
 
                 if timeout > 0:
                     self.habit.inactivity_threshold = timeout
+
+                self.habit.visible = visible
 
                 self.habit.save()
 
