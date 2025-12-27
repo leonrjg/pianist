@@ -65,6 +65,25 @@ class PianoState(QObject):
         self._drag_current_y: int = 0  # Current Y position during drag
         self._drop_target_index: Optional[int] = None  # Target position for drop
 
+        # ===== Resize State =====
+        self._is_resizing = False
+        self._resize_edge = None  # 'left', 'top-left', 'bottom-left'
+        self._resize_start_rect = None  # QRect
+
+    def start_resize(self, edge: str, start_rect, drag_start_x: int, drag_start_y: int):
+        """Start window resize operation"""
+        self._is_resizing = True
+        self._resize_edge = edge
+        self._resize_start_rect = start_rect
+        self._drag_start_x = drag_start_x
+        self._drag_start_y = drag_start_y
+
+    def end_resize(self):
+        """End window resize operation"""
+        self._is_resizing = False
+        self._resize_edge = None
+        self._resize_start_rect = None
+
     # ===== Toggleable Drawer Properties =====
 
     @property

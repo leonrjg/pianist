@@ -319,11 +319,33 @@ class PianoFloatingWindow(QWidget):
 
     # ===== Mouse Events =====
 
+    def _get_resize_edge_at_position(self, pos: QPoint):
+        """Detect resize edge at position (returns edge name or None)"""
+        if self.state.toggleable_drawer_visible:
+            return None
+
+        fallboard_x = PianoLayout.HINGE_OFFSET
+        # Check corners first (larger zone)
+        if pos.y() <= Interactions.RESIZE_CORNER_THRESHOLD or pos.y() >= self.height() - Interactions.RESIZE_CORNER_THRESHOLD:
+            if fallboard_x <= pos.x() <= fallboard_x + Interactions.RESIZE_CORNER_THRESHOLD:
+                return 'top-left' if pos.y() <= Interactions.RESIZE_CORNER_THRESHOLD else 'bottom-left'
+        # Then check straight edge (narrower zone)
+        elif fallboard_x <= pos.x() <= fallboard_x + Interactions.RESIZE_EDGE_THRESHOLD:
+            return 'left'
+        return None
+
     def mousePressEvent(self, event):
         """Handle mouse press"""
         if event.button() == Qt.MouseButton.LeftButton:
             global_pos = event.globalPosition().toPoint()
             local_pos = event.position().toPoint()
+
+            # Check for resize on fallboard left edge (when drawer closed)
+            edge = self._get_resize_edge_at_position(local_pos)
+            if edge:
+                self.state.start_resize(edge, self.geometry(), global_pos.x(), global_pos.y())
+                return
+
             self.state.start_drag(global_pos.x(), global_pos.y(), local_pos.x(), local_pos.y())
 
             # Check for double-click on piano frame
@@ -343,6 +365,29 @@ class PianoFloatingWindow(QWidget):
         """Handle mouse move"""
         if event.buttons() == Qt.MouseButton.LeftButton:
             local_pos = event.position().toPoint()
+
+            # Handle window resizing
+            if self.state._is_resizing:
+                global_pos = event.globalPosition().toPoint()
+                dx = global_pos.x() - self.state._drag_start_x
+                dy = global_pos.y() - self.state._drag_start_y
+                rect = self.state._resize_start_rect
+                edge = self.state._resize_edge
+
+                x, y, w, h = rect.x(), rect.y(), rect.width(), rect.height()
+                if 'left' in edge:
+                    x, w = x + dx, w - dx
+                if 'top' in edge:
+                    y, h = y + dy, h - dy
+                if 'bottom' in edge:
+                    h = h + dy
+
+                # Enforce minimum size
+                min_w = self.size_manager.get_minimum_width()
+                min_h = self.size_manager.get_minimum_height()
+                if w >= min_w and h >= min_h:
+                    self.setGeometry(x, y, w, h)
+                return
 
             # Handle key reordering in reorder mode
             if self.reorder_mode_manager.is_reorder_mode and self.state.is_dragging_key():
@@ -396,6 +441,11 @@ class PianoFloatingWindow(QWidget):
     def mouseReleaseEvent(self, event):
         """Handle mouse release"""
         if event.button() == Qt.MouseButton.LeftButton:
+            # Handle resize end
+            if self.state._is_resizing:
+                self.state.end_resize()
+                return
+
             # Handle key reorder drop
             if self.state.is_dragging_key():
                 self.perform_key_reorder()
@@ -465,6 +515,13 @@ class PianoFloatingWindow(QWidget):
     def update_cursor_for_position(self, pos: QPoint):
         """Update cursor based on mouse position"""
         cursor = Qt.CursorShape.ArrowCursor
+
+        # Show resize cursor on fallboard left edge (when drawer closed)
+        edge = self._get_resize_edge_at_position(pos)
+        if edge:
+            cursor = Qt.CursorShape.SizeFDiagCursor if 'top' in edge or 'bottom' in edge else Qt.CursorShape.SizeHorCursor
+            self.setCursor(cursor)
+            return
 
         if (self.geometry_model.is_point_in_control_button(pos) or
             self.geometry_model.is_point_in_keys(pos) or

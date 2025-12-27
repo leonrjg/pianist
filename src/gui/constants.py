@@ -133,6 +133,10 @@ class Interactions:
     HINGE_CLICK_TOLERANCE = 8  # Padding around hinge for click detection
     PEDAL_CLICK_RADIUS = 12  # Click detection radius for pedals
 
+    # Resize detection zones
+    RESIZE_EDGE_THRESHOLD = 8  # Pixels from edge for straight edge resizing
+    RESIZE_CORNER_THRESHOLD = 20  # Pixels from corner for diagonal resizing
+
 
 class Audio:
     """Sound effect configuration"""
