@@ -20,7 +20,6 @@ class PianoState(QObject):
     key_pressed = pyqtSignal(int)  # key_index
     key_released = pyqtSignal(int)  # key_index
     scrolled = pyqtSignal(int)  # new scroll_offset
-    window_resized = pyqtSignal(int, int)  # width, height
 
     def __init__(self):
         super().__init__()
@@ -29,8 +28,6 @@ class PianoState(QObject):
         self._toggleable_drawer_visible = False
 
         # ===== Window State =====
-        self._window_width = 0
-        self._window_height = 0
         self._is_fading_out = False
 
         # ===== Key Press State =====
@@ -101,21 +98,6 @@ class PianoState(QObject):
         self.toggleable_drawer_visible = not self._toggleable_drawer_visible
 
     # ===== Window Properties =====
-
-    @property
-    def window_width(self) -> int:
-        return self._window_width
-
-    @property
-    def window_height(self) -> int:
-        return self._window_height
-
-    def set_window_size(self, width: int, height: int):
-        """Update window dimensions"""
-        if self._window_width != width or self._window_height != height:
-            self._window_width = width
-            self._window_height = height
-            self.window_resized.emit(width, height)
 
     @property
     def is_fading_out(self) -> bool:

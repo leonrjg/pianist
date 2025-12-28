@@ -14,17 +14,22 @@ from ..constants import PianoLayout
 class PianoGeometry:
     """Calculates all geometric properties for the piano interface"""
 
-    def __init__(self, window_width: int, window_height: int, toggleable_drawer_visible: bool = False):
-        self.window_width = window_width
-        self.window_height = window_height
+    def __init__(self, window, toggleable_drawer_visible: bool = False):
+        self.window = window
         self.toggleable_drawer_visible = toggleable_drawer_visible
 
-    def update(self, window_width: int = None, window_height: int = None, toggleable_drawer_visible: bool = None):
+    @property
+    def window_width(self) -> int:
+        """Get current window width from actual window"""
+        return self.window.width()
+
+    @property
+    def window_height(self) -> int:
+        """Get current window height from actual window"""
+        return self.window.height()
+
+    def update(self, toggleable_drawer_visible: bool = None):
         """Update geometry parameters"""
-        if window_width is not None:
-            self.window_width = window_width
-        if window_height is not None:
-            self.window_height = window_height
         if toggleable_drawer_visible is not None:
             self.toggleable_drawer_visible = toggleable_drawer_visible
 
@@ -35,7 +40,7 @@ class PianoGeometry:
     @property
     def toggleable_drawer_width(self) -> int:
         """Width of the toggleable drawer (toggleable wooden panel with music sheet)"""
-        return PianoLayout.HINGE_OFFSET
+        return int((2 * self.window_width) / 3)
 
     @property
     def toggleable_drawer_rect(self) -> QRect:

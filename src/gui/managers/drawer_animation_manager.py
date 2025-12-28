@@ -28,11 +28,12 @@ class DrawerAnimationManager(QObject):
         self.window = window
 
         # Animation state
-        self._mask_offset = 0  # Current mask offset (0 = hidden, HINGE_OFFSET = visible)
+        self._mask_offset = 0  # Current mask offset (0 = hidden, drawer_width = visible)
         self._mask_target = 0  # Target offset for animation
         self._mask_start = 0  # Starting offset for animation
         self._mask_progress = 0.0  # Animation progress (0.0 to 1.0)
         self._mask_duration = Animations.FALLBOARD_SLIDE_DURATION
+        self._drawer_width = 0  # Current drawer width (dynamic)
 
         # Animation timer
         self._mask_timer = QTimer(self)
@@ -47,6 +48,7 @@ class DrawerAnimationManager(QObject):
             opening: True to reveal drawer, False to hide it
             drawer_width: Width of the drawer in pixels
         """
+        self._drawer_width = drawer_width
         self._mask_target = drawer_width if opening else 0
         self._mask_start = self._mask_offset
         self._mask_progress = 0.0
@@ -93,8 +95,11 @@ class DrawerAnimationManager(QObject):
         The mask hides the leftmost part of the window (where the drawer is painted)
         and gradually reveals it.
         """
+        # Always get current drawer width from geometry model for consistency
+        current_drawer_width = self.window.geometry_model.toggleable_drawer_width
+
         # Calculate visible region start position
-        visible_start_x = PianoLayout.HINGE_OFFSET - self._mask_offset
+        visible_start_x = current_drawer_width - self._mask_offset
 
         # Create and apply mask
         visible_region = QRegion(
@@ -111,7 +116,9 @@ class DrawerAnimationManager(QObject):
         Args:
             drawer_visible: Whether drawer should be visible
         """
-        self._mask_offset = PianoLayout.HINGE_OFFSET if drawer_visible else 0
+        # Get current drawer width from window's geometry model
+        self._drawer_width = self.window.geometry_model.toggleable_drawer_width
+        self._mask_offset = self._drawer_width if drawer_visible else 0
         self._apply_mask()
 
     def cleanup(self):

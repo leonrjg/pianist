@@ -60,12 +60,10 @@ class PianoFloatingWindow(QWidget):
         initial_height = initial_size.height()
 
         self.state = PianoState()
-        self.state.set_window_size(initial_width, initial_height)
         self.state.toggleable_drawer_visible = False
 
         self.geometry_model = PianoGeometry(
-            window_width=initial_width,
-            window_height=initial_height,
+            window=self,
             toggleable_drawer_visible=False
         )
 
@@ -92,10 +90,18 @@ class PianoFloatingWindow(QWidget):
         self.session_start_requested.connect(self.on_session_start_requested)
         self.session_stop_requested.connect(self.on_session_stop_requested)
 
+        # ===== Window Sizing =====
+        # Resize window BEFORE creating drawer animation manager so geometry queries work correctly
+        self.resize(initial_width, initial_height)
+        min_width = self.size_manager.get_minimum_width()
+        min_height = self.size_manager.get_minimum_height()
+        self.setMinimumSize(min_width, min_height)
+
         self.animation_manager = AnimationManager(self)
         self.animation_manager.fade_finished.connect(self.on_fade_finished)
 
         self.drawer_animation_manager = DrawerAnimationManager(self)
+        self.drawer_animation_manager.initialize_state(self.state.toggleable_drawer_visible)
 
         self.sound_manager = SoundManager()
 
@@ -103,12 +109,6 @@ class PianoFloatingWindow(QWidget):
         self.reorder_mode_manager.pulse_updated.connect(self.update)
         self.reorder_mode_manager.reorder_mode_toggled.connect(self.on_reorder_mode_toggled)
         self.reorder_mode_manager.set_num_keys(len(self.keys))
-
-        # ===== Window Sizing =====
-        self.resize(initial_width, initial_height)
-        min_width = self.size_manager.get_minimum_width()
-        min_height = self.size_manager.get_minimum_height()
-        self.setMinimumSize(min_width, min_height)
 
         # ===== Key Press Visual Effect =====
         self.press_timer = QTimer()
@@ -142,12 +142,8 @@ class PianoFloatingWindow(QWidget):
         self.setMouseTracking(True)
 
         # ===== Connect State Signals =====
-        self.state.window_resized.connect(self.on_window_resized)
         self.state.toggleable_drawer_toggled.connect(self.on_toggleable_drawer_toggled)
         self.size_manager.size_changed.connect(self.on_window_resized)
-
-        # ===== Initialize Toggleable Drawer State =====
-        self.drawer_animation_manager.initialize_state(self.state.toggleable_drawer_visible)
 
         # ===== Create Control Buttons Container =====
         self.control_buttons_container = QWidget(self)
@@ -173,6 +169,25 @@ class PianoFloatingWindow(QWidget):
         """)
         self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
+        # Maximize button
+        self.maximize_button = QPushButton()
+        self.maximize_button.setIcon(QIcon('gui/icons/maximize.svg'))
+        self.maximize_button.setIconSize(QSize(14, 14))
+        self.maximize_button.setFixedSize(20, 20)
+        self.maximize_button.setToolTip('Maximize window')
+        self.maximize_button.clicked.connect(self.toggle_maximize)
+        self.maximize_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid rgb(184, 134, 11);
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                border-color: rgb(218, 165, 32);
+            }}
+        """)
+        self.maximize_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
         # Reorder button
         self.reorder_button = QPushButton()
         self.reorder_button.setIcon(QIcon('gui/icons/reorder.svg'))
@@ -193,6 +208,7 @@ class PianoFloatingWindow(QWidget):
         self.reorder_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         control_layout.addWidget(self.close_button)
+        control_layout.addWidget(self.maximize_button)
         control_layout.addWidget(self.reorder_button)
         control_layout.addStretch()
 
@@ -208,6 +224,17 @@ class PianoFloatingWindow(QWidget):
         y = (screen_geometry.height() - self.size().height()) // 2
         self.move(x, y)
 
+    def toggle_maximize(self):
+        """Toggle between maximized and normal window state"""
+        if self.isMaximized():
+            self.showNormal()
+            if self.state.toggleable_drawer_visible:
+                self.toggle_toggleable_drawer()
+        else:
+            self.showMaximized()
+            if not self.state.toggleable_drawer_visible:
+                self.toggle_toggleable_drawer()
+
     def resizeEvent(self, event):
         """
         Handle window resize events.
@@ -222,12 +249,12 @@ class PianoFloatingWindow(QWidget):
 
         # Let size manager handle the resize and coordinate with drawer mask
         if self.size_manager.handle_user_resize(new_width, new_height, self.drawer_animation_manager):
-            # Size manager approved the resize, update our state
-            self.state.set_window_size(new_width, new_height)
+            # Size manager approved the resize - no need to update state, geometry_model queries window directly
+            pass
 
     def on_window_resized(self, width, height):
         """Handle window resize state change"""
-        self.geometry_model.update(window_width=width, window_height=height)
+        # No need to update geometry_model - it queries window dimensions directly
         self.update_keys_for_window_size()
         self._position_music_sheet_widget()  # Reposition music sheet widget
         self._position_control_buttons_container()  # Reposition control buttons
@@ -236,7 +263,7 @@ class PianoFloatingWindow(QWidget):
     def _position_control_buttons_container(self):
         """Position the control buttons container centered horizontally in the control panel"""
         # Center horizontally in the control panel
-        control_panel_start_x = self.state.window_width - PianoLayout.CONTROL_PANEL_WIDTH
+        control_panel_start_x = self.width() - PianoLayout.CONTROL_PANEL_WIDTH
         container_width = 20  # Button width
         x = control_panel_start_x + (PianoLayout.CONTROL_PANEL_WIDTH - container_width) // 2
         y = 10
@@ -247,7 +274,7 @@ class PianoFloatingWindow(QWidget):
 
     def update_keys_for_window_size(self):
         """Update the keys array based on current window size and scroll position"""
-        available_height = self.state.window_height - PianoLayout.FRAME_PADDING_VERTICAL
+        available_height = self.height() - PianoLayout.FRAME_PADDING_VERTICAL
         num_keys_that_fit = max(1, int(available_height // PianoLayout.KEY_HEIGHT)) + 2
 
         all_habits = list(self.habits)
@@ -324,7 +351,7 @@ class PianoFloatingWindow(QWidget):
         if self.state.toggleable_drawer_visible:
             return None
 
-        fallboard_x = PianoLayout.HINGE_OFFSET
+        fallboard_x = self.geometry_model.toggleable_drawer_width
         # Check corners first (larger zone)
         if pos.y() <= Interactions.RESIZE_CORNER_THRESHOLD or pos.y() >= self.height() - Interactions.RESIZE_CORNER_THRESHOLD:
             if fallboard_x <= pos.x() <= fallboard_x + Interactions.RESIZE_CORNER_THRESHOLD:
