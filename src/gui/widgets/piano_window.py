@@ -97,6 +97,11 @@ class PianoFloatingWindow(QWidget):
         min_height = self.size_manager.get_minimum_height()
         self.setMinimumSize(min_width, min_height)
 
+        # Cap maximum window size to screen size
+        screen = QApplication.primaryScreen()
+        screen_geometry = screen.geometry()
+        self.setMaximumSize(screen_geometry.width(), screen_geometry.height())
+
         self.animation_manager = AnimationManager(self)
         self.animation_manager.fade_finished.connect(self.on_fade_finished)
 
