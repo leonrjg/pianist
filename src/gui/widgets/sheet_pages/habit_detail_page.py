@@ -17,6 +17,7 @@ from pynput.keyboard import Controller, Key, KeyCode
 from core.tracker.registry import TrackerRegistry
 from .base_page import SheetPage
 from .vintage_dropdown import VintageDropdown
+from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, FormSection
 from ..tracker_help_widget import TrackerHelpWidget
 
 # Import database models
@@ -108,57 +109,57 @@ class HabitDetailPage(SheetPage):
             stats_label = self._create_text_label(stats_text, secondary=False)
             form_layout.addWidget(stats_label)
 
-        # Name field
-        name_label = self._create_text_label("Name:", secondary=True)
-        form_layout.addWidget(name_label)
+        # Basic Information Section
+        basic_section = FormSection("Information")
 
-        # Name input
-        name_layout = QHBoxLayout()
-        name_layout.setContentsMargins(0, 0, 0, 0)
-        self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText("e.g., Reading")
+        # Name field
+        self._name_edit = VintageLineEdit("e.g., Reading")
         if self.habit:
             self._name_edit.setText(self.habit.name)
-        name_layout.addWidget(self._name_edit)
-
-        form_layout.addLayout(name_layout)
+        basic_section.add_field("Name:", self._name_edit)
 
         # Schedule field
-        schedule_label = self._create_text_label("Schedule:", secondary=True)
-        form_layout.addWidget(schedule_label)
-
         schedules = ['hourly', 'daily', 'weekly', 'monthly', 'exponential_3']
         default_schedule = self.habit.schedule if self.habit else None
         self._schedule_dropdown = VintageDropdown(schedules, default_schedule)
-        form_layout.addWidget(self._schedule_dropdown)
+        basic_section.add_field("Schedule:", self._schedule_dropdown)
+
+        form_layout.addWidget(basic_section)
+
+        # Time Settings Section
+        time_section = FormSection("Progress")
 
         # Duration field
-        form_layout.addWidget(self._create_text_label("Duration (min):", secondary=True))
-        self._duration_spin = QSpinBox()
+        self._duration_spin = VintageSpinBox(" min")
         self._duration_spin.setRange(0, 1440)
-        self._duration_spin.setSuffix(" min")
-        self._duration_spin.setMaximumWidth(120)
+        self._duration_spin.setMaximumWidth(140)
         if self.habit and self.habit.allocated_time:
             self._duration_spin.setValue(self.habit.allocated_time // 60)
-        form_layout.addWidget(self._duration_spin)
+        time_section.add_field("Minimum time to count towards streak:", self._duration_spin)
 
         # Timeout field
-        form_layout.addWidget(self._create_text_label("Timeout (sec):", secondary=True))
-        self._timeout_spin = QSpinBox()
+        self._timeout_spin = VintageSpinBox(" sec")
         self._timeout_spin.setRange(0, 3600)
-        self._timeout_spin.setSuffix(" sec")
-        self._timeout_spin.setMaximumWidth(120)
+        self._timeout_spin.setMaximumWidth(140)
+        self._timeout_spin.setValue(30)
         if self.habit and self.habit.inactivity_threshold:
             self._timeout_spin.setValue(self.habit.inactivity_threshold)
-        form_layout.addWidget(self._timeout_spin)
+        time_section.add_field("Maximum inactivity until progress stops", self._timeout_spin)
+
+        form_layout.addWidget(time_section)
+
+        # Display Options Section
+        display_section = FormSection("Display Options")
 
         # Show as key checkbox
-        self._visible_checkbox = QCheckBox("Show as key")
+        self._visible_checkbox = VintageCheckBox("Show as piano key")
         self._visible_checkbox.setChecked(self.habit.visible if self.habit else True)
-        form_layout.addWidget(self._visible_checkbox)
+        display_section.add_widget(self._visible_checkbox)
+
+        form_layout.addWidget(display_section)
 
         # Trackers section - dynamically generated from registry
-        form_layout.addWidget(self._create_text_label("Tracking:", secondary=True))
+        trackers_section = FormSection("Tracking")
 
         # Get enabled trackers for this habit
         enabled_trackers = {}
@@ -173,11 +174,11 @@ class HabitDetailPage(SheetPage):
             config = TrackerRegistry.get_config_schema(tracker_name)
 
             # Create checkbox for this tracker
-            checkbox = QCheckBox(f"{tracker_name}")
+            checkbox = VintageCheckBox(f"{tracker_name}")
             checkbox.setChecked(tracker_name in enabled_trackers)
             checkbox.stateChanged.connect(lambda state, tn=tracker_name: self._on_tracker_toggled(tn, state))
             self._tracker_checkboxes[tracker_name] = checkbox
-            form_layout.addWidget(checkbox)
+            trackers_section.add_widget(checkbox)
 
             if config:
                 # Create container for config and help (shown when checked)
@@ -198,8 +199,7 @@ class HabitDetailPage(SheetPage):
                 config_label = self._create_text_label(f"Config:", secondary=True)
                 help_layout.addWidget(config_label)
 
-                config_edit = QLineEdit()
-                config_edit.setPlaceholderText(self._get_config_placeholder(tracker_name))
+                config_edit = VintageLineEdit(self._get_config_placeholder(tracker_name))
                 if tracker_name in enabled_trackers:
                     config_dict = enabled_trackers[tracker_name]
                     config_edit.setText(self._config_dict_to_string(config_dict))
@@ -215,7 +215,7 @@ class HabitDetailPage(SheetPage):
                 # Show config container if tracker is checked
                 help_container.setVisible(checkbox.isChecked())
                 self._tracker_help_containers[tracker_name] = help_container
-                form_layout.addWidget(help_container)
+                trackers_section.add_widget(help_container)
 
                 # Only show/start help widget if tracker is newly checked (not from DB)
                 is_newly_checked = checkbox.isChecked() and tracker_name not in self._initially_enabled_trackers
@@ -226,6 +226,8 @@ class HabitDetailPage(SheetPage):
                 else:
                     # Hide help widget for initially enabled trackers
                     help_widget.hide()
+
+        form_layout.addWidget(trackers_section)
 
         form_layout.addStretch()
         layout.addWidget(form_widget)

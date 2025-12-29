@@ -14,6 +14,8 @@ MONTH = 2592000
 
 def get_friendly_elapsed(total_seconds: int) -> str:
     """Convert total seconds to an HH:MM:SS format."""
+    if type(total_seconds) == float:
+        total_seconds = int(total_seconds)
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     result = f"{minutes:02d}:{seconds:02d}"

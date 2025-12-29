@@ -96,14 +96,6 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         main_layout.setSpacing(0)
         super().setLayout(main_layout)
 
-        # Import and add menu widget at the top
-        from ..sheet_menu import SheetMenu
-        # Get page type from get_page_type() if it exists, otherwise derive from class name
-        current_page_type = self.get_page_type() if hasattr(self, 'get_page_type') else None
-        self._menu = SheetMenu(self, current_page_type=current_page_type)
-        self._menu.navigate_to.connect(self.navigate_to.emit)
-        main_layout.addWidget(self._menu)
-
         # Create scroll area with wood-styled scrollbar
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)

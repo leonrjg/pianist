@@ -2,9 +2,13 @@
 Stats Page - View habit statistics and analytics.
 """
 
-from PyQt6.QtWidgets import QTextEdit
+from PyQt6.QtWidgets import QHBoxLayout, QLabel
+from PyQt6.QtGui import QFont
 
 from .base_page import SheetPage
+from .stat_card import StatCard
+from .habit_stat_card import HabitStatCard
+from .champion_banner import ChampionBanner
 
 # Import database models and analytics
 import sys
@@ -13,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.habit import Habit
 from core.util.time import get_friendly_elapsed, get_friendly_datetime
 from core import analytics
+from datetime import datetime
 
 
 class StatsPage(SheetPage):
@@ -32,62 +37,110 @@ class StatsPage(SheetPage):
         title = self._create_section_header("Statistics")
         layout.addWidget(title)
 
-        # Text edit for monospaced stats display
-        stats_text = QTextEdit()
-        stats_text.setReadOnly(True)
-
-        # Generate stats text
-        stats_text.setText(self._generate_stats_text())
-
-        layout.addWidget(stats_text)
-
-        # Bottom navigation
-        layout.addWidget(self._create_separator())
-
-        back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
-        layout.addWidget(back_link)
-
-    def _generate_stats_text(self) -> str:
-        """Generate formatted statistics text"""
         try:
             habits = list(Habit.select())
             if not habits:
-                return "No habits found."
+                no_habits_label = self._create_text_label("No habits yet.", secondary=True)
+                layout.addWidget(no_habits_label)
+                return
 
-            lines = []
-            for habit in habits:
-                schedule = habit.get_schedule()
-                scale = schedule.get_scale()
+            # At-a-glance summary cards
+            self._build_summary_section(layout, habits)
 
-                lines.append(f"• {habit.name.upper()} ({habit.schedule})")
+            layout.addSpacing(8)
 
-                from datetime import datetime
-                lines.append(f"  Next: {get_friendly_datetime(schedule.get_next_task(datetime.now()), scale)}")
+            # Champion habit spotlight
+            self._build_champion_section(layout, habits)
 
-                # Activity stats
-                buckets = habit.get_activity_buckets()
-                if buckets:
-                    total_time = analytics.get_time_spent(buckets)
-                    lines.append(f"  Total time: {get_friendly_elapsed(total_time)}")
-                    lines.append(f"  Total sessions: {len(buckets)}")
-                lines.append("")
+            layout.addSpacing(8)
 
-            # Global analytics
-            lines.append("=== GLOBAL ANALYTICS ===\n")
+            # Section header for habit performance
+            perf_header = self._create_section_header("Performance")
+            layout.addWidget(perf_header)
 
-            # Completion rates
-            lines.append("Completion rates:")
-            sorted_habits = analytics.sort_habits_by_completion_rate(habits)
-            for habit, rate in sorted_habits:
-                lines.append(f"  {habit.name}: {rate * 100:.1f}%")
-
-            lines.append("")
-
-            # Champion habit
-            champion = analytics.get_habit_with_longest_streak(habits)
-            lines.append(f"Longest streak: {champion.name} ({champion.get_longest_streak()} periods)")
-
-            return "\n".join(lines)
+            # Individual habit stat cards
+            self._build_habit_stats_section(layout, habits)
 
         except Exception as e:
-            return f"Error generating stats: {e}"
+            error_label = self._create_text_label(f"Error loading statistics: {e}", secondary=True)
+            layout.addWidget(error_label)
+
+        layout.addStretch()
+
+    def _build_summary_section(self, layout, habits):
+        """Build the at-a-glance summary cards section"""
+        # Calculate global stats
+        total_time_seconds = 0
+        total_sessions = 0
+
+        for habit in habits:
+            buckets = habit.get_activity_buckets()
+            if buckets:
+                total_time_seconds += analytics.get_time_spent(buckets)
+                total_sessions += len(buckets)
+
+        # Create summary cards in a horizontal layout
+        summary_layout = QHBoxLayout()
+        summary_layout.setSpacing(4)
+
+        # Total practice time card
+        total_time_str = get_friendly_elapsed(total_time_seconds) if total_time_seconds > 0 else "0h 0m"
+        time_card = StatCard("Practice Time", total_time_str, "⏱", parent=self)
+        summary_layout.addWidget(time_card)
+
+        # Total sessions card
+        sessions_card = StatCard("Sessions", str(total_sessions), "📊", parent=self)
+        summary_layout.addWidget(sessions_card)
+
+        layout.addLayout(summary_layout)
+
+    def _build_champion_section(self, layout, habits):
+        """Build the champion habit spotlight banner"""
+        try:
+            champion = analytics.get_habit_with_longest_streak(habits)
+            if champion:
+                streak = champion.get_longest_streak()
+                completion_rate = analytics.get_completion_rate(champion)
+
+                banner = ChampionBanner(
+                    champion,
+                    streak=streak,
+                    completion_rate=completion_rate,
+                    on_click=self._navigate_to_habit,
+                    parent=self
+                )
+                layout.addWidget(banner)
+        except:
+            pass  # Skip if no champion can be determined
+
+    def _build_habit_stats_section(self, layout, habits):
+        """Build the individual habit statistics cards"""
+        # Sort by completion rate (best first)
+        sorted_habits = analytics.sort_habits_by_completion_rate(habits)
+
+        for habit, completion_rate in sorted_habits:
+            # Gather stats for this habit
+            buckets = habit.get_activity_buckets()
+
+            stats = {
+                'completion_rate': completion_rate,
+                'streak': habit.get_longest_streak(),
+            }
+
+            if buckets:
+                total_time = analytics.get_time_spent(buckets)
+                stats['total_time'] = get_friendly_elapsed(total_time)
+                stats['session_count'] = len(buckets)
+
+            # Create card
+            card = HabitStatCard(
+                habit,
+                stats=stats,
+                on_click=self._navigate_to_habit,
+                parent=self
+            )
+            layout.addWidget(card)
+
+    def _navigate_to_habit(self, habit):
+        """Navigate to habit detail page"""
+        self.navigate_to.emit('habit_detail', habit.id)

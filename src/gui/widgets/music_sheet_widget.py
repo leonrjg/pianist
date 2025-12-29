@@ -14,6 +14,7 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPolygo
 
 from .page_turn_animation import PageTurnAnimation
 from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, StatsPage, ActivityPage, SettingsPage
+from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
 
@@ -101,6 +102,11 @@ class MusicSheetWidget(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)  # Margin to show dark wooden container
         layout.setSpacing(0)
         self.setLayout(layout)
+
+        # Add menu at the top (fixed, doesn't animate)
+        self._menu = SheetMenu(self, current_page_type=PageType.INDEX.value)
+        self._menu.navigate_to.connect(self._navigate_to)
+        layout.addWidget(self._menu)
 
         # Stacked widget to hold pages
         self._stack = QStackedWidget()
@@ -200,6 +206,9 @@ class MusicSheetWidget(QWidget):
             page_type: Type of page (PageType enum value)
             data: Optional data for the page (e.g., habit_id for detail page)
         """
+        # Update menu's active page
+        self._menu.set_current_page(page_type)
+
         # Create the new page
         new_page = self._create_page(page_type, data)
         if not new_page:

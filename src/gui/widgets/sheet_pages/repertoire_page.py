@@ -2,10 +2,10 @@
 Repertoire Page - List of all habits.
 """
 
-from PyQt6.QtWidgets import QVBoxLayout, QWidget
 from PyQt6.QtGui import QFont
 
 from .base_page import SheetPage
+from .habit_card import HabitCard
 
 # Import database models
 import sys
@@ -37,21 +37,15 @@ class RepertoirePage(SheetPage):
             habits = list(Habit.select().order_by(Habit.display_order, Habit.name))
 
             if habits:
-                habits_widget = QWidget()
-                habits_layout = QVBoxLayout()
-                habits_layout.setContentsMargins(0, 0, 0, 0)
-                habits_widget.setLayout(habits_layout)
-
                 for habit in habits:
-                    # Create clickable habit link
-                    habit_link = self._create_link_label(
-                        f"→ {habit.name}",
-                        lambda h=habit: self.navigate_to.emit('habit_detail', h.id)
+                    # Create habit card with schedule info
+                    card = HabitCard(
+                        habit,
+                        subtitle=habit.schedule,
+                        on_click=self._navigate_to_habit,
+                        parent=self
                     )
-                    habits_layout.addWidget(habit_link)
-
-                habits_layout.addStretch()
-                layout.addWidget(habits_widget)
+                    layout.addWidget(card)
             else:
                 no_habits_label = self._create_text_label("No habits yet.", secondary=True)
                 layout.addWidget(no_habits_label)
@@ -59,3 +53,9 @@ class RepertoirePage(SheetPage):
         except Exception as e:
             error_label = self._create_text_label(f"Error loading habits: {e}", secondary=True)
             layout.addWidget(error_label)
+
+        layout.addStretch()
+
+    def _navigate_to_habit(self, habit):
+        """Navigate to habit detail page"""
+        self.navigate_to.emit('habit_detail', habit.id)

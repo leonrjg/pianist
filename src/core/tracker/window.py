@@ -23,14 +23,13 @@ class WindowTracker(Tracker):
         active_windows = WindowTracker._get_active_windows()
         focused_window = WindowTracker._get_focused_window()
         match = WindowTracker._is_keyword_in_title(keywords, focused_window)
-        keywords_list = ', '.join(keywords) if keywords else "- *None yet*"
-        windows_list = '\n'.join([f"- {w}" for w in active_windows[:5]]) if active_windows else "- *None*"
+        keywords_list = ', '.join(keywords) if keywords else "None yet"
         status = "✓ **MATCH**" if match else "✗ No match"
         return (
             "**WindowTracker** checks the focused window for specified keywords.\n\n"
             f"#### Your keywords\n{keywords_list}\n\n"
-            f"#### Windows sample (5)\n{windows_list}\n\n"
-            f"#### Focused window\n<ins>{focused_window or '*None yet*'}</ins>\n\n"
+            f"#### Focused window\n<ins>{focused_window or 'None yet'}</ins>\n\n"
+            "<small>Click on the window you wish to track to see its title here</small>\n\n"
             f"#### Tracking status\n{status}\n\n"
         )
 
