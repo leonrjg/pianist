@@ -26,22 +26,22 @@ class StatCard(QFrame):
         self._setup_ui()
 
     def _setup_ui(self):
-        """Setup the card UI"""
+        """Set up the card UI"""
         # Card styling with vintage paper and brass accents - more compact
         self.setStyleSheet("""
             StatCard {
                 background-color: rgba(255, 252, 245, 200);
                 border: 1px solid rgb(184, 134, 11);
                 border-radius: 3px;
-                padding: 6px;
+                padding: 2px;
                 margin: 2px;
             }
         """)
 
         # Layout
         layout = QVBoxLayout()
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(2)
+        layout.setContentsMargins(1, 2, 1, 2)
+        layout.setSpacing(1)
         self.setLayout(layout)
 
         # Icon and title

@@ -2,8 +2,8 @@
 Vintage Form Widgets - Styled form components matching the vintage aesthetic.
 """
 
-from PyQt6.QtWidgets import QLineEdit, QSpinBox, QCheckBox, QFrame, QVBoxLayout, QLabel
-from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QLineEdit, QSpinBox, QCheckBox, QFrame, QVBoxLayout, QLabel, QPushButton
+from PyQt6.QtGui import QFont, QCursor
 from PyQt6.QtCore import Qt
 
 
@@ -117,6 +117,83 @@ class VintageCheckBox(QCheckBox):
                 content: "✓";
             }
         """)
+
+
+class VintageButton(QPushButton):
+    """Button with vintage paper styling"""
+
+    def __init__(self, text="", button_type="primary", parent=None):
+        """
+        Args:
+            text: Button text
+            button_type: "primary", "secondary", or "danger"
+            parent: Parent widget
+        """
+        super().__init__(text, parent)
+        self.button_type = button_type
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self._apply_style()
+
+    def _apply_style(self):
+        """Apply styling based on button type"""
+        if self.button_type == "primary":
+            # Brass/gold primary button
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(184, 134, 11, 180);
+                    border: 1px solid rgb(160, 115, 10);
+                    border-radius: 4px;
+                    padding: 6px 16px;
+                    color: rgb(255, 252, 245);
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: rgba(200, 150, 30, 200);
+                    border: 1px solid rgb(184, 134, 11);
+                }
+                QPushButton:pressed {
+                    background-color: rgba(160, 115, 10, 200);
+                }
+            """)
+        elif self.button_type == "danger":
+            # Red danger button
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(180, 50, 50, 150);
+                    border: 1px solid rgb(150, 40, 40);
+                    border-radius: 4px;
+                    padding: 6px 16px;
+                    color: rgb(255, 252, 245);
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background-color: rgba(200, 60, 60, 180);
+                    border: 1px solid rgb(180, 50, 50);
+                }
+                QPushButton:pressed {
+                    background-color: rgba(150, 40, 40, 180);
+                }
+            """)
+        else:  # secondary
+            # Light paper secondary button
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(255, 252, 245, 200);
+                    border: 1px solid rgb(200, 185, 160);
+                    border-radius: 4px;
+                    padding: 6px 16px;
+                    color: rgb(70, 50, 35);
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background-color: rgba(255, 255, 250, 220);
+                    border: 1px solid rgb(184, 134, 11);
+                }
+                QPushButton:pressed {
+                    background-color: rgba(240, 235, 220, 220);
+                }
+            """)
 
 
 class FormSection(QFrame):

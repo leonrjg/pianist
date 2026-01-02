@@ -142,5 +142,5 @@ class StatsPage(SheetPage):
             layout.addWidget(card)
 
     def _navigate_to_habit(self, habit):
-        """Navigate to habit detail page"""
-        self.navigate_to.emit('habit_detail', habit.id)
+        """Navigate to habit statistics page"""
+        self.navigate_to.emit('habit_stats', habit.id)

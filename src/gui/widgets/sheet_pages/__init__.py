@@ -11,11 +11,14 @@ from .habit_stat_card import HabitStatCard
 from .champion_banner import ChampionBanner
 from .activity_card import ActivityCard
 from .session_item import SessionItem
+from .calendar_cell import CalendarCell
+from .calendar_graph import CalendarGraph
 from .vintage_dropdown import VintageDropdown
-from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, FormSection
+from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, VintageButton, FormSection
 from .index_page import IndexPage
 from .repertoire_page import RepertoirePage
 from .habit_detail_page import HabitDetailPage
+from .habit_stats_page import HabitStatsPage
 from .settings_page import SettingsPage
 from .stats_page import StatsPage
 from .activity_page import ActivityPage
@@ -28,14 +31,18 @@ __all__ = [
     'ChampionBanner',
     'ActivityCard',
     'SessionItem',
+    'CalendarCell',
+    'CalendarGraph',
     'VintageDropdown',
     'VintageLineEdit',
     'VintageSpinBox',
     'VintageCheckBox',
+    'VintageButton',
     'FormSection',
     'IndexPage',
     'RepertoirePage',
     'HabitDetailPage',
+    'HabitStatsPage',
     'StatsPage',
     'ActivityPage',
     'SettingsPage',

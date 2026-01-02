@@ -15,9 +15,10 @@ from PyQt6.QtGui import QFont, QCursor
 from pynput.keyboard import Controller, Key, KeyCode
 
 from core.tracker.registry import TrackerRegistry
+from . import HabitStatCard
 from .base_page import SheetPage
 from .vintage_dropdown import VintageDropdown
-from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, FormSection
+from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, VintageButton, FormSection
 from ..tracker_help_widget import TrackerHelpWidget
 
 # Import database models
@@ -86,28 +87,13 @@ class HabitDetailPage(SheetPage):
 
         # Show statistics first if editing existing habit
         if self.habit:
-            form_layout.addWidget(self._create_text_label("Statistics:", secondary=True))
-
-            schedule = self.habit.get_schedule()
-            scale = schedule.get_scale()
-
-            from datetime import datetime
-            next_task = get_friendly_datetime(schedule.get_next_task(datetime.now()), scale)
-
-            stats_lines = [f"Next: {next_task}"]
-            stats_lines.append(f"Current streak: {self.habit.get_streak()}")
-            stats_lines.append(f"Longest streak: {self.habit.get_longest_streak()}")
-
-            buckets = self.habit.get_activity_buckets()
-            if buckets:
-                from core import analytics
-                total_time = analytics.get_time_spent(buckets)
-                stats_lines.append(f"Total time: {get_friendly_elapsed(total_time)}")
-                stats_lines.append(f"Sessions: {len(buckets)}")
-
-            stats_text = "\n".join(stats_lines)
-            stats_label = self._create_text_label(stats_text, secondary=False)
-            form_layout.addWidget(stats_label)
+            card = HabitStatCard(
+                self.habit,
+                stats={'streak': self.habit.get_longest_streak()},
+                on_click=lambda h: self.navigate_to.emit('habit_stats', self.habit.id),
+                parent=self
+            )
+            form_layout.addWidget(card)
 
         # Basic Information Section
         basic_section = FormSection("Information")
@@ -123,6 +109,9 @@ class HabitDetailPage(SheetPage):
         default_schedule = self.habit.schedule if self.habit else None
         self._schedule_dropdown = VintageDropdown(schedules, default_schedule)
         basic_section.add_field("Schedule:", self._schedule_dropdown)
+
+        # Start date field
+
 
         form_layout.addWidget(basic_section)
 
@@ -236,27 +225,27 @@ class HabitDetailPage(SheetPage):
         layout.addWidget(self._create_separator())
 
         button_layout = QHBoxLayout()
-
-        # Save button (styled as link)
-        save_link = self._create_link_label("💾 Save", self._save_habit)
-        button_layout.addWidget(save_link)
-
-        button_layout.addStretch()
+        button_layout.setSpacing(8)
 
         # Delete button (if editing)
         if self.habit:
-            delete_link = self._create_link_label("🗑 Delete", self._delete_habit)
-            delete_link.setStyleSheet("""
-                QLabel { color: rgb(180, 50, 50); text-decoration: underline; }
-                QLabel:hover { color: rgb(220, 80, 80); }
-            """)
-            button_layout.addWidget(delete_link)
+            delete_button = VintageButton("🗑 Delete", button_type="danger", parent=self)
+            delete_button.clicked.connect(self._delete_habit)
+            button_layout.addWidget(delete_button)
+
+        # Save button
+        save_button = VintageButton("💾 Save", button_type="primary", parent=self)
+        save_button.clicked.connect(self._save_habit)
+        button_layout.addWidget(save_button)
+
+        # Back button
+        back_button = VintageButton("← Back", button_type="secondary", parent=self)
+        back_button.clicked.connect(lambda: self.go_back.emit())
+        button_layout.addWidget(back_button)
+
+        button_layout.addStretch()
 
         layout.addLayout(button_layout)
-
-        # Back link
-        back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
-        layout.addWidget(back_link)
 
     def _get_config_placeholder(self, tracker_name: str) -> str:
         """Get placeholder text for tracker config field."""
