@@ -119,20 +119,16 @@ def get_upcoming_tasks(habits: list[Habit], timespan: int) -> list[dict]:
         - 'habit': The Habit object
         - 'datetime': The datetime of the next scheduled task
     """
-    from datetime import datetime, timedelta
-
     upcoming_tasks = []
-    now = datetime.now()
-    end_time = now + timedelta(seconds=timespan)
-
     for habit in habits:
         schedule = habit.get_schedule()
-        next_task = schedule.get_next_task(now)
+        next_tasks = schedule.get_next_tasks(timespan)
 
-        if next_task and next_task <= end_time:
+        for next_task in next_tasks:
             upcoming_tasks.append({
                 'habit': habit,
                 'datetime': next_task
             })
+        break
 
     return sorted(upcoming_tasks, key=lambda x: x['datetime'])

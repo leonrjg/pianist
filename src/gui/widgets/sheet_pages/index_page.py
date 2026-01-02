@@ -46,8 +46,7 @@ class IndexPage(SheetPage):
     def _build_upcoming_tasks_section(self, layout, habits):
         """Build and display the upcoming tasks section"""
         try:
-            # Get upcoming tasks for the next 7 days
-            timespan = 7 * 24 * 60 * 60  # 7 days in seconds
+            timespan = 30 * 24 * 60 * 60
             upcoming_tasks = get_upcoming_tasks(habits, timespan)
 
             if upcoming_tasks:
