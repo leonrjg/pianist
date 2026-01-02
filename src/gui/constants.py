@@ -48,6 +48,7 @@ class PianoLayout:
     CONTROL_BUTTON_SIZE = 16
     CONTROL_BUTTON_CLOSE_Y = 20
     CONTROL_BUTTON_REORDER_Y = 44
+    CONTROL_BUTTON_MOOD_Y = 68
     CONTROL_BUTTON_CLICK_RADIUS = 10  # Click detection radius
     CONTROL_X_OFFSET = 40  # From right edge
 

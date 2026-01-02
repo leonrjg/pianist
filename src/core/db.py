@@ -22,10 +22,12 @@ def initialize_database():
     from core.habit.habit import Habit
     from core.habit.log import Log
     from core.habit.habit_tracker import HabitTracker
+    from core.mood.mood import Mood
+    from core.mood.mood_log import MoodLog
     from core.migrations.runner import run_migrations
 
     db.connect()
-    db.create_tables([Habit, Log, HabitTracker])
+    db.create_tables([Habit, Log, HabitTracker, Mood, MoodLog])
 
     # Run any pending migrations
     run_migrations()

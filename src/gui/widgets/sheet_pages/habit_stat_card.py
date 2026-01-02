@@ -80,6 +80,13 @@ class HabitStatCard(QFrame):
             border-radius: 3px;
         """)
         name_layout.addWidget(schedule_badge)
+
+        # Streak
+        if self.stats.get('streak', 0) > 0:
+            streak_label = QLabel(f"🔥 Streak: {self.stats['streak']}")
+            streak_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
+            name_layout.addWidget(streak_label)
+
         name_layout.addStretch()
 
         main_layout.addLayout(name_layout)
@@ -91,12 +98,6 @@ class HabitStatCard(QFrame):
         # Stats row (streak, time, sessions) with labels
         stats_layout = QHBoxLayout()
         stats_layout.setSpacing(10)
-
-        # Streak
-        if self.stats.get('streak', 0) > 0:
-            streak_label = QLabel(f"🔥 Streak: {self.stats['streak']}")
-            streak_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
-            stats_layout.addWidget(streak_label)
 
         # Total time
         if self.stats.get('total_time'):

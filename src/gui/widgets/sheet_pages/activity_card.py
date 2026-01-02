@@ -77,6 +77,18 @@ class ActivityCard(QFrame):
         name_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
         self.main_layout.addWidget(name_label)
 
+        # Session count badge
+        session_count_badge = QLabel(f"{self.bucket.sessions} session{'s' if self.bucket.sessions != 1 else ''}")
+        session_count_badge.setStyleSheet("""
+                    background-color: rgba(220, 210, 195, 100);
+                    color: rgb(90, 70, 55);
+                    font-size: 9px;
+                    font-style: italic;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                """)
+        self.main_layout.addWidget(session_count_badge)
+
         # Badges row below name
         badges_layout = QHBoxLayout()
         badges_layout.setSpacing(4)
@@ -107,19 +119,6 @@ class ActivityCard(QFrame):
         """)
         badges_layout.addWidget(duration_badge)
 
-        # Session count badge
-        session_count_badge = QLabel(f"{self.bucket.sessions} session{'s' if self.bucket.sessions != 1 else ''}")
-        session_count_badge.setStyleSheet("""
-            background-color: rgba(220, 210, 195, 100);
-            color: rgb(90, 70, 55);
-            font-size: 9px;
-            font-style: italic;
-            padding: 2px 6px;
-            border-radius: 3px;
-        """)
-        badges_layout.addWidget(session_count_badge)
-
-        badges_layout.addStretch()
         self.main_layout.addLayout(badges_layout)
 
         # Expansion stripe with three dots
@@ -145,8 +144,10 @@ class ActivityCard(QFrame):
         self.sessions_widget = QWidget()
         self.sessions_widget.setStyleSheet("background: transparent;")
         sessions_layout = QVBoxLayout()
-        sessions_layout.setContentsMargins(20, 4, 0, 0)  # Indent from left
+        sessions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sessions_layout.setContentsMargins(0, 0, 0, 0)
         sessions_layout.setSpacing(2)
+        sessions_layout.addStretch()
         self.sessions_widget.setLayout(sessions_layout)
 
         # Query individual sessions (Logs) for this bucket

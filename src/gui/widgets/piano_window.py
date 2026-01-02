@@ -212,12 +212,46 @@ class PianoFloatingWindow(QWidget):
         """)
         self.reorder_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
+        # Mood button
+        self.mood_button = QPushButton()
+        self.mood_button.setIcon(QIcon('gui/icons/mood.svg'))
+        self.mood_button.setIconSize(QSize(14, 14))
+        self.mood_button.setFixedSize(20, 20)
+        self.mood_button.setToolTip('Log mood')
+        self.mood_button.clicked.connect(self.on_mood_button_clicked)
+        self.mood_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid rgb(184, 134, 11);
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                border-color: rgb(218, 165, 32);
+            }}
+        """)
+        self.mood_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.mood_button.installEventFilter(self)
+
         control_layout.addWidget(self.close_button)
         control_layout.addWidget(self.maximize_button)
         control_layout.addWidget(self.reorder_button)
+        control_layout.addWidget(self.mood_button)
         control_layout.addStretch()
 
         self._position_control_buttons_container()
+
+        # ===== Mood Bar Widget =====
+        from .mood_bar_widget import MoodBarWidget
+        self.mood_bar = MoodBarWidget(self)
+        self.mood_bar.mood_selected.connect(self.on_mood_selected)
+        self.mood_bar.closed.connect(self.on_mood_bar_closed)
+        self.mood_bar.hide()
+
+        # ===== Mood Update Timer =====
+        self.mood_update_timer = QTimer()
+        self.mood_update_timer.timeout.connect(self.update_mood_button_icon)
+        self.mood_update_timer.start(60000)  # Check every minute
+        self.update_mood_button_icon()  # Initial update
 
     # ===== Window Management =====
 
@@ -834,6 +868,75 @@ class PianoFloatingWindow(QWidget):
         self.update_keys_for_window_size()
         self.update()
 
+    # ===== Mood Management =====
+
+    def on_mood_button_clicked(self):
+        """Handle mood button left click - toggle mood bar"""
+        if self.state.mood_bar_visible:
+            self.mood_bar.close()
+        else:
+            # Position mood bar to the left of control panel
+            button_pos = self.mood_button.mapToGlobal(self.mood_button.rect().topLeft())
+            bar_x = button_pos.x() - self.mood_bar.sizeHint().width() - 10
+            bar_y = button_pos.y()
+            self.mood_bar.show_at_position(QPoint(bar_x, bar_y))
+            self.state.mood_bar_visible = True
+
+    def on_mood_selected(self, mood_id: int):
+        """Handle mood selection from mood bar"""
+        self.state.mood_bar_visible = False
+        self.update_mood_button_icon()
+
+    def on_mood_bar_closed(self):
+        """Handle mood bar closed"""
+        self.state.mood_bar_visible = False
+
+    def update_mood_button_icon(self):
+        """Update mood button icon to show current mood or default"""
+        from core.mood.mood import Mood
+        
+        current_log = Mood.get_current_mood_log()
+        if current_log:
+            # Show current mood emoji
+            self.mood_button.setText(current_log.mood.symbol)
+            self.mood_button.setIcon(QIcon())
+            self.mood_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: rgb(61, 40, 23);
+                    border: 1px solid rgb(184, 134, 11);
+                    border-radius: 10px;
+                    font-size: 12px;
+                }}
+                QPushButton:hover {{
+                    border-color: rgb(218, 165, 32);
+                }}
+            """)
+        else:
+            # Show default smiley icon
+            self.mood_button.setText('')
+            self.mood_button.setIcon(QIcon('gui/icons/mood.svg'))
+            self.mood_button.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: rgb(61, 40, 23);
+                    border: 1px solid rgb(184, 134, 11);
+                    border-radius: 10px;
+                }}
+                QPushButton:hover {{
+                    border-color: rgb(218, 165, 32);
+                }}
+            """)
+
+    def eventFilter(self, obj, event):
+        """Filter events for mood button right-click"""
+        if obj == self.mood_button and event.type() == event.Type.MouseButtonPress:
+            if event.button() == Qt.MouseButton.RightButton:
+                # Open drawer and navigate to mood page
+                if not self.state.toggleable_drawer_visible:
+                    self.toggle_toggleable_drawer()
+                self.music_sheet_widget.navigate_to_mood_page()
+                return True
+        return super().eventFilter(obj, event)
+
     # ===== Cleanup =====
 
     def closeEvent(self, event):
@@ -847,6 +950,9 @@ class PianoFloatingWindow(QWidget):
 
         if hasattr(self, 'reorder_mode_manager'):
             self.reorder_mode_manager.cleanup()
+
+        if hasattr(self, 'mood_update_timer'):
+            self.mood_update_timer.stop()
 
         if self.management_window is not None:
             self.management_window.close()

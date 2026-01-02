@@ -13,7 +13,7 @@ from PyQt6.QtCore import pyqtSignal, Qt, QPointF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPolygonF
 
 from .page_turn_animation import PageTurnAnimation
-from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, ActivityPage, SettingsPage
+from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, ActivityPage, SettingsPage, MoodPage
 from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
@@ -66,6 +66,7 @@ class PageType(Enum):
     STATS = "stats"
     ACTIVITY = "activity"
     SETTINGS = "settings"
+    MOOD = "mood"
 
 
 class MusicSheetWidget(QWidget):
@@ -312,6 +313,8 @@ class MusicSheetWidget(QWidget):
                 return ActivityPage(self)
             elif page_type == PageType.SETTINGS.value:
                 return SettingsPage(self)
+            elif page_type == PageType.MOOD.value:
+                return MoodPage(self)
             else:
                 print(f"Unknown page type: {page_type}")
                 return None
@@ -332,6 +335,10 @@ class MusicSheetWidget(QWidget):
             habit: Habit object to view/edit
         """
         self._navigate_to(PageType.HABIT_DETAIL.value, habit.id)
+
+    def navigate_to_mood_page(self):
+        """Navigate to the mood management page"""
+        self._navigate_to(PageType.MOOD.value, None)
 
     def resizeEvent(self, event):
         """Update overlay geometry when widget is resized"""

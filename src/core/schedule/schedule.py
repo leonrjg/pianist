@@ -12,8 +12,9 @@ class Schedule(ABC):
     Args:
         start: The datetime when the schedule begins.
     """
-    def __init__(self, start: datetime):
+    def __init__(self, start: datetime, end: datetime):
         self.start = start
+        self.end = end
 
     @abstractmethod
     def get_previous_tasks(self, timespan: int) -> List[datetime]:

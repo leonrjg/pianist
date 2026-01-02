@@ -13,13 +13,14 @@ class HabitCard(QFrame):
 
     def __init__(self, habit, subtitle: Optional[str] = None,
                  accent_color: Optional[str] = None, on_click: Optional[Callable] = None,
-                 parent=None):
+                 completed: bool = False, parent=None):
         """
         Args:
             habit: Habit object to display
             subtitle: Optional subtitle text (e.g., time info, schedule)
             accent_color: Optional left border color (defaults to sepia)
             on_click: Optional callback when card is clicked (receives habit)
+            completed: Whether the task is completed (shows checkmark)
             parent: Parent widget
         """
         super().__init__(parent)
@@ -27,30 +28,55 @@ class HabitCard(QFrame):
         self.subtitle = subtitle
         self.accent_color = accent_color or "rgb(200, 185, 160)"
         self.on_click = on_click
+        self.completed = completed
 
         self._setup_ui()
 
     def _setup_ui(self):
         """Setup the card UI"""
-        # Card styling
-        self.setStyleSheet(f"""
-            HabitCard {{
-                background-color: rgba(255, 252, 245, 180);
-                border-left: 4px solid {self.accent_color};
-                border-top: 1px solid rgb(200, 185, 160);
-                border-right: 1px solid rgb(200, 185, 160);
-                border-bottom: 1px solid rgb(200, 185, 160);
-                border-radius: 3px;
-                padding: 8px;
-                margin: 2px 0px;
-            }}
-            HabitCard:hover {{
-                background-color: rgba(255, 255, 250, 200);
-                border-top: 1px solid rgb(184, 134, 11);
-                border-right: 1px solid rgb(184, 134, 11);
-                border-bottom: 1px solid rgb(184, 134, 11);
-            }}
-        """)
+        # Adjust opacity for completed tasks
+        if self.completed:
+            bg_opacity = 100
+            hover_opacity = 120
+            self.setStyleSheet(f"""
+                HabitCard {{
+                    background-color: rgba(255, 252, 245, {bg_opacity});
+                    border-left: 4px solid {self.accent_color};
+                    border-top: 1px solid rgb(200, 185, 160);
+                    border-right: 1px solid rgb(200, 185, 160);
+                    border-bottom: 1px solid rgb(200, 185, 160);
+                    border-radius: 3px;
+                    padding: 8px;
+                    margin: 2px 0px;
+                    opacity: 0.1;
+                }}
+                HabitCard:hover {{
+                    background-color: rgba(255, 255, 250, {hover_opacity});
+                    border-top: 1px solid rgb(184, 134, 11);
+                    border-right: 1px solid rgb(184, 134, 11);
+                    border-bottom: 1px solid rgb(184, 134, 11);
+                    opacity: 1;
+                }}
+            """)
+        else:
+            self.setStyleSheet(f"""
+                HabitCard {{
+                    background-color: rgba(255, 252, 245, 180);
+                    border-left: 4px solid {self.accent_color};
+                    border-top: 1px solid rgb(200, 185, 160);
+                    border-right: 1px solid rgb(200, 185, 160);
+                    border-bottom: 1px solid rgb(200, 185, 160);
+                    border-radius: 3px;
+                    padding: 8px;
+                    margin: 2px 0px;
+                }}
+                HabitCard:hover {{
+                    background-color: rgba(255, 255, 250, 200);
+                    border-top: 1px solid rgb(184, 134, 11);
+                    border-right: 1px solid rgb(184, 134, 11);
+                    border-bottom: 1px solid rgb(184, 134, 11);
+                }}
+            """)
 
         if self.on_click:
             self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -61,13 +87,16 @@ class HabitCard(QFrame):
         layout.setSpacing(2)
         self.setLayout(layout)
 
-        # Habit name (bold)
-        name_label = QLabel(self.habit.name)
+        # Habit name (bold) with optional checkmark
+        name_text = f"✓ {self.habit.name}" if self.completed else self.habit.name
+        name_label = QLabel(name_text)
         font = QFont()
         font.setBold(True)
         font.setPointSize(11)
         name_label.setFont(font)
-        name_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
+        # Dimmed color if completed
+        text_color = "rgb(120, 100, 80)" if self.completed else "rgb(70, 50, 35)"
+        name_label.setStyleSheet(f"color: {text_color}; background: transparent;")
         layout.addWidget(name_label)
 
         # Optional subtitle

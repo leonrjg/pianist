@@ -83,13 +83,17 @@ class WeeklySchedule(Schedule):
             from_dt: Reference datetime to look ahead from.
             
         Returns:
-            The next weekly occurrence.
+            The next weekly occurrence, or None if past end date.
         """
         if from_dt < self.start:
             return self.start
 
         weeks_since_start = (from_dt - self.start).days // 7
-        return self.start + timedelta(weeks=weeks_since_start + 1)
+        next_task = self.start + timedelta(weeks=weeks_since_start + 1)
+        
+        if next_task.date() > self.end.date():
+            return None
+        return next_task
 
     def get_scale(self) -> int:
         return time.DAY

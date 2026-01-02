@@ -126,7 +126,8 @@ def get_upcoming_tasks(habits: list[Habit], timespan: int) -> list[dict]:
         for next_task in next_tasks:
             upcoming_tasks.append({
                 'habit': habit,
-                'datetime': next_task
+                'datetime': next_task,
+                'completed': habit.is_task_completed(next_task)
             })
 
     return sorted(upcoming_tasks, key=lambda x: x['datetime'])

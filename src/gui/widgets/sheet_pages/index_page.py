@@ -63,6 +63,7 @@ class IndexPage(SheetPage):
                     for task in tasks:
                         habit = task['habit']
                         task_dt = task['datetime']
+                        completed = task.get('completed', False)
 
                         # Create subtitle with time and schedule
                         time_str = get_friendly_datetime(task_dt)
@@ -76,6 +77,7 @@ class IndexPage(SheetPage):
                             subtitle=subtitle,
                             accent_color=accent_color,
                             on_click=self._navigate_to_habit,
+                            completed=completed,
                             parent=self
                         )
                         layout.addWidget(card)
@@ -97,16 +99,16 @@ class IndexPage(SheetPage):
         tomorrow = (now + timedelta(days=1)).date()
 
         grouped = {}
-        for task in tasks[:20]:  # Limit to 20 tasks
+        for task in tasks[:100]:
             task_date = task['datetime'].date()
 
             # Create friendly label
             if task_date == today:
-                label = "Today"
+                label = get_friendly_datetime(datetime.now())
             elif task_date == tomorrow:
-                label = "Tomorrow"
+                label = get_friendly_datetime(datetime.now() + timedelta(days=1))
             else:
-                label = task_date.strftime("%A, %b %d")
+                label = get_friendly_datetime(task_date)
 
             if label not in grouped:
                 grouped[label] = []

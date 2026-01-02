@@ -85,7 +85,7 @@ class MonthlySchedule(Schedule):
             from_dt: Reference datetime to look ahead from.
 
         Returns:
-            The next monthly occurrence.
+            The next monthly occurrence, or None if past end date.
         """
         if from_dt < self.start:
             return self.start
@@ -98,6 +98,8 @@ class MonthlySchedule(Schedule):
         if next_task < from_dt:
             next_task = self.start + timedelta(days=30 * (months_since_start + 1))
 
+        if next_task.date() > self.end.date():
+            return None
         return next_task
 
     def get_scale(self) -> int:

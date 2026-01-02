@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Any
 from .schedule import Schedule
 from core.util import time
 
@@ -50,7 +50,7 @@ class DailySchedule(Schedule):
         
         return self.start + timedelta(days=days_since_start - 1)
 
-    def get_next_tasks(self, timespan: int) -> List[datetime]:
+    def get_next_tasks(self, timespan: int) -> set[datetime]:
         """Get upcoming daily tasks within the given timespan.
         
         Args:
@@ -62,15 +62,13 @@ class DailySchedule(Schedule):
         """
         days = timespan // time.DAY
         
-        tasks = []
-        current = datetime.now()
-        if current < self.start:
-            current = self.start - timedelta(days=1)
-
+        tasks = set()
+        current = datetime.now() - timedelta(days=1)
         for _ in range(days):
-            next_task = current + timedelta(days=1)
-            if next_task:
-                tasks.append(next_task)
+            next_task = self.get_next_task(current)
+            if not next_task:
+                break
+            tasks.add(next_task)
             current = next_task
         return tasks
 
@@ -88,11 +86,10 @@ class DailySchedule(Schedule):
         if from_dt < self.start:
             return self.start
 
-        if from_dt.date() == datetime.today().date():
-            return datetime.today()
-
-        days_since_start = (from_dt - self.start).days
-        return self.start + timedelta(days=days_since_start + 1)
+        next_task = from_dt + timedelta(days=1)
+        if next_task.date() > self.end.date():
+            return None
+        return next_task
 
     def get_scale(self) -> int:
         """Get the time scale for daily scheduling in seconds."""

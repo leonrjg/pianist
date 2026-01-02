@@ -40,6 +40,7 @@ class HabitDetailPage(SheetPage):
         self._name_edit = None
         self._schedule_dropdown = None
         self._start_date_edit = None
+        self._end_date_edit = None
         self._duration_spin = None
         self._timeout_spin = None
         self._visible_checkbox = None
@@ -112,6 +113,20 @@ class HabitDetailPage(SheetPage):
             # Default to today
             self._start_date_edit.setDate(QDate.currentDate())
         basic_section.add_field("Start date:", self._start_date_edit)
+
+        # End date field
+        self._end_date_edit = VintageDateEdit()
+        self._end_date_edit.setMaximumWidth(140)
+        self._end_date_edit.setSpecialValueText("No end date")
+        self._end_date_edit.setMinimumDate(QDate(1900, 1, 1))
+        if self.habit and self.habit.ended_at:
+            # Convert datetime to QDate
+            qdate = QDate(self.habit.ended_at.year, self.habit.ended_at.month, self.habit.ended_at.day)
+            self._end_date_edit.setDate(qdate)
+        else:
+            # Set to minimum date to show "No end date"
+            self._end_date_edit.setDate(QDate(1900, 1, 1))
+        basic_section.add_field("End date:", self._end_date_edit)
 
         form_layout.addWidget(basic_section)
 
@@ -235,16 +250,17 @@ class HabitDetailPage(SheetPage):
         layout.addWidget(self._create_separator())
 
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(8)
+        button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        button_layout.setSpacing(4)
 
         # Delete button (if editing)
         if self.habit:
-            delete_button = VintageButton("🗑 Delete", button_type="danger", parent=self)
+            delete_button = VintageButton("Delete", button_type="danger", parent=self)
             delete_button.clicked.connect(self._delete_habit)
             button_layout.addWidget(delete_button)
 
         # Save button
-        save_button = VintageButton("💾 Save", button_type="primary", parent=self)
+        save_button = VintageButton("Save", button_type="primary", parent=self)
         save_button.clicked.connect(self._save_habit)
         button_layout.addWidget(save_button)
 
@@ -252,8 +268,6 @@ class HabitDetailPage(SheetPage):
         back_button = VintageButton("← Back", button_type="secondary", parent=self)
         back_button.clicked.connect(lambda: self.go_back.emit())
         button_layout.addWidget(back_button)
-
-        button_layout.addStretch()
 
         layout.addLayout(button_layout)
 
@@ -335,6 +349,12 @@ class HabitDetailPage(SheetPage):
         qdate = self._start_date_edit.date()
         from datetime import datetime
         start_date = datetime(qdate.year(), qdate.month(), qdate.day())
+        
+        # Get end date from date picker (None if set to minimum date)
+        end_qdate = self._end_date_edit.date()
+        end_date = None
+        if end_qdate.year() > 1900:
+            end_date = datetime(end_qdate.year(), end_qdate.month(), end_qdate.day())
 
         try:
             with db.atomic():
@@ -343,9 +363,10 @@ class HabitDetailPage(SheetPage):
                     self.habit.name = name
                     self.habit.schedule = schedule
                     self.habit.started_at = start_date
+                    self.habit.ended_at = end_date
                 else:
                     # Create new
-                    self.habit = Habit.create(name=name, schedule=schedule, started_at=start_date)
+                    self.habit = Habit.create(name=name, schedule=schedule, started_at=start_date, ended_at=end_date)
 
                 if duration > 0:
                     self.habit.allocated_time = duration * 60

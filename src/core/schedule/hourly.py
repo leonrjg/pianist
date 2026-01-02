@@ -74,13 +74,17 @@ class HourlySchedule(Schedule):
             from_dt: Reference datetime to look ahead from.
 
         Returns:
-            Datetime of next occurrence.
+            Datetime of next occurrence, or None if past end date.
         """
         if from_dt < self.start:
             return self.start
 
         hours_since_start = int((from_dt - self.start).total_seconds() // 3600)
-        return self.start + timedelta(hours=hours_since_start + 1)
+        next_task = self.start + timedelta(hours=hours_since_start + 1)
+        
+        if next_task.date() > self.end.date():
+            return None
+        return next_task
 
     def get_scale(self) -> int:
         return time.HOUR

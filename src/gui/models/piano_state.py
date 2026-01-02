@@ -67,6 +67,9 @@ class PianoState(QObject):
         self._resize_edge = None  # 'left', 'top-left', 'bottom-left'
         self._resize_start_rect = None  # QRect
 
+        # ===== Mood Bar State =====
+        self._mood_bar_visible = False
+
     def start_resize(self, edge: str, start_rect, drag_start_x: int, drag_start_y: int):
         """Start window resize operation"""
         self._is_resizing = True
@@ -321,6 +324,20 @@ class PianoState(QObject):
         """Check if currently dragging a key"""
         return self._dragged_key_index is not None
 
+    # ===== Mood Bar Properties =====
+
+    @property
+    def mood_bar_visible(self) -> bool:
+        return self._mood_bar_visible
+
+    @mood_bar_visible.setter
+    def mood_bar_visible(self, value: bool):
+        self._mood_bar_visible = value
+
+    def toggle_mood_bar(self):
+        """Toggle mood bar visibility"""
+        self._mood_bar_visible = not self._mood_bar_visible
+
     # ===== State Reset =====
 
     def reset(self):
@@ -342,3 +359,4 @@ class PianoState(QObject):
         self._dragged_key_index = None
         self._drag_current_y = 0
         self._drop_target_index = None
+        self._mood_bar_visible = False

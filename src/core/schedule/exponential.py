@@ -15,8 +15,8 @@ class ExponentialSchedule(Schedule):
         base: The base number for exponential growth (e.g., base=2 creates intervals
               of 2, 4, 8, 16... days).
     """
-    def __init__(self, start: datetime, base: int):
-        super().__init__(start)
+    def __init__(self, start: datetime, end: datetime, base: int):
+        super().__init__(start, end)
         self.base = base
 
     def get_previous_tasks(self, timespan: int) -> List[datetime]:
@@ -101,8 +101,8 @@ class ExponentialSchedule(Schedule):
             from_dt: Reference datetime to look ahead from.
             
         Returns:
-            The next exponentially scheduled occurrence. The interval from the
-            start date follows the pattern: base^1, base^2, base^3, etc. days.
+            The next exponentially scheduled occurrence, or None if past end date.
+            The interval from the start date follows the pattern: base^1, base^2, base^3, etc. days.
         """
         if from_dt < self.start:
             return self.start
@@ -115,7 +115,11 @@ class ExponentialSchedule(Schedule):
             cumulative_days += self.base ** exp
             exp += 1
         
-        return self.start + timedelta(days=cumulative_days)
+        next_task = self.start + timedelta(days=cumulative_days)
+        
+        if next_task.date() > self.end.date():
+            return None
+        return next_task
 
     def get_scale(self) -> int:
         # Base 3 would give streak tolerance of 2 days, base 2 gives 1 day

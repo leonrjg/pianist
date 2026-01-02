@@ -26,6 +26,7 @@ class Habit(BaseModel):
         created_at: Timestamp when the habit was created.
         updated_at: Timestamp when the habit was last updated.
         started_at: Timestamp when the habit tracking started.
+        ended_at: Timestamp when the habit tracking ended (if applicable).
         inactivity_threshold: Time in seconds to consider inactivity (only relevant for trackers).
         allocated_time: Total allocated time for the habit in seconds (minimum time to qualify for streaks).
         visible: Whether the habit appears as a piano key (True) or only in drawer lists (False).
@@ -36,6 +37,7 @@ class Habit(BaseModel):
     created_at = DateTimeField(default=datetime.now)
     updated_at = DateTimeField(default=datetime.now)
     started_at = DateTimeField(default=datetime.now)
+    ended_at = DateTimeField(null=True)
     inactivity_threshold = IntegerField(default=120)
     allocated_time: Optional[int] = IntegerField(null=True)
     display_order = IntegerField(default=0)
@@ -52,12 +54,15 @@ class Habit(BaseModel):
 
     def _get_schedule(self) -> Schedule:
         """Get actual Schedule instance based on schedule type."""
+        # Use ended_at if set, otherwise use a far future date
+        end = self.ended_at if self.ended_at else datetime(2100, 1, 1)
+        
         registry = {
-            'hourly': lambda: HourlySchedule(start=self.started_at),
-            'daily': lambda: DailySchedule(start=self.started_at),
-            'weekly': lambda: WeeklySchedule(start=self.started_at),
-            'monthly': lambda: MonthlySchedule(start=self.started_at),
-            'exponential_3': lambda: ExponentialSchedule(start=self.started_at, base=3),
+            'hourly': lambda: HourlySchedule(start=self.started_at, end=end),
+            'daily': lambda: DailySchedule(start=self.started_at, end=end),
+            'weekly': lambda: WeeklySchedule(start=self.started_at, end=end),
+            'monthly': lambda: MonthlySchedule(start=self.started_at, end=end),
+            'exponential_3': lambda: ExponentialSchedule(start=self.started_at, end=end, base=3),
         }
 
         if self.schedule not in registry:
@@ -146,6 +151,20 @@ class Habit(BaseModel):
 
         return max(current_streak, longest_streak)
 
+    def is_task_completed(self, task: datetime) -> bool:
+        """
+        Check if the habit's task for the given datetime has been completed.
+
+        Args:
+            task: The datetime of the scheduled task to check.
+
+        Returns:
+            True if the task was completed, False otherwise.
+        """
+        buckets = self.get_activity_buckets()
+        bucket = self._find_bucket_for_task(buckets, task)
+        return bucket is not None and self._qualifies_for_streak(bucket)
+
     def _find_bucket_for_task(self, buckets: list[Bucket], task: datetime) -> Optional[Bucket]:
         """Find the bucket that contains the given task datetime, if any."""
         unit = self._schedule.get_scale()
@@ -164,8 +183,8 @@ class Habit(BaseModel):
 
     def _qualifies_for_streak(self, bucket: Bucket) -> bool:
         """Check if the given bucket qualifies for streak counting."""
-        if bucket.start <= self._schedule.start + timedelta(seconds=self._schedule.get_scale()):
-            return True
         if self.allocated_time and bucket.net_duration < (self.allocated_time or 0):
             return False
+        if bucket.start <= self._schedule.start + timedelta(seconds=self._schedule.get_scale()):
+            return True
         return True

@@ -1,0 +1,54 @@
+from peewee import *
+from core.db import BaseModel
+from typing import Optional, List
+
+
+class Mood(BaseModel):
+    """
+    Represents a mood type with symbol and description.
+    
+    Args:
+        id: Unique identifier for the mood.
+        symbol: Emoji/symbol representing the mood (e.g., '🟢', '🟣').
+        description: Human-readable description of the mood.
+        display_order: Order for displaying in UI.
+    """
+    id = AutoField()
+    symbol = CharField()
+    description = CharField()
+    display_order = IntegerField(default=0)
+    
+    @staticmethod
+    def get_all_ordered() -> List['Mood']:
+        """Get all moods ordered by display_order."""
+        return list(Mood.select().order_by(Mood.display_order))
+    
+    @staticmethod
+    def get_current_mood_log() -> Optional['MoodLog']:
+        """
+        Get the currently active mood log (if any).
+        
+        Returns:
+            MoodLog if there's an active mood (end > now), None otherwise.
+        """
+        from datetime import datetime
+        from .mood_log import MoodLog
+        
+        now = datetime.now()
+        
+        try:
+            return (MoodLog
+                   .select()
+                   .where(MoodLog.end > now)
+                   .order_by(MoodLog.start.desc())
+                   .get())
+        except MoodLog.DoesNotExist:
+            return None
+    
+    def can_delete(self) -> bool:
+        """Check if this mood can be deleted (no logs reference it)."""
+        return self.logs.count() == 0
+    
+    def get_recent_logs(self, limit: int = 20) -> List['MoodLog']:
+        """Get recent logs for this mood."""
+        return list(self.logs.order_by(self.logs.model.start.desc()).limit(limit))
