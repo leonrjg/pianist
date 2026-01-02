@@ -46,7 +46,7 @@ class TestSession:
             assert session.log is None
             assert session.trackers == []
 
-    @patch('src.session.HabitTracker')
+    @patch('src.core.session.HabitTracker')
     def test_load_trackers_success(self, mock_habit_tracker_class, mock_habit, mock_habit_tracker):
         """Test successful tracker loading."""
         mock_habit_tracker_class.select.return_value.where.return_value = [mock_habit_tracker]
@@ -56,8 +56,8 @@ class TestSession:
         assert len(session.trackers) == 1
         assert session.trackers[0] == mock_habit_tracker.tracker_instance
 
-    @patch('src.session.HabitTracker')
-    @patch('src.session.logging')
+    @patch('src.core.session.HabitTracker')
+    @patch('src.core.session.logging')
     def test_load_trackers_failure(self, mock_logging, mock_habit_tracker_class, mock_habit):
         """Test tracker loading with ValueError."""
         mock_habit_tracker = Mock()
@@ -78,7 +78,7 @@ class TestSession:
         # Check that error was logged
         mock_logging.error.assert_called()
 
-    @patch('src.session.HabitTracker')
+    @patch('src.core.session.HabitTracker')
     def test_load_trackers_empty(self, mock_habit_tracker_class, mock_habit):
         """Test loading trackers when none are enabled."""
         mock_habit_tracker_class.select.return_value.where.return_value = []
@@ -117,7 +117,7 @@ class TestSession:
                 assert elapsed == 5  # Should be truncated to int
 
 
-    @patch('src.session.Log')
+    @patch('src.core.session.Log')
     def test_end_without_ended_by(self, mock_log_class, mock_habit):
         """Test ending session without specifying ended_by."""
         with patch.object(Session, '_load_trackers', return_value=[]):
@@ -131,7 +131,7 @@ class TestSession:
             # ended_by should not be set when None is passed
             assert not hasattr(mock_log, 'ended_by') or mock_log.ended_by != 'test_tracker'
 
-    @patch('src.session.Log')
+    @patch('src.core.session.Log')
     def test_end_with_ended_by(self, mock_log_class, mock_habit):
         """Test ending session with ended_by parameter."""
         with patch.object(Session, '_load_trackers', return_value=[]):
@@ -183,8 +183,8 @@ class TestSession:
             
             assert session.is_active() is False
 
-    @patch('src.session.Log')
-    @patch('src.session.datetime')
+    @patch('src.core.session.Log')
+    @patch('src.core.session.datetime')
     def test_update_progress_creates_log(self, mock_datetime, mock_log_class, mock_habit):
         """Test that update_progress creates initial log record."""
         mock_now = datetime(2024, 1, 1, 12, 0)
@@ -504,6 +504,9 @@ class TestSession:
         class TestTracker(Tracker):
             def is_active(self):
                 return True
+
+            def get_help(self):
+                pass
         
         start_time = int(time.time())
         tracker = TestTracker()

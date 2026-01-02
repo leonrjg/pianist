@@ -1,9 +1,9 @@
-"""Tests for src.habit.habit module."""
+"""Tests for src.core.habit.habit module."""
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
-from src.core.habit import Habit
-from src.core.habit import Bucket
+from src.core.habit.habit import Habit
+from src.core.habit.bucket import Bucket
 
 
 class TestHabitSchedule:
@@ -47,7 +47,7 @@ class TestHabitStreaks:
         mock_habit._schedule.get_previous_task.side_effect = [exercise_day, previous_day]
 
         with patch.object(Habit, '_qualifies_for_streak', side_effect=[True, True]):
-            with patch('src.habit.habit.datetime') as mock_dt:
+            with patch('src.core.habit.habit.datetime') as mock_dt:
                 mock_dt.now.return_value = exercise_day
 
                 result = Habit.get_streak(mock_habit)
@@ -66,7 +66,7 @@ class TestHabitStreaks:
 
         with patch.object(Habit, '_find_bucket_for_task', return_value=buckets[0]):
             with patch.object(Habit, '_qualifies_for_streak', return_value=True):
-                with patch('src.habit.habit.datetime') as mock_dt:
+                with patch('src.core.habit.habit.datetime') as mock_dt:
                     mock_dt.now.return_value = start_time + timedelta(days=1)
 
                     result = Habit.get_streak(mock_habit)
@@ -95,7 +95,7 @@ class TestHabitStreaks:
         mock_habit._find_bucket_for_task = find_bucket_side_effect
         mock_habit._qualifies_for_streak = lambda bucket: True
 
-        with patch('src.habit.habit.datetime') as mock_dt:
+        with patch('src.core.habit.habit.datetime') as mock_dt:
             mock_dt.now.return_value = mocked_now  # Now is before future_task
 
             result = Habit.get_streak(mock_habit)
@@ -113,7 +113,7 @@ class TestHabitStreaks:
         mock_habit._schedule.get_previous_task.return_value = None
 
         with patch.object(Habit, '_find_bucket_for_task', return_value=None):
-            with patch('src.habit.habit.datetime') as mock_dt:
+            with patch('src.core.habit.habit.datetime') as mock_dt:
                 mock_dt.now.return_value = start_time  # Now is after past_task
 
                 result = Habit.get_streak(mock_habit)
@@ -271,7 +271,7 @@ class TestStreakComparison:
             mock_habit._find_bucket_for_task = lambda b, t: b[0] if b and t == b[0].start else None
             mock_habit._qualifies_for_streak = lambda bucket: True
 
-            with patch('src.habit.habit.datetime') as mock_dt:
+            with patch('src.core.habit.habit.datetime') as mock_dt:
                 mock_dt.now.return_value = start_time + timedelta(days=10)
 
                 current_streak = Habit.get_streak(mock_habit)
@@ -323,7 +323,7 @@ class TestStreakComparison:
         mock_habit._find_bucket_for_task = lambda b, t: bucket if t == bucket.start else None
         mock_habit._qualifies_for_streak = lambda bucket: False  # Doesn't qualify
 
-        with patch('src.habit.habit.datetime') as mock_dt:
+        with patch('src.core.habit.habit.datetime') as mock_dt:
             mock_dt.now.return_value = start_time + timedelta(days=10)
 
             current_streak = Habit.get_streak(mock_habit)
@@ -410,13 +410,13 @@ class TestHabitUtilities:
 class TestHabitInit:
     """Test habit initialization."""
     
-    @patch('src.habit.habit.Habit._get_schedule')
+    @patch('src.core.habit.habit.Habit._get_schedule')
     def test_init_calls_get_schedule(self, mock_get_schedule):
         """Test __init__ calls _get_schedule to set up schedule."""
         mock_schedule = Mock()
         mock_get_schedule.return_value = mock_schedule
         
-        with patch('src.habit.habit.BaseModel.__init__'):
+        with patch('src.core.habit.habit.BaseModel.__init__'):
             habit = Habit()
             
         mock_get_schedule.assert_called_once()
@@ -435,7 +435,7 @@ class TestHabitScheduleTypes:
     ])
     def test_get_schedule_creates_correct_type(self, schedule_type, mock_class, expected_args):
         """Test _get_schedule creates correct schedule type based on habit.schedule."""
-        with patch(f'src.habit.habit.{mock_class}') as mock_schedule:
+        with patch(f'src.core.habit.habit.{mock_class}') as mock_schedule:
             habit = Mock()
             habit.schedule = schedule_type
             habit.started_at = datetime(2023, 1, 1)
@@ -461,6 +461,6 @@ class TestHabitActivityBuckets:
     def test_get_activity_buckets_basic_functionality(self, mock_habit):
         """Test get_activity_buckets basic behavior without complex DB mocking.""" 
         # Since the method involves complex DB operations, just verify it's callable
-        with patch('src.habit.habit.Habit.get_activity_buckets', return_value=[]):
+        with patch('src.core.habit.habit.Habit.get_activity_buckets', return_value=[]):
             result = Habit.get_activity_buckets(mock_habit, size=1800, limit=10)
             assert result == []

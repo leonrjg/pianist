@@ -1,10 +1,9 @@
 """Tests for src.cli module."""
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from click.testing import CliRunner
 from peewee import DoesNotExist
 
-from src.cli import cli, save, delete, play, stats, _display_habit_stats, _display_all_habits_stats
+from src.cli.cli import save, delete, play, stats, _display_habit_stats, _display_all_habits_stats
 
 
 class TestSaveCommand:
@@ -14,9 +13,9 @@ class TestSaveCommand:
         """Set up test runner."""
         self.runner = CliRunner()
 
-    @patch('src.cli.db')
-    @patch('src.cli.Habit')
-    @patch('src.cli.HabitTracker')
+    @patch('src.cli.cli.db')
+    @patch('src.cli.cli.Habit')
+    @patch('src.cli.cli.HabitTracker')
     def test_save_new_habit_minimal(self, mock_habit_tracker, mock_habit, mock_db):
         """Test saving a new habit with minimal parameters."""
         mock_habit_instance = Mock()
@@ -33,9 +32,9 @@ class TestSaveCommand:
         mock_habit.create.assert_called_once_with(name='test-habit', schedule='daily')
         mock_habit_instance.save.assert_called_once()
 
-    @patch('src.cli.db')
-    @patch('src.cli.Habit')
-    @patch('src.cli.HabitTracker')
+    @patch('src.cli.cli.db')
+    @patch('src.cli.cli.Habit')
+    @patch('src.cli.cli.HabitTracker')
     def test_save_existing_habit_with_duration_and_timeout(self, mock_habit_tracker, mock_habit, mock_db):
         """Test updating existing habit with duration and timeout."""
         mock_saved_habit = Mock()
@@ -51,9 +50,9 @@ class TestSaveCommand:
         assert mock_saved_habit.inactivity_threshold == 120
         mock_saved_habit.save.assert_called_once()
 
-    @patch('src.cli.db')
-    @patch('src.cli.Habit')
-    @patch('src.cli.HabitTracker')
+    @patch('src.cli.cli.db')
+    @patch('src.cli.cli.Habit')
+    @patch('src.cli.cli.HabitTracker')
     def test_save_with_trackers(self, mock_habit_tracker, mock_habit, mock_db):
         """Test saving habit with trackers."""
         mock_saved_habit = Mock()
@@ -77,7 +76,7 @@ class TestDeleteCommand:
         """Set up test runner."""
         self.runner = CliRunner()
 
-    @patch('src.cli.Habit')
+    @patch('src.cli.cli.Habit')
     def test_delete_existing_habit(self, mock_habit):
         """Test successful deletion of existing habit."""
         mock_habit_instance = Mock()
@@ -89,7 +88,7 @@ class TestDeleteCommand:
         assert "Successfully deleted habit 'test-habit'" in result.output
         mock_habit_instance.delete_instance.assert_called_once()
 
-    @patch('src.cli.Habit')
+    @patch('src.cli.cli.Habit')
     def test_delete_nonexistent_habit(self, mock_habit):
         """Test deletion of nonexistent habit."""
         mock_habit.get.side_effect = DoesNotExist()
@@ -107,7 +106,7 @@ class TestPlayCommand:
         """Set up test runner."""
         self.runner = CliRunner()
 
-    @patch('src.cli.Habit')
+    @patch('src.cli.cli.Habit')
     def test_play_nonexistent_habit(self, mock_habit):
         """Test playing nonexistent habit."""
         mock_habit.get.side_effect = DoesNotExist()
@@ -117,10 +116,10 @@ class TestPlayCommand:
         assert result.exit_code == 1
         assert "does not exist" in result.output
 
-    @patch('src.cli.Session')
-    @patch('src.cli.Habit')
-    @patch('src.cli.time.sleep')
-    @patch('src.cli.get_friendly_elapsed')
+    @patch('src.cli.cli.Session')
+    @patch('src.cli.cli.Habit')
+    @patch('src.cli.cli.time.sleep')
+    @patch('src.cli.cli.get_friendly_elapsed')
     def test_play_habit_interrupted(self, mock_get_friendly_elapsed, mock_sleep, mock_habit, mock_session_class):
         """Test playing habit that gets interrupted."""
         mock_habit_instance = Mock()
@@ -151,8 +150,8 @@ class TestStatsCommand:
         """Set up test runner."""
         self.runner = CliRunner()
 
-    @patch('src.cli._display_habit_stats')
-    @patch('src.cli.Habit')
+    @patch('src.cli.cli._display_habit_stats')
+    @patch('src.cli.cli.Habit')
     def test_stats_specific_habit(self, mock_habit, mock_display_habit_stats):
         """Test stats for specific habit."""
         mock_habit_instance = Mock()
@@ -163,7 +162,7 @@ class TestStatsCommand:
         assert result.exit_code == 0
         mock_display_habit_stats.assert_called_once_with(mock_habit_instance)
 
-    @patch('src.cli.Habit')
+    @patch('src.cli.cli.Habit')
     def test_stats_nonexistent_habit(self, mock_habit):
         """Test stats for nonexistent habit."""
         mock_habit.get.side_effect = DoesNotExist()
@@ -173,8 +172,8 @@ class TestStatsCommand:
         assert result.exit_code == 1
         assert "does not exist" in result.output
 
-    @patch('src.cli._display_all_habits_stats')
-    @patch('src.cli.Habit')
+    @patch('src.cli.cli._display_all_habits_stats')
+    @patch('src.cli.cli.Habit')
     def test_stats_all_habits(self, mock_habit, mock_display_all_habits_stats):
         """Test stats for all habits."""
         mock_habit.select.return_value = [Mock(), Mock()]
@@ -184,7 +183,7 @@ class TestStatsCommand:
         assert result.exit_code == 0
         mock_display_all_habits_stats.assert_called_once()
 
-    @patch('src.cli.Habit')
+    @patch('src.cli.cli.Habit')
     def test_stats_no_habits(self, mock_habit):
         """Test stats when no habits exist."""
         mock_habit.select.return_value = []
@@ -198,10 +197,10 @@ class TestStatsCommand:
 class TestDisplayFunctions:
     """Test display helper functions."""
 
-    @patch('src.cli.click.echo')
-    @patch('src.cli.get_friendly_datetime')
-    @patch('src.cli.get_friendly_elapsed')
-    @patch('src.cli.analytics')
+    @patch('src.cli.cli.click.echo')
+    @patch('src.cli.cli.get_friendly_datetime')
+    @patch('src.cli.cli.get_friendly_elapsed')
+    @patch('src.cli.cli.analytics')
     def test_display_habit_stats_complete(self, mock_analytics, mock_get_friendly_elapsed, 
                                         mock_get_friendly_datetime, mock_echo):
         """Test _display_habit_stats with complete habit data."""
@@ -223,7 +222,7 @@ class TestDisplayFunctions:
         
         # Setup trackers mock
         mock_tracker = Mock()
-        mock_tracker.tracker = 'io'
+        mock_tracker.tracker = 'IOTracker'
         mock_tracker.get_config.return_value = ''
         mock_habit.trackers.where.return_value = [mock_tracker]
         
@@ -250,8 +249,8 @@ class TestDisplayFunctions:
         # Verify function was called
         assert mock_echo.call_count > 0
 
-    @patch('src.cli.click.echo')
-    @patch('src.cli.analytics')
+    @patch('src.cli.cli.click.echo')
+    @patch('src.cli.cli.analytics')
     def test_display_all_habits_stats(self, mock_analytics, mock_echo):
         """Test _display_all_habits_stats with multiple habits."""
         # Setup mock habits

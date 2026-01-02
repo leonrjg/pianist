@@ -1,7 +1,8 @@
 """Tests for src.schedule.daily module."""
 import pytest
+import logging
 from datetime import datetime, timedelta
-from src.core.schedule import DailySchedule
+from src.core.schedule.daily import DailySchedule
 from src.core.util.time import DAY
 
 
@@ -91,7 +92,7 @@ class TestDailySchedule:
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
-        monkeypatch.setattr('src.schedule.daily.datetime', MockDateTime())
+        monkeypatch.setattr('src.core.schedule.daily.datetime', MockDateTime())
         
         timespan_seconds = timespan_days * DAY
         result = daily_schedule.get_previous_tasks(timespan_seconds)
@@ -112,7 +113,7 @@ class TestDailySchedule:
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
-        monkeypatch.setattr('src.schedule.daily.datetime', MockDateTime())
+        monkeypatch.setattr('src.core.schedule.daily.datetime', MockDateTime())
         
         timespan_seconds = 3 * DAY
         result = daily_schedule.get_previous_tasks(timespan_seconds)
@@ -146,7 +147,7 @@ class TestDailySchedule:
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
-        monkeypatch.setattr('src.schedule.daily.datetime', MockDateTime())
+        monkeypatch.setattr('src.core.schedule.daily.datetime', MockDateTime())
         
         timespan_seconds = timespan_days * DAY
         result = daily_schedule.get_next_tasks(timespan_seconds)
@@ -167,7 +168,7 @@ class TestDailySchedule:
             def __call__(self, *args, **kwargs):
                 return datetime(*args, **kwargs)
         
-        monkeypatch.setattr('src.schedule.daily.datetime', MockDateTime())
+        monkeypatch.setattr('src.core.schedule.daily.datetime', MockDateTime())
         
         timespan_seconds = 3 * DAY
         result = daily_schedule.get_next_tasks(timespan_seconds)
@@ -178,6 +179,7 @@ class TestDailySchedule:
             datetime(2023, 1, 3, 12, 0, 0),
             datetime(2023, 1, 4, 12, 0, 0),
         ]
+        logging.info(result)
         assert result == expected
     
     def test_edge_case_leap_year(self):

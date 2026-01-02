@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from src.core.schedule import HourlySchedule
+from src.core.schedule.hourly import HourlySchedule
 from src.core.util.time import HOUR
 
 
@@ -64,7 +64,7 @@ class TestHourlySchedule:
         schedule = HourlySchedule(start)
         assert schedule.get_previous_tasks(0) == []
 
-    @patch('src.schedule.hourly.datetime')
+    @patch('src.core.schedule.hourly.datetime')
     def test_get_previous_tasks_returns_correct_count(self, mock_datetime):
         """Test get_previous_tasks returns correct number of tasks."""
         start = datetime(2023, 1, 1, 10, 0)
@@ -73,7 +73,7 @@ class TestHourlySchedule:
         tasks = schedule.get_previous_tasks(HOUR * 2)  # 2 hours back
         assert len(tasks) == 2
 
-    @patch('src.schedule.hourly.datetime')
+    @patch('src.core.schedule.hourly.datetime')
     def test_get_previous_tasks_ordered_most_recent_first(self, mock_datetime):
         """Test get_previous_tasks returns tasks in reverse chronological order."""
         start = datetime(2023, 1, 1, 10, 0)

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from unittest.mock import patch
-from src.core.schedule import WeeklySchedule
+from src.core.schedule.weekly import WeeklySchedule
 from src.core.util import time
 
 
@@ -79,7 +79,7 @@ class TestWeeklySchedule:
         expected = datetime(2025, 1, 15, 10, 0)  # Next Wednesday
         assert result == expected
     
-    @patch('src.schedule.weekly.datetime')
+    @patch('src.core.schedule.weekly.datetime')
     def test_get_previous_tasks(self, mock_datetime):
         """Test get_previous_tasks returns correct number of tasks."""
         mock_datetime.now.return_value = datetime(2025, 1, 29, 12, 0)
@@ -97,7 +97,7 @@ class TestWeeklySchedule:
         ]
         assert result == expected
     
-    @patch('src.schedule.weekly.datetime')
+    @patch('src.core.schedule.weekly.datetime')
     def test_get_next_tasks(self, mock_datetime):
         """Test get_next_tasks returns correct number of future tasks."""
         mock_datetime.now.return_value = datetime(2025, 1, 1, 8, 0)  # Before first task
@@ -114,7 +114,7 @@ class TestWeeklySchedule:
         ]
         assert result == expected
     
-    @patch('src.schedule.weekly.datetime')
+    @patch('src.core.schedule.weekly.datetime')
     def test_get_previous_tasks_empty(self, mock_datetime):
         """Test get_previous_tasks returns empty list when no previous tasks."""
         mock_datetime.now.return_value = datetime(2025, 1, 5, 12, 0)  # Same week as start

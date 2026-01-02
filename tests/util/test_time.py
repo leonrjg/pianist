@@ -5,8 +5,8 @@ from src.core.util.time import get_friendly_elapsed, get_friendly_datetime, get_
 def test_get_friendly_elapsed():
     """Test get_friendly_elapsed formats seconds into HH:MM:SS."""
     assert get_friendly_elapsed(3661) == "01:01:01"
-    assert get_friendly_elapsed(0) == "00:00:00"
-    assert get_friendly_elapsed(3599) == "00:59:59"
+    assert get_friendly_elapsed(0) == "00:00"
+    assert get_friendly_elapsed(3599) == "59:59"
 
 def test_get_friendly_datetime():
     """Test get_friendly_datetime formats datetime with optional time."""

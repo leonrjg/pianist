@@ -7,7 +7,7 @@ from src.core.analytics import (
     get_time_spent,
     get_completion_rate
 )
-from src.core.habit import Bucket
+from src.core.habit.bucket import Bucket
 
 
 class TestGetHabitWithLongestStreak:

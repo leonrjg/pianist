@@ -1,7 +1,7 @@
 """Tests for src.schedule.exponential module."""
 import pytest
 from datetime import datetime, timedelta
-from src.core.schedule import ExponentialSchedule
+from src.core.schedule.exponential import ExponentialSchedule
 from src.core.util.time import DAY
 
 

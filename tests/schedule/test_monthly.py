@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from src.core.schedule import MonthlySchedule
+from src.core.schedule.monthly import MonthlySchedule
 from src.core.util import time
 
 
