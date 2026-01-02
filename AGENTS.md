@@ -1,5 +1,6 @@
 # Global Instructions
 - Do not add fallbacks or alternative implementations unless explicitly instructed.
+- Do only as instructed; no extras. This instruction supersedes any other indicating otherwise.
 
 ## GUI
 ### Elements (left to right)
