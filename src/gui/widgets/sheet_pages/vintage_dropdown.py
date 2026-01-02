@@ -5,6 +5,7 @@ VintageDropdown - A dropdown widget styled for the vintage paper aesthetic.
 from PyQt6.QtWidgets import QPushButton, QMenu
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QCursor
+from .vintage_styles import VINTAGE_MENU_STYLE
 
 
 class VintageDropdown(QPushButton):
@@ -37,21 +38,7 @@ class VintageDropdown(QPushButton):
 
         # Create vintage menu
         self.menu = QMenu(self)
-        self.menu.setStyleSheet("""
-            QMenu {
-                background-color: rgb(252, 248, 235);
-                border: 1px solid rgb(200, 185, 160);
-                padding: 4px;
-            }
-            QMenu::item {
-                color: rgb(70, 50, 35);
-                padding: 4px 20px;
-            }
-            QMenu::item:selected {
-                background-color: rgb(184, 134, 11);
-                color: rgb(252, 248, 235);
-            }
-        """)
+        self.menu.setStyleSheet(VINTAGE_MENU_STYLE)
 
         # Add menu items
         for item in items:

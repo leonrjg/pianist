@@ -10,7 +10,7 @@ import traceback
 import Quartz
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
                              QSpinBox, QCheckBox, QPushButton, QMessageBox, QWidget, QToolTip)
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QDate
 from PyQt6.QtGui import QFont, QCursor
 from pynput.keyboard import Controller, Key, KeyCode
 
@@ -18,7 +18,7 @@ from core.tracker.registry import TrackerRegistry
 from . import HabitStatCard
 from .base_page import SheetPage
 from .vintage_dropdown import VintageDropdown
-from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, VintageButton, FormSection
+from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, VintageButton, VintageDateEdit, FormSection
 from ..tracker_help_widget import TrackerHelpWidget
 
 # Import database models
@@ -39,6 +39,7 @@ class HabitDetailPage(SheetPage):
         self.habit = None
         self._name_edit = None
         self._schedule_dropdown = None
+        self._start_date_edit = None
         self._duration_spin = None
         self._timeout_spin = None
         self._visible_checkbox = None
@@ -85,16 +86,6 @@ class HabitDetailPage(SheetPage):
         form_layout.setContentsMargins(0, 0, 0, 0)
         form_widget.setLayout(form_layout)
 
-        # Show statistics first if editing existing habit
-        if self.habit:
-            card = HabitStatCard(
-                self.habit,
-                stats={'streak': self.habit.get_longest_streak()},
-                on_click=lambda h: self.navigate_to.emit('habit_stats', self.habit.id),
-                parent=self
-            )
-            form_layout.addWidget(card)
-
         # Basic Information Section
         basic_section = FormSection("Information")
 
@@ -111,9 +102,28 @@ class HabitDetailPage(SheetPage):
         basic_section.add_field("Schedule:", self._schedule_dropdown)
 
         # Start date field
-
+        self._start_date_edit = VintageDateEdit()
+        self._start_date_edit.setMaximumWidth(140)
+        if self.habit and self.habit.started_at:
+            # Convert datetime to QDate
+            qdate = QDate(self.habit.started_at.year, self.habit.started_at.month, self.habit.started_at.day)
+            self._start_date_edit.setDate(qdate)
+        else:
+            # Default to today
+            self._start_date_edit.setDate(QDate.currentDate())
+        basic_section.add_field("Start date:", self._start_date_edit)
 
         form_layout.addWidget(basic_section)
+
+        # Show statistics first if editing existing habit
+        if self.habit:
+            card = HabitStatCard(
+                self.habit,
+                stats={'streak': self.habit.get_longest_streak()},
+                on_click=lambda h: self.navigate_to.emit('habit_stats', self.habit.id),
+                parent=self
+            )
+            form_layout.addWidget(card)
 
         # Time Settings Section
         time_section = FormSection("Progress")
@@ -320,6 +330,11 @@ class HabitDetailPage(SheetPage):
         duration = self._duration_spin.value()
         timeout = self._timeout_spin.value()
         visible = self._visible_checkbox.isChecked()
+        
+        # Get start date from date picker
+        qdate = self._start_date_edit.date()
+        from datetime import datetime
+        start_date = datetime(qdate.year(), qdate.month(), qdate.day())
 
         try:
             with db.atomic():
@@ -327,9 +342,10 @@ class HabitDetailPage(SheetPage):
                     # Update existing
                     self.habit.name = name
                     self.habit.schedule = schedule
+                    self.habit.started_at = start_date
                 else:
                     # Create new
-                    self.habit = Habit.create(name=name, schedule=schedule)
+                    self.habit = Habit.create(name=name, schedule=schedule, started_at=start_date)
 
                 if duration > 0:
                     self.habit.allocated_time = duration * 60

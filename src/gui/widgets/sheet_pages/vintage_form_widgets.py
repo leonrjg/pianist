@@ -2,9 +2,10 @@
 Vintage Form Widgets - Styled form components matching the vintage aesthetic.
 """
 
-from PyQt6.QtWidgets import QLineEdit, QSpinBox, QCheckBox, QFrame, QVBoxLayout, QLabel, QPushButton
+from PyQt6.QtWidgets import QLineEdit, QSpinBox, QCheckBox, QFrame, QVBoxLayout, QLabel, QPushButton, QDateEdit
 from PyQt6.QtGui import QFont, QCursor
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDate
+from .vintage_styles import VINTAGE_MENU_STYLE
 
 
 class VintageLineEdit(QLineEdit):
@@ -113,10 +114,140 @@ class VintageCheckBox(QCheckBox):
                 background-color: rgba(184, 134, 11, 180);
                 border: 1px solid rgb(160, 115, 10);
             }
-            QCheckBox::indicator:checked::after {
-                content: "✓";
-            }
         """)
+
+
+class VintageDateEdit(QDateEdit):
+    """Date edit with vintage paper styling"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCalendarPopup(True)
+        self.setDisplayFormat("yyyy-MM-dd")
+        
+        # Build the complete stylesheet including shared menu styles
+        complete_style = """
+            QDateEdit {
+                background-color: rgba(255, 252, 245, 200);
+                border: 1px solid rgb(200, 185, 160);
+                border-radius: 3px;
+                padding: 4px 6px;
+                color: rgb(70, 50, 35);
+                font-size: 11px;
+                selection-background-color: rgba(184, 134, 11, 120);
+            }
+            QDateEdit:focus {
+                border: 1px solid rgb(184, 134, 11);
+                background-color: rgba(255, 255, 250, 220);
+            }
+            QDateEdit::up-button, QDateEdit::down-button {
+                background-color: rgba(200, 185, 160, 120);
+                border: 1px solid rgb(200, 185, 160);
+                border-radius: 2px;
+                width: 16px;
+            }
+            QDateEdit::up-button:hover, QDateEdit::down-button:hover {
+                background-color: rgba(184, 134, 11, 120);
+            }
+            QDateEdit::up-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-bottom: 5px solid rgb(70, 50, 35);
+                width: 0;
+                height: 0;
+            }
+            QDateEdit::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid rgb(70, 50, 35);
+                width: 0;
+                height: 0;
+            }
+            QDateEdit::drop-down {
+                background-color: rgba(200, 185, 160, 120);
+                border: 1px solid rgb(200, 185, 160);
+                border-radius: 2px;
+                width: 20px;
+            }
+            QDateEdit::drop-down:hover {
+                background-color: rgba(184, 134, 11, 120);
+            }
+            
+            /* Calendar popup styling */
+            QCalendarWidget {
+                background-color: rgb(255, 252, 245);
+                border: 2px solid rgb(184, 134, 11);
+                border-radius: 4px;
+            }
+            
+            /* Navigation bar */
+            QCalendarWidget QWidget#qt_calendar_navigationbar {
+                background-color: rgba(184, 134, 11, 180);
+                border-bottom: 1px solid rgb(160, 115, 10);
+            }
+            
+            /* Month/Year buttons */
+            QCalendarWidget QToolButton {
+                background-color: transparent;
+                color: rgb(255, 252, 245);
+                font-size: 11px;
+                font-weight: bold;
+                padding: 4px;
+                border: none;
+                border-radius: 3px;
+            }
+            QCalendarWidget QToolButton:hover {
+                background-color: rgba(200, 150, 30, 150);
+            }
+            QCalendarWidget QToolButton:pressed {
+                background-color: rgba(160, 115, 10, 150);
+            }
+            
+            /* Arrow buttons */
+            QCalendarWidget QToolButton::menu-indicator {
+                image: none;
+            }
+            
+            /* Header (day names) */
+            QCalendarWidget QWidget {
+                alternate-background-color: rgb(245, 240, 225);
+            }
+            QCalendarWidget QAbstractItemView:enabled {
+                background-color: rgb(255, 252, 245);
+                color: rgb(70, 50, 35);
+                font-size: 10px;
+                selection-background-color: rgba(184, 134, 11, 180);
+                selection-color: rgb(255, 252, 245);
+            }
+            
+            /* Day cells */
+            QCalendarWidget QAbstractItemView {
+                gridline-color: rgb(230, 220, 200);
+            }
+            
+            /* Header row with day names */
+            QCalendarWidget QHeaderView::section {
+                background-color: rgba(200, 185, 160, 120);
+                color: rgb(70, 50, 35);
+                font-size: 9px;
+                font-weight: bold;
+                padding: 4px;
+                border: none;
+                border-bottom: 1px solid rgb(200, 185, 160);
+            }
+            
+            /* Today's date */
+            QCalendarWidget QAbstractItemView:enabled {
+                background-color: rgb(255, 252, 245);
+            }
+        """
+        
+        # Append the shared menu style for calendar dropdowns
+        complete_style += "\n" + VINTAGE_MENU_STYLE.replace("QMenu", "QCalendarWidget QMenu")
+        
+        self.setStyleSheet(complete_style)
 
 
 class VintageButton(QPushButton):
