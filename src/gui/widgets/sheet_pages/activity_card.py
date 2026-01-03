@@ -159,7 +159,7 @@ class ActivityCard(QFrame):
 
         if logs:
             for log in logs:
-                session_item = SessionItem(log, parent=self)
+                session_item = SessionItem(log, on_delete=self._delete_log, parent=self)
                 sessions_layout.addWidget(session_item)
         else:
             no_sessions_label = QLabel("No session details available")
@@ -186,3 +186,36 @@ class ActivityCard(QFrame):
         # Only toggle if clicking on the stripe
         if self.expand_stripe.geometry().contains(event.pos()):
             self.toggle_expand()
+
+    def _delete_log(self, log: Log):
+        """Delete a log entry and refresh the card"""
+        log.delete_instance()
+        self._refresh_sessions()
+
+    def _refresh_sessions(self):
+        """Refresh the sessions widget after a deletion"""
+        if not self.sessions_widget:
+            return
+
+        # Clear existing sessions
+        sessions_layout = self.sessions_widget.layout()
+        while sessions_layout.count():
+            item = sessions_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Re-query logs for this bucket
+        logs = Log.select().where(
+            (Log.habit == self.habit) &
+            (Log.start >= self.bucket.start) &
+            (Log.start < self.bucket.end)
+        ).order_by(Log.start)
+
+        if logs:
+            for log in logs:
+                session_item = SessionItem(log, on_delete=self._delete_log, parent=self)
+                sessions_layout.addWidget(session_item)
+        else:
+            no_sessions_label = QLabel("No session details available")
+            no_sessions_label.setStyleSheet("color: rgb(140, 120, 100); font-size: 9px; font-style: italic; background: transparent;")
+            sessions_layout.addWidget(no_sessions_label)

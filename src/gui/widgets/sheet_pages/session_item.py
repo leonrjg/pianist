@@ -16,7 +16,7 @@ class SessionItem(QFrame):
         """
         Args:
             log: Log object representing the session
-            on_delete: Callback for delete action (not yet implemented)
+            on_delete: Callback for delete action, receives the log as parameter
             parent: Parent widget
         """
         super().__init__(parent)
@@ -64,7 +64,7 @@ class SessionItem(QFrame):
 
         layout.addStretch()
 
-        # Delete button (disabled for now)
+        # Delete button
         delete_btn = QPushButton("×")
         delete_btn.setFixedSize(18, 18)
         delete_btn.setStyleSheet("""
@@ -76,9 +76,22 @@ class SessionItem(QFrame):
                 font-size: 14px;
                 font-weight: bold;
             }
+            QPushButton:hover {
+                background-color: rgba(180, 60, 60, 150);
+            }
+            QPushButton:pressed {
+                background-color: rgba(140, 40, 40, 120);
+            }
             QPushButton:disabled {
                 background-color: rgba(160, 160, 160, 80);
                 color: rgba(255, 255, 255, 100);
             }
         """)
+        delete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        
+        if self.on_delete:
+            delete_btn.clicked.connect(lambda: self.on_delete(self.log))
+        else:
+            delete_btn.setEnabled(False)
+        
         layout.addWidget(delete_btn)

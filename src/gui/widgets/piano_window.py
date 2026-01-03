@@ -418,7 +418,10 @@ class PianoFloatingWindow(QWidget):
             current_time = time.time() * 1000
             if current_time - self.state.last_click_time < Interactions.DOUBLE_CLICK_THRESHOLD:
                 if self.geometry_model.is_point_in_piano_frame(local_pos):
-                    self.hide_window_for_seconds(Interactions.DOUBLE_CLICK_HIDE_DURATION)
+                    if self.geometry_model.toggleable_drawer_visible:
+                        self.toggle_maximize()
+                    else:
+                        self.hide_window_for_seconds(Interactions.DOUBLE_CLICK_HIDE_DURATION)
                     return
 
             self.state.last_click_time = current_time

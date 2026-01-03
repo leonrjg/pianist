@@ -17,6 +17,32 @@ class PageTurnAnimation(QObject):
         self._on_complete = None
         self._original_geometry = None
 
+    def is_running(self):
+        """Check if an animation is currently running"""
+        return self._animation_group is not None and self._animation_group.state() == self._animation_group.State.Running
+
+    def cancel(self):
+        """Cancel any ongoing animation and clean up immediately"""
+        if self._animation_group:
+            self._animation_group.stop()
+            self._animation_group = None
+        
+        # Clean up widgets without calling callback
+        if self._current_widget:
+            self._current_widget.hide()
+            self._current_widget.setGraphicsEffect(None)
+        
+        if self._next_widget:
+            self._next_widget.setGraphicsEffect(None)
+            if self._original_geometry:
+                self._next_widget.setGeometry(self._original_geometry)
+        
+        # Reset state without calling on_complete
+        self._current_widget = None
+        self._next_widget = None
+        self._on_complete = None
+        self._original_geometry = None
+
     def animate_transition(self, current_widget, next_widget, on_complete=None, reverse=False):
         """
         Animate transition from current to next widget with slide effect.

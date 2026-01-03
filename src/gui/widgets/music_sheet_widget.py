@@ -208,6 +208,10 @@ class MusicSheetWidget(QWidget):
             page_type: Type of page (PageType enum value)
             data: Optional data for the page (e.g., habit_id for detail page)
         """
+        # Cancel any ongoing animation to prevent overlapping pages
+        if self._animator.is_running():
+            self._animator.cancel()
+        
         # Update menu's active page
         self._menu.set_current_page(page_type)
 
@@ -269,6 +273,10 @@ class MusicSheetWidget(QWidget):
         """Navigate back to previous page"""
         if not self._page_stack:
             return
+
+        # Cancel any ongoing animation to prevent overlapping pages
+        if self._animator.is_running():
+            self._animator.cancel()
 
         # Pop from stack
         previous_page = self._page_stack.pop()

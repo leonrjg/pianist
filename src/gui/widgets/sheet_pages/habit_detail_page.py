@@ -78,9 +78,16 @@ class HabitDetailPage(SheetPage):
                 return
 
         # Page title
-        title_text = f"{self.habit.name}" if self.habit else "New Habit"
-        title = self._create_section_header(title_text)
-        layout.addWidget(title)
+        if not self.habit:
+            title = self._create_section_header("New Habit")
+            layout.addWidget(title)
+        else:
+            card = HabitStatCard(
+                self.habit,
+                stats={'streak': self.habit.get_longest_streak()},
+                on_click=lambda h: self.navigate_to.emit('habit_stats', self.habit.id),
+                parent=self)
+            layout.addWidget(card)
 
         form_widget = QWidget()
         form_layout = QVBoxLayout()
@@ -129,16 +136,6 @@ class HabitDetailPage(SheetPage):
         basic_section.add_field("End date:", self._end_date_edit)
 
         form_layout.addWidget(basic_section)
-
-        # Show statistics first if editing existing habit
-        if self.habit:
-            card = HabitStatCard(
-                self.habit,
-                stats={'streak': self.habit.get_longest_streak()},
-                on_click=lambda h: self.navigate_to.emit('habit_stats', self.habit.id),
-                parent=self
-            )
-            form_layout.addWidget(card)
 
         # Time Settings Section
         time_section = FormSection("Progress")

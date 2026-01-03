@@ -11,6 +11,7 @@ from core.mood.mood import Mood
 from core.mood.mood_log import MoodLog
 from core.util.time import get_friendly_datetime
 from .base_page import SheetPage
+from .vintage_form_widgets import VintageLineEdit, VintageButton, FormSection
 
 
 class MoodPage(SheetPage):
@@ -127,30 +128,72 @@ class MoodPage(SheetPage):
         row_layout.setSpacing(8)
         row.setLayout(row_layout)
 
-        # Emoji
-        emoji_label = QLabel(mood.symbol)
-        emoji_font = QFont("", 16)
-        emoji_label.setFont(emoji_font)
-        emoji_label.setFixedWidth(30)
-        row_layout.addWidget(emoji_label)
+        # Emoji (editable)
+        emoji_edit = VintageLineEdit("")
+        emoji_edit.setText(mood.symbol)
+        emoji_edit.setFixedWidth(50)
+        emoji_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        emoji_edit.editingFinished.connect(lambda m=mood, e=emoji_edit: self._update_mood_symbol(m, e.text()))
+        row_layout.addWidget(emoji_edit)
 
-        # Description
-        desc_label = QLabel(mood.description)
-        desc_label.setStyleSheet("color: rgb(70, 50, 35);")
-        row_layout.addWidget(desc_label)
+        # Description (editable)
+        desc_edit = VintageLineEdit("")
+        desc_edit.setText(mood.description)
+        desc_edit.editingFinished.connect(lambda m=mood, d=desc_edit: self._update_mood_description(m, d.text()))
+        row_layout.addWidget(desc_edit)
 
         row_layout.addStretch()
 
+        # Up button
+        up_btn = QPushButton("↑")
+        up_btn.setFixedWidth(30)
+        up_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        up_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(184, 134, 11, 50);
+                border: 1px solid rgb(120, 100, 75);
+                border-radius: 3px;
+                padding: 2px;
+                color: rgb(70, 50, 35);
+            }
+            QPushButton:hover {
+                background-color: rgba(184, 134, 11, 100);
+            }
+        """)
+        up_btn.clicked.connect(lambda: self._move_mood_up(mood))
+        row_layout.addWidget(up_btn)
+
+        # Down button
+        down_btn = QPushButton("↓")
+        down_btn.setFixedWidth(30)
+        down_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        down_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(184, 134, 11, 50);
+                border: 1px solid rgb(120, 100, 75);
+                border-radius: 3px;
+                padding: 2px;
+                color: rgb(70, 50, 35);
+            }
+            QPushButton:hover {
+                background-color: rgba(184, 134, 11, 100);
+            }
+        """)
+        down_btn.clicked.connect(lambda: self._move_mood_down(mood))
+        row_layout.addWidget(down_btn)
+
         # Delete button
-        delete_btn = QPushButton("Delete")
+        delete_btn = QPushButton("×")
+        delete_btn.setFixedWidth(30)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_btn.setStyleSheet("""
             QPushButton {
                 background-color: rgba(160, 50, 50, 100);
                 border: 1px solid rgb(120, 40, 40);
                 border-radius: 3px;
-                padding: 2px 6px;
+                padding: 2px;
                 color: rgb(70, 50, 35);
+                font-size: 16px;
             }
             QPushButton:hover {
                 background-color: rgba(180, 60, 60, 150);
@@ -163,8 +206,7 @@ class MoodPage(SheetPage):
 
     def _build_add_mood_section(self, layout):
         """Build add new mood section"""
-        header = self._create_subsection_header("Add New Mood")
-        layout.addWidget(header)
+        add_section = FormSection("Add New Mood")
 
         # Form container
         form = QWidget()
@@ -174,36 +216,21 @@ class MoodPage(SheetPage):
         form.setLayout(form_layout)
 
         # Emoji input
-        self.emoji_input = QLineEdit()
-        self.emoji_input.setPlaceholderText("Emoji")
-        self.emoji_input.setFixedWidth(60)
+        self.emoji_input = VintageLineEdit("Emoji")
+        self.emoji_input.setFixedWidth(70)
         form_layout.addWidget(self.emoji_input)
 
         # Description input
-        self.description_input = QLineEdit()
-        self.description_input.setPlaceholderText("Description")
+        self.description_input = VintageLineEdit("Description")
         form_layout.addWidget(self.description_input)
 
         # Add button
-        add_btn = QPushButton("Add")
-        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgb(92, 61, 46);
-                border: 1px solid rgb(184, 134, 11);
-                border-radius: 3px;
-                padding: 4px 12px;
-                color: rgb(252, 248, 235);
-            }
-            QPushButton:hover {
-                background-color: rgb(122, 80, 64);
-                border-color: rgb(218, 165, 32);
-            }
-        """)
+        add_btn = VintageButton("Add")
         add_btn.clicked.connect(self._add_mood)
         form_layout.addWidget(add_btn)
 
-        layout.addWidget(form)
+        add_section.layout().addWidget(form)
+        layout.addWidget(add_section)
 
     def _build_recent_logs_section(self, layout):
         """Build recent logs section"""
@@ -245,6 +272,26 @@ class MoodPage(SheetPage):
         row_layout.addWidget(time_label)
 
         row_layout.addStretch()
+
+        # Delete button
+        delete_btn = QPushButton("×")
+        delete_btn.setFixedWidth(25)
+        delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(160, 50, 50, 80);
+                border: 1px solid rgb(120, 40, 40);
+                border-radius: 3px;
+                padding: 0px;
+                color: rgb(70, 50, 35);
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(180, 60, 60, 120);
+            }
+        """)
+        delete_btn.clicked.connect(lambda: self._delete_log(log))
+        row_layout.addWidget(delete_btn)
 
         return row
 
@@ -310,5 +357,59 @@ class MoodPage(SheetPage):
 
         self.emoji_input.clear()
         self.description_input.clear()
+        self.refresh()
+        self.content_updated.emit()
+
+    def _update_mood_symbol(self, mood: Mood, new_symbol: str):
+        """Update mood symbol"""
+        new_symbol = new_symbol.strip()
+        if new_symbol and new_symbol != mood.symbol:
+            mood.symbol = new_symbol
+            mood.save()
+            self.content_updated.emit()
+
+    def _update_mood_description(self, mood: Mood, new_description: str):
+        """Update mood description"""
+        new_description = new_description.strip()
+        if new_description and new_description != mood.description:
+            mood.description = new_description
+            mood.save()
+            self.content_updated.emit()
+
+    def _move_mood_up(self, mood: Mood):
+        """Move mood up in display order"""
+        moods = Mood.get_all_ordered()
+        idx = next((i for i, m in enumerate(moods) if m.id == mood.id), None)
+        
+        if idx is None or idx == 0:
+            return
+        
+        # Swap display_order with previous mood
+        moods[idx].display_order, moods[idx - 1].display_order = moods[idx - 1].display_order, moods[idx].display_order
+        moods[idx].save()
+        moods[idx - 1].save()
+        
+        self.refresh()
+        self.content_updated.emit()
+
+    def _move_mood_down(self, mood: Mood):
+        """Move mood down in display order"""
+        moods = Mood.get_all_ordered()
+        idx = next((i for i, m in enumerate(moods) if m.id == mood.id), None)
+        
+        if idx is None or idx == len(moods) - 1:
+            return
+        
+        # Swap display_order with next mood
+        moods[idx].display_order, moods[idx + 1].display_order = moods[idx + 1].display_order, moods[idx].display_order
+        moods[idx].save()
+        moods[idx + 1].save()
+        
+        self.refresh()
+        self.content_updated.emit()
+
+    def _delete_log(self, log: MoodLog):
+        """Delete a mood log"""
+        log.delete_instance()
         self.refresh()
         self.content_updated.emit()
