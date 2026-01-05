@@ -2,13 +2,15 @@
 Stats Page - View habit statistics and analytics.
 """
 
-from PyQt6.QtWidgets import QHBoxLayout, QLabel
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from PyQt6.QtGui import QFont
 
 from .base_page import SheetPage
 from .stat_card import StatCard
 from .habit_stat_card import HabitStatCard
 from .champion_banner import ChampionBanner
+from .calendar_graph import CalendarGraph
+from .vintage_dropdown import VintageDropdown
 
 # Import database models and analytics
 import sys
@@ -17,11 +19,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.habit import Habit
 from core.util.time import get_friendly_elapsed, get_friendly_datetime
 from core import analytics
-from datetime import datetime
 
 
 class StatsPage(SheetPage):
     """Statistics page showing habit analytics"""
+
+    def __init__(self, parent=None):
+        self._calendar_graph = None
+        self._calendar_container = None
+        self._time_range_dropdown = None
+        self._all_habits = []
+        super().__init__(parent)
 
     def get_page_title(self) -> str:
         return "Statistics"
@@ -39,6 +47,8 @@ class StatsPage(SheetPage):
 
         try:
             habits = list(Habit.select())
+            self._all_habits = habits
+            
             if not habits:
                 no_habits_label = self._create_text_label("No habits yet.", secondary=True)
                 layout.addWidget(no_habits_label)
@@ -51,6 +61,41 @@ class StatsPage(SheetPage):
 
             # Champion habit spotlight
             self._build_champion_section(layout, habits)
+
+            layout.addSpacing(8)
+
+            # Time range selector
+            time_range_layout = QHBoxLayout()
+            time_range_layout.setSpacing(6)
+
+            range_label = QLabel("Show:")
+            range_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 10px; background: transparent;")
+            time_range_layout.addWidget(range_label)
+
+            self._time_range_dropdown = VintageDropdown(["1 month", "6 months", "1 year"], "1 month")
+            self._time_range_dropdown.selection_changed.connect(self._on_range_changed)
+            time_range_layout.addWidget(self._time_range_dropdown)
+
+            time_range_layout.addStretch()
+            layout.addLayout(time_range_layout)
+
+            layout.addSpacing(8)
+
+            # Calendar section
+            calendar_header = self._create_section_header("Activity Graph")
+            layout.addWidget(calendar_header)
+
+            # Create calendar container
+            self._calendar_container = QWidget()
+            self._calendar_container.setStyleSheet("background: transparent;")
+            calendar_container_layout = QVBoxLayout()
+            calendar_container_layout.setContentsMargins(0, 0, 0, 0)
+            calendar_container_layout.setSpacing(0)
+            self._calendar_container.setLayout(calendar_container_layout)
+            layout.addWidget(self._calendar_container)
+
+            # Build calendar graph
+            self._build_calendar(days_back=30)
 
             layout.addSpacing(8)
 
@@ -140,6 +185,49 @@ class StatsPage(SheetPage):
                 parent=self
             )
             layout.addWidget(card)
+
+    def _build_calendar(self, days_back=365):
+        """Build calendar graph with aggregated data from all habits"""
+        # Clear container
+        container_layout = self._calendar_container.layout()
+
+        # Remove existing calendar if any
+        if self._calendar_graph:
+            container_layout.removeWidget(self._calendar_graph)
+            self._calendar_graph.deleteLater()
+            self._calendar_graph = None
+
+        # Collect all buckets from all habits
+        all_buckets = []
+        for habit in self._all_habits:
+            buckets = habit.get_activity_buckets()
+            if buckets:
+                all_buckets.extend(buckets)
+
+        if not all_buckets:
+            no_data_label = self._create_text_label("Start practicing to see your calendar!", secondary=True)
+            container_layout.addWidget(no_data_label)
+            return
+
+        # Create calendar graph with aggregated data (habit=None)
+        self._calendar_graph = CalendarGraph(None, all_buckets, days_back, parent=self)
+        container_layout.addWidget(self._calendar_graph)
+
+    def _on_range_changed(self, range_str: str):
+        """Handle time range selection change"""
+        days_back = self._get_days_back(range_str)
+        self._build_calendar(days_back)
+
+    def _get_days_back(self, range_str: str) -> int:
+        """Convert range string to days"""
+        if range_str == "1 month":
+            return 30
+        elif range_str == "6 months":
+            return 180
+        elif range_str == "1 year":
+            return 365
+        else:
+            return 365  # Default to 1 year
 
     def _navigate_to_habit(self, habit):
         """Navigate to habit statistics page"""

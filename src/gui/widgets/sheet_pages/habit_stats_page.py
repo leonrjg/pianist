@@ -146,6 +146,7 @@ class HabitStatsPage(SheetPage):
         # Total practice time card
         time_card = StatCard("Practice Time", total_time_str, "⏱", parent=self)
         summary_layout.addWidget(time_card)
+        summary_layout.addStretch()
 
         layout.addLayout(summary_layout)
 
@@ -217,11 +218,11 @@ class HabitStatsPage(SheetPage):
 
     def _get_days_back(self, range_str: str) -> int:
         """Convert range string to days"""
-        if range_str == "1 Month":
+        if range_str == "1 month":
             return 30
-        elif range_str == "6 Months":
+        elif range_str == "6 months":
             return 180
-        elif range_str == "1 Year":
+        elif range_str == "1 year":
             return 365
         else:
             return 365  # Default to 1 year

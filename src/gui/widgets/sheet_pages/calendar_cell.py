@@ -78,7 +78,15 @@ class CalendarCell(QFrame):
         if self.duration > 0:
             duration_str = get_friendly_elapsed(self.duration)
             session_str = f"{self.sessions} session{'s' if self.sessions != 1 else ''}"
-            tooltip = f"{date_str}\n{duration_str}\n{session_str}"
+            
+            # Check if parent CalendarGraph has a habit (single habit view) or None (aggregated view)
+            parent_graph = self.parent()
+            if parent_graph and hasattr(parent_graph, 'habit') and parent_graph.habit is None:
+                # Aggregated view - show "All habits"
+                tooltip = f"{date_str}\nAll habits\n{duration_str}\n{session_str}"
+            else:
+                # Single habit view
+                tooltip = f"{date_str}\n{duration_str}\n{session_str}"
         else:
             tooltip = f"{date_str}\nNo activity"
 

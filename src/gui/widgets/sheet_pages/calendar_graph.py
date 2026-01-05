@@ -30,8 +30,8 @@ class CalendarGraph(QFrame):
     def __init__(self, habit, buckets: List[Bucket], days_back: int = 365, parent=None):
         """
         Args:
-            habit: Habit object
-            buckets: List of activity buckets
+            habit: Habit object (or None for aggregated view of all habits)
+            buckets: List of activity buckets (from single habit or all habits)
             days_back: Number of days to display (30, 180, or 365)
             parent: Parent widget
         """
@@ -70,6 +70,7 @@ class CalendarGraph(QFrame):
         grid_start = start_date - timedelta(days=days_to_sunday)
 
         # Create date -> bucket mapping for fast lookup
+        # Aggregate data when multiple buckets exist for same date
         date_to_data = {}
         for bucket in self.buckets:
             # Map all dates within bucket period
@@ -82,7 +83,13 @@ class CalendarGraph(QFrame):
                 days_in_bucket = (bucket_end - bucket_start).days + 1
                 duration_per_day = bucket.net_duration // days_in_bucket if days_in_bucket > 0 else bucket.net_duration
 
-                date_to_data[current] = (duration_per_day, bucket.sessions)
+                # Aggregate: sum durations and sessions for same date
+                if current in date_to_data:
+                    existing_duration, existing_sessions = date_to_data[current]
+                    date_to_data[current] = (existing_duration + duration_per_day, existing_sessions + bucket.sessions)
+                else:
+                    date_to_data[current] = (duration_per_day, bucket.sessions)
+                
                 current += timedelta(days=1)
 
         # Build grid (complete weeks from grid_start)
@@ -131,44 +138,39 @@ class CalendarGraph(QFrame):
         # Add calendar cells
         self._add_cells(grid_layout)
 
-        main_layout.addWidget(grid_widget, alignment=Qt.AlignmentFlag.AlignLeft)
+        main_layout.addWidget(grid_widget, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Add legend
         self._add_legend(main_layout)
 
     def _add_month_labels(self, layout: QGridLayout):
         """Add month labels at top of calendar"""
-        current_month = None
-        col = 0
-
-        # Calculate weeks
         num_cells = len(self.grid_data)
         num_weeks = num_cells // 7
 
-        for week in range(num_weeks):
-            # Get first day of this week (index 0 = Sunday)
+        week = 0
+        while week < num_weeks:
             week_start_date = self.grid_data[week * 7][0]
             month = week_start_date.month
 
-            # Check if this week has any activity
-            week_has_activity = any(
-                self.grid_data[week * 7 + day][1] > 0  # duration > 0
-                for day in range(7)
-                if week * 7 + day < len(self.grid_data)
-            )
+            # Count consecutive weeks in this month
+            span = 1
+            while week + span < num_weeks:
+                next_week_date = self.grid_data[(week + span) * 7][0]
+                if next_week_date.month != month:
+                    break
+                span += 1
 
-            # Add label at start of each new month only if there's activity in this week
-            if month != current_month and week_has_activity:
-                month_label = QLabel(self.MONTH_LABELS[month - 1])
-                month_label.setStyleSheet("""
-                    color: rgb(110, 90, 70);
-                    font-size: 9px;
-                    background: transparent;
-                """)
-                layout.addWidget(month_label, 0, col, Qt.AlignmentFlag.AlignLeft)
-                current_month = month
+            # Add label spanning all weeks of this month
+            month_label = QLabel(self.MONTH_LABELS[month - 1])
+            month_label.setStyleSheet("""
+                color: rgb(110, 90, 70);
+                font-size: 9px;
+                background: transparent;
+            """)
+            layout.addWidget(month_label, 0, week + 1, 1, span, Qt.AlignmentFlag.AlignCenter)
 
-            col += 1
+            week += span
 
     def _add_day_labels(self, layout: QGridLayout):
         """Add day abbreviations on left side"""
