@@ -50,14 +50,10 @@ class HabitStatsPage(SheetPage):
             except:
                 error_label = self._create_text_label("Habit not found", secondary=True)
                 layout.addWidget(error_label)
-                back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
-                layout.addWidget(back_link)
                 return
         else:
             error_label = self._create_text_label("No habit specified", secondary=True)
             layout.addWidget(error_label)
-            back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
-            layout.addWidget(back_link)
             return
 
         # Header with habit name and schedule badge
@@ -129,9 +125,6 @@ class HabitStatsPage(SheetPage):
         footer_layout.addWidget(edit_link)
 
         footer_layout.addStretch()
-
-        back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
-        footer_layout.addWidget(back_link)
 
         layout.addLayout(footer_layout)
 

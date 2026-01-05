@@ -18,7 +18,6 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
 
     # Signals
     navigate_to = pyqtSignal(str, object)  # (page_type, data) - request navigation
-    go_back = pyqtSignal()  # Request back navigation
     content_updated = pyqtSignal()  # Content changed, need refresh
 
     # Shared vintage paper aesthetic colors (sepia tones)
@@ -224,7 +223,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
 
         label = QLabel(f'♫ {text}')
 
-        font = QFont("Palatino", 14)
+        font = QFont("Luxurious Roman", 18)
         font.setBold(True)
         label.setFont(font)
         label.setStyleSheet("color: rgb(70, 50, 35); padding: 2px 0px;")

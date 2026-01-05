@@ -18,7 +18,7 @@ class MoodPage(SheetPage):
     """Page for managing moods and viewing logs"""
 
     def get_page_title(self) -> str:
-        return "Mood Management"
+        return "Mood"
 
     def get_page_type(self) -> str:
         return "mood"
@@ -75,7 +75,7 @@ class MoodPage(SheetPage):
 
             # Mood display
             mood_label = QLabel(f"{current_log.mood.symbol}  {current_log.mood.description}")
-            mood_font = QFont("Palatino", 16)
+            mood_font = QFont()
             mood_font.setBold(True)
             mood_label.setFont(mood_font)
             container_layout.addWidget(mood_label)
@@ -125,7 +125,7 @@ class MoodPage(SheetPage):
         row = QWidget()
         row_layout = QHBoxLayout()
         row_layout.setContentsMargins(4, 4, 4, 4)
-        row_layout.setSpacing(8)
+        row_layout.setSpacing(2)
         row.setLayout(row_layout)
 
         # Emoji (editable)
@@ -141,8 +141,6 @@ class MoodPage(SheetPage):
         desc_edit.setText(mood.description)
         desc_edit.editingFinished.connect(lambda m=mood, d=desc_edit: self._update_mood_description(m, d.text()))
         row_layout.addWidget(desc_edit)
-
-        row_layout.addStretch()
 
         # Up button
         up_btn = QPushButton("↑")

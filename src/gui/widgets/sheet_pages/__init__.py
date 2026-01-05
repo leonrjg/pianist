@@ -15,6 +15,7 @@ from .calendar_cell import CalendarCell
 from .calendar_graph import CalendarGraph
 from .vintage_dropdown import VintageDropdown
 from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, VintageButton, FormSection
+from .notes_widget import NotesWidget
 from .index_page import IndexPage
 from .repertoire_page import RepertoirePage
 from .habit_detail_page import HabitDetailPage
@@ -40,6 +41,7 @@ __all__ = [
     'VintageCheckBox',
     'VintageButton',
     'FormSection',
+    'NotesWidget',
     'IndexPage',
     'RepertoirePage',
     'HabitDetailPage',

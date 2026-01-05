@@ -29,7 +29,6 @@ class RepertoirePage(SheetPage):
 
         # Page title
         title = self._create_section_header(self.get_page_title())
-        title.setFont(QFont("Palatino", 14, QFont.Weight.Bold))
         layout.addWidget(title)
 
         # Load habits from database

@@ -1,12 +1,14 @@
 """
 Session Item - Display individual session with delete option.
 """
+from time import strftime
 
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
 from PyQt6.QtGui import QFont, QCursor
 from PyQt6.QtCore import Qt
 
 from core.util.time import get_friendly_elapsed, get_friendly_datetime, HOUR
+from .productivity_progress_bar import ProductivityProgressBar
 
 
 class SessionItem(QFrame):
@@ -38,38 +40,49 @@ class SessionItem(QFrame):
             }
         """)
 
-        # Horizontal layout
-        layout = QHBoxLayout()
-        layout.setContentsMargins(4, 3, 4, 3)
-        layout.setSpacing(6)
-        self.setLayout(layout)
+        # Main vertical layout
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(4, 3, 4, 3)
+        main_layout.setSpacing(3)
+        self.setLayout(main_layout)
 
-        # Session time
-        start_time = get_friendly_datetime(self.log.start, HOUR)
-        time_label = QLabel(start_time)
-        time_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
-        layout.addWidget(time_label)
+        # Top row: duration, time, source, delete button
+        top_layout = QHBoxLayout()
+        top_layout.setSpacing(6)
 
         # Duration
         if self.log.end:
-            duration_label = QLabel(get_friendly_elapsed((self.log.end - self.log.start).total_seconds() - self.log.idle_time))
-            duration_label.setStyleSheet("color: rgb(100, 80, 65); font-size: 10px; background: transparent;")
-            layout.addWidget(duration_label)
+            duration_str = get_friendly_elapsed((self.log.end - self.log.start).total_seconds() - self.log.idle_time)
+            duration_badge = QLabel(f"⏱ {duration_str}")
+            duration_badge.setStyleSheet("""
+                background-color: rgba(184, 134, 11, 120);
+                color: rgb(40, 20, 10);
+                font-size: 9px;
+                padding: 2px 6px;
+                border-radius: 3px;
+            """)
+            top_layout.addWidget(duration_badge)
+
+        # Session time
+        start_time = f"{self.log.start.strftime("%H:%M")} ~ {self.log.end.strftime("%H:%M") if self.log.end else '...'}"
+        time_label = QLabel(start_time)
+        time_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
+        top_layout.addWidget(time_label)
 
         if self.log.started_by:
             source = self.log.started_by
             source_label = QLabel(f"(started by {source})")
             source_label.setStyleSheet("color: rgb(140, 120, 100); font-size: 9px; font-style: italic; background: transparent;")
-            layout.addWidget(source_label)
+            top_layout.addWidget(source_label)
 
-        layout.addStretch()
+        top_layout.addStretch()
 
         # Delete button
         delete_btn = QPushButton("×")
         delete_btn.setFixedSize(18, 18)
         delete_btn.setStyleSheet("""
             QPushButton {
-                background-color: rgba(160, 50, 50, 100);
+                background-color: rgba(140, 40, 40, 120);
                 color: white;
                 border: none;
                 border-radius: 2px;
@@ -79,13 +92,6 @@ class SessionItem(QFrame):
             QPushButton:hover {
                 background-color: rgba(180, 60, 60, 150);
             }
-            QPushButton:pressed {
-                background-color: rgba(140, 40, 40, 120);
-            }
-            QPushButton:disabled {
-                background-color: rgba(160, 160, 160, 80);
-                color: rgba(255, 255, 255, 100);
-            }
         """)
         delete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         
@@ -94,4 +100,14 @@ class SessionItem(QFrame):
         else:
             delete_btn.setEnabled(False)
         
-        layout.addWidget(delete_btn)
+        top_layout.addWidget(delete_btn)
+        main_layout.addLayout(top_layout)
+
+        # Productivity rate progress bar
+        if self.log.end:
+            total_time = (self.log.end - self.log.start).total_seconds()
+            if total_time > 0:
+                active_time = total_time - self.log.idle_time
+                productivity_rate = active_time / total_time
+                progress_bar = ProductivityProgressBar(productivity_rate, parent=self)
+                main_layout.addWidget(progress_bar)

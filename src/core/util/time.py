@@ -32,10 +32,27 @@ def get_friendly_datetime(dt: datetime, scale: int = DAY) -> str:
         day = t('Today')
     elif datetime.now().day == dt.day + 1:
         day = t('Yesterday')
-    return dt.strftime(f"{day}, %b %d, %Y{' (%H:%M)' if scale < DAY else ''}")
+    return dt.strftime(f"{day}, %b %d{' (%H:%M)' if scale < DAY else ''}")
 
 def get_timespan(start: datetime, end: datetime = None) -> int:
     """Get the timespan in seconds between two datetime objects."""
     if not end:
         end = datetime.now()
     return int((end - start).total_seconds())
+
+def get_naive_timestamp(dt: datetime) -> int:
+    """Get timestamp for a naive datetime without timezone conversion.
+    
+    Calculates seconds since Unix epoch (1970-01-01 00:00:00) treating
+    the datetime as-is without any UTC conversion. This is useful for
+    aligning time-based calculations when all datetimes are naive and
+    represent the same (unspecified) timezone.
+    
+    Args:
+        dt: A naive datetime object.
+        
+    Returns:
+        Integer seconds since naive epoch (1970-01-01 00:00:00).
+    """
+    naive_epoch = datetime(1970, 1, 1)
+    return int((dt - naive_epoch).total_seconds())

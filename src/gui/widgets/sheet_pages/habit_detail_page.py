@@ -1,24 +1,17 @@
 """
 Habit Detail Page - View and edit individual habit details.
 """
-import os
-import platform
-import subprocess
-import time
-import traceback
 
-import Quartz
-from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-                             QSpinBox, QCheckBox, QPushButton, QMessageBox, QWidget, QToolTip)
-from PyQt6.QtCore import Qt, QTimer, QDate
-from PyQt6.QtGui import QFont, QCursor
-from pynput.keyboard import Controller, Key, KeyCode
+
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QMessageBox, QWidget)
+from PyQt6.QtCore import Qt, QDate
 
 from core.tracker.registry import TrackerRegistry
 from . import HabitStatCard
 from .base_page import SheetPage
 from .vintage_dropdown import VintageDropdown
 from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, VintageButton, VintageDateEdit, FormSection
+from .notes_widget import NotesWidget
 from ..tracker_help_widget import TrackerHelpWidget
 
 # Import database models
@@ -28,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.db import db
 from core.habit.habit import Habit
 from core.habit.habit_tracker import HabitTracker
-from core.util.time import get_friendly_elapsed, get_friendly_datetime
 
 
 class HabitDetailPage(SheetPage):
@@ -44,6 +36,7 @@ class HabitDetailPage(SheetPage):
         self._duration_spin = None
         self._timeout_spin = None
         self._visible_checkbox = None
+        self._notes_widget = None
 
         # Dynamic tracker widgets - populated during build_content
         self._tracker_checkboxes = {}  # {tracker_name: QCheckBox}
@@ -73,8 +66,6 @@ class HabitDetailPage(SheetPage):
             except:
                 error_label = self._create_text_label("Habit not found", secondary=True)
                 layout.addWidget(error_label)
-                back_link = self._create_link_label("← Back", lambda: self.go_back.emit())
-                layout.addWidget(back_link)
                 return
 
         # Page title
@@ -141,21 +132,21 @@ class HabitDetailPage(SheetPage):
         time_section = FormSection("Progress")
 
         # Duration field
-        self._duration_spin = VintageSpinBox(" min")
-        self._duration_spin.setRange(0, 1440)
+        self._duration_spin = VintageSpinBox()
+        self._duration_spin.setMinimum(0)
         self._duration_spin.setMaximumWidth(140)
         if self.habit and self.habit.allocated_time:
             self._duration_spin.setValue(self.habit.allocated_time // 60)
-        time_section.add_field("Minimum time to count towards streak:", self._duration_spin)
+        time_section.add_field("Minimum time to count towards streak (min):", self._duration_spin)
 
         # Timeout field
-        self._timeout_spin = VintageSpinBox(" sec")
-        self._timeout_spin.setRange(0, 3600)
+        self._timeout_spin = VintageSpinBox()
+        self._timeout_spin.setMinimum(0)
         self._timeout_spin.setMaximumWidth(140)
         self._timeout_spin.setValue(30)
         if self.habit and self.habit.inactivity_threshold:
             self._timeout_spin.setValue(self.habit.inactivity_threshold)
-        time_section.add_field("Maximum inactivity until progress stops", self._timeout_spin)
+        time_section.add_field("Maximum inactivity until progress stops (sec):", self._timeout_spin)
 
         form_layout.addWidget(time_section)
 
@@ -243,6 +234,14 @@ class HabitDetailPage(SheetPage):
         form_layout.addStretch()
         layout.addWidget(form_widget)
 
+        # Notes section
+        notes_section = FormSection("Notes")
+        self._notes_widget = NotesWidget(parent=self)
+        if self.habit and self.habit.note:
+            self._notes_widget.set_note(self.habit.note)
+        notes_section.add_widget(self._notes_widget)
+        form_layout.addWidget(notes_section)
+
         # Action buttons at bottom
         layout.addWidget(self._create_separator())
 
@@ -260,11 +259,6 @@ class HabitDetailPage(SheetPage):
         save_button = VintageButton("Save", button_type="primary", parent=self)
         save_button.clicked.connect(self._save_habit)
         button_layout.addWidget(save_button)
-
-        # Back button
-        back_button = VintageButton("← Back", button_type="secondary", parent=self)
-        back_button.clicked.connect(lambda: self.go_back.emit())
-        button_layout.addWidget(back_button)
 
         layout.addLayout(button_layout)
 
@@ -341,6 +335,7 @@ class HabitDetailPage(SheetPage):
         duration = self._duration_spin.value()
         timeout = self._timeout_spin.value()
         visible = self._visible_checkbox.isChecked()
+        note = self._notes_widget.get_note()
         
         # Get start date from date picker
         qdate = self._start_date_edit.date()
@@ -374,6 +369,7 @@ class HabitDetailPage(SheetPage):
                     self.habit.inactivity_threshold = timeout
 
                 self.habit.visible = visible
+                self.habit.note = note if note.strip() else None
 
                 self.habit.save()
 
@@ -405,8 +401,7 @@ class HabitDetailPage(SheetPage):
             # Emit signal to refresh piano window
             self.content_updated.emit()
 
-            # Go back to index
-            self.go_back.emit()
+            self.navigate_to.emit("index")
 
         except Exception as e:
             # Clear the habit reference on failure so retry will create new
@@ -435,7 +430,7 @@ class HabitDetailPage(SheetPage):
 
                 self.habit.delete_instance()
                 self.content_updated.emit()
-                self.go_back.emit()
+                self.navigate_to.emit("index")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to delete: {e}")
 

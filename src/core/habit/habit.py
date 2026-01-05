@@ -13,6 +13,7 @@ from core.schedule.monthly import MonthlySchedule
 from core.schedule.hourly import HourlySchedule
 
 from .bucket import Bucket
+from ..util.time import get_naive_timestamp
 
 
 class Habit(BaseModel):
@@ -30,6 +31,7 @@ class Habit(BaseModel):
         inactivity_threshold: Time in seconds to consider inactivity (only relevant for trackers).
         allocated_time: Total allocated time for the habit in seconds (minimum time to qualify for streaks).
         visible: Whether the habit appears as a piano key (True) or only in drawer lists (False).
+        note: Markdown notes for the habit.
     """
     id = AutoField()
     name = CharField(unique=True)
@@ -42,6 +44,7 @@ class Habit(BaseModel):
     allocated_time: Optional[int] = IntegerField(null=True)
     display_order = IntegerField(default=0)
     visible = BooleanField(default=True)
+    note = TextField(null=True)
     
     def __init__(self, *args, **kwargs):
         """Initialize habit with schedule instance."""
@@ -169,7 +172,7 @@ class Habit(BaseModel):
         """Find the bucket that contains the given task datetime, if any."""
         unit = self._schedule.get_scale()
         # Get lower boundary of the unit containing the task
-        min_threshold = task - timedelta(seconds=int(task.timestamp()) % unit)
+        min_threshold = task - timedelta(seconds=int(get_naive_timestamp(task)) % unit)
         # Get upper boundary of the unit
         max_threshold =  min_threshold + timedelta(seconds=unit)
 

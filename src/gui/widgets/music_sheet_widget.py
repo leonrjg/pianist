@@ -223,7 +223,6 @@ class MusicSheetWidget(QWidget):
 
         # Connect page signals
         new_page.navigate_to.connect(self._navigate_to)
-        new_page.go_back.connect(self._go_back)
         new_page.content_updated.connect(self.habit_updated.emit)
 
         # Get current page
@@ -264,38 +263,9 @@ class MusicSheetWidget(QWidget):
         """Safely disconnect all signals from a page"""
         try:
             page.navigate_to.disconnect(self._navigate_to)
-            page.go_back.disconnect(self._go_back)
             page.content_updated.disconnect(self.habit_updated.emit)
         except:
             pass  # Signals already disconnected
-
-    def _go_back(self):
-        """Navigate back to previous page"""
-        if not self._page_stack:
-            return
-
-        # Cancel any ongoing animation to prevent overlapping pages
-        if self._animator.is_running():
-            self._animator.cancel()
-
-        # Pop from stack
-        previous_page = self._page_stack.pop()
-        old_page = self._current_page
-
-        # Switch to previous page immediately
-        self._stack.setCurrentWidget(previous_page)
-        self._current_page = previous_page
-
-        # Animate transition (reverse direction for back navigation)
-        if old_page and previous_page:
-            old_page.show()  # Ensure old page is visible for animation
-            previous_page.show()  # Ensure previous page is visible for animation
-            self._animator.animate_transition(
-                old_page,
-                previous_page,
-                on_complete=lambda: self._cleanup_after_back(old_page),
-                reverse=True
-            )
 
     def _cleanup_after_back(self, old_page):
         """Clean up after back navigation animation completes"""

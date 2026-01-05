@@ -192,7 +192,6 @@ class TrackerHelpWidget(QWidget):
                 background-color: rgb(255, 240, 240);
                 color: rgb(180, 50, 50);
                 padding: 10px;
-                font-family: 'Courier New', monospace;
                 font-size: 11px;
                 border: 1px solid rgb(200, 185, 160);
             }

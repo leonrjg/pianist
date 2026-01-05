@@ -107,6 +107,7 @@ class PianoFloatingWindow(QWidget):
 
         self.drawer_animation_manager = DrawerAnimationManager(self)
         self.drawer_animation_manager.initialize_state(self.state.toggleable_drawer_visible)
+        self.drawer_animation_manager.animation_finished.connect(self.on_drawer_animation_finished)
 
         self.sound_manager = SoundManager()
 
@@ -267,6 +268,7 @@ class PianoFloatingWindow(QWidget):
         """Toggle between maximized and normal window state"""
         if self.isMaximized():
             self.showNormal()
+            self.show()
             if self.state.toggleable_drawer_visible:
                 self.toggle_toggleable_drawer()
         else:
@@ -807,14 +809,17 @@ class PianoFloatingWindow(QWidget):
         # Play drawer open sound
         self.sound_manager.play_sound('drawer')
 
-        # Show/hide the music sheet widget
+        # Show widget immediately when opening
         if visible:
             self.music_sheet_widget.show()
             self.music_sheet_widget.raise_()  # Bring to front
-        else:
-            self.music_sheet_widget.hide()
 
         self.drawer_animation_manager.start_animation(visible, self.geometry_model.toggleable_drawer_width)
+
+    def on_drawer_animation_finished(self):
+        """Handle drawer animation completion - hide widget after closing animation"""
+        if not self.state.toggleable_drawer_visible:
+            self.music_sheet_widget.hide()
 
     # ===== Music Sheet Widget Management =====
 

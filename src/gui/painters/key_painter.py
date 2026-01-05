@@ -132,7 +132,7 @@ class KeyPainter(BasePainter):
     def draw_key_label(painter: QPainter, geometry: PianoGeometry, key_rect: QRect, label: str):
         """Draw the label text on a piano key"""
         painter.setPen(QPen(PianoColors.TEXT_PRIMARY))
-        font = QFont('Avenir', 13)
+        font = QFont()
         painter.setFont(font)
 
         label_rect = QRect(
@@ -246,7 +246,7 @@ class KeyPainter(BasePainter):
 
         font_size = 12 if len(time_text) <= 5 else 11
         painter.setPen(QPen(PianoColors.BLACK_KEY_TEXT))
-        painter.setFont(QFont('Avenir', font_size))
+        painter.setFont(QFont('Helvetica', font_size))
         painter.drawText(
             black_key_rect,
             Qt.AlignmentFlag.AlignCenter,

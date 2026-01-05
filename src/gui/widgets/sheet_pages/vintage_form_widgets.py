@@ -3,8 +3,9 @@ Vintage Form Widgets - Styled form components matching the vintage aesthetic.
 """
 
 from PyQt6.QtWidgets import QLineEdit, QSpinBox, QCheckBox, QFrame, QVBoxLayout, QLabel, QPushButton, QDateEdit
-from PyQt6.QtGui import QFont, QCursor
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QFont, QCursor, QIcon
+from PyQt6.QtCore import Qt, QDate, QTimer
+from pathlib import Path
 from .vintage_styles import VINTAGE_MENU_STYLE
 
 
@@ -42,8 +43,9 @@ class VintageSpinBox(QSpinBox):
 
     def __init__(self, suffix="", parent=None):
         super().__init__(parent)
-        if suffix:
-            self.setSuffix(suffix)
+
+        # Disable up/down buttons
+        self.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
 
         self.setStyleSheet("""
             QSpinBox {
@@ -59,32 +61,11 @@ class VintageSpinBox(QSpinBox):
                 border: 1px solid rgb(184, 134, 11);
                 background-color: rgba(255, 255, 250, 220);
             }
-            QSpinBox::up-button, QSpinBox::down-button {
-                background-color: rgba(200, 185, 160, 120);
-                border: 1px solid rgb(200, 185, 160);
-                border-radius: 2px;
-                width: 16px;
-            }
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-                background-color: rgba(184, 134, 11, 120);
-            }
-            QSpinBox::up-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-bottom: 5px solid rgb(70, 50, 35);
-                width: 0;
-                height: 0;
-            }
-            QSpinBox::down-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 5px solid rgb(70, 50, 35);
-                width: 0;
-                height: 0;
-            }
         """)
+
+    def stepBy(self, steps):
+        """Override to disable keyboard up/down arrow stepping"""
+        pass
 
 
 class VintageCheckBox(QCheckBox):
@@ -124,7 +105,10 @@ class VintageDateEdit(QDateEdit):
         super().__init__(parent)
         self.setCalendarPopup(True)
         self.setDisplayFormat("yyyy-MM-dd")
-        
+
+        # Disable up/down buttons
+        self.setButtonSymbols(QDateEdit.ButtonSymbols.NoButtons)
+
         # Build the complete stylesheet including shared menu styles
         complete_style = """
             QDateEdit {
@@ -140,36 +124,14 @@ class VintageDateEdit(QDateEdit):
                 border: 1px solid rgb(184, 134, 11);
                 background-color: rgba(255, 255, 250, 220);
             }
-            QDateEdit::up-button, QDateEdit::down-button {
-                background-color: rgba(200, 185, 160, 120);
-                border: 1px solid rgb(200, 185, 160);
-                border-radius: 2px;
-                width: 16px;
-            }
-            QDateEdit::up-button:hover, QDateEdit::down-button:hover {
-                background-color: rgba(184, 134, 11, 120);
-            }
-            QDateEdit::up-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-bottom: 5px solid rgb(70, 50, 35);
-                width: 0;
-                height: 0;
-            }
-            QDateEdit::down-arrow {
-                image: none;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 5px solid rgb(70, 50, 35);
-                width: 0;
-                height: 0;
-            }
             QDateEdit::drop-down {
                 background-color: rgba(200, 185, 160, 120);
                 border: 1px solid rgb(200, 185, 160);
                 border-radius: 2px;
-                width: 20px;
+                width: 24px;
+                subcontrol-position: right;
+                image: url({calendar_icon_url});
+                padding: 2px;
             }
             QDateEdit::drop-down:hover {
                 background-color: rgba(184, 134, 11, 120);
@@ -184,13 +146,12 @@ class VintageDateEdit(QDateEdit):
             
             /* Navigation bar */
             QCalendarWidget QWidget#qt_calendar_navigationbar {
-                background-color: rgba(184, 134, 11, 180);
+                background-color: rgb(184, 134, 11);
                 border-bottom: 1px solid rgb(160, 115, 10);
             }
             
             /* Month/Year buttons */
             QCalendarWidget QToolButton {
-                background-color: transparent;
                 color: rgb(255, 252, 245);
                 font-size: 11px;
                 font-weight: bold;
@@ -205,7 +166,7 @@ class VintageDateEdit(QDateEdit):
                 background-color: rgba(160, 115, 10, 150);
             }
             
-            /* Arrow buttons */
+            /* Vertical arrow buttons */
             QCalendarWidget QToolButton::menu-indicator {
                 image: none;
             }
@@ -248,6 +209,10 @@ class VintageDateEdit(QDateEdit):
         complete_style += "\n" + VINTAGE_MENU_STYLE.replace("QMenu", "QCalendarWidget QMenu")
         
         self.setStyleSheet(complete_style)
+    
+    def stepBy(self, steps):
+        """Override to disable keyboard up/down arrow stepping"""
+        pass
 
 
 class VintageButton(QPushButton):
@@ -337,7 +302,7 @@ class FormSection(QFrame):
                 background-color: rgba(255, 252, 245, 150);
                 border: 1px solid rgb(200, 185, 160);
                 border-radius: 4px;
-                padding: 8px;
+                padding: 4px;
                 margin: 4px 0px;
             }
         """)

@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt
 from typing import Optional, Callable
 
 from .session_item import SessionItem
+from .productivity_progress_bar import ProductivityProgressBar
 
 # Import database models
 import sys
@@ -68,26 +69,32 @@ class ActivityCard(QFrame):
 
     def _build_summary_section(self):
         """Build the collapsed summary view"""
+        info_layout = QHBoxLayout()
+        info_layout.setSpacing(4)
+
         # Habit name
         name_label = QLabel(self.habit.name)
         name_font = QFont()
         name_font.setBold(True)
-        name_font.setPointSize(11)
         name_label.setFont(name_font)
         name_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
-        self.main_layout.addWidget(name_label)
+        info_layout.addWidget(name_label)
 
-        # Session count badge
-        session_count_badge = QLabel(f"{self.bucket.sessions} session{'s' if self.bucket.sessions != 1 else ''}")
-        session_count_badge.setStyleSheet("""
-                    background-color: rgba(220, 210, 195, 100);
-                    color: rgb(90, 70, 55);
-                    font-size: 9px;
-                    font-style: italic;
+        # Duration badge with emoji
+        duration_str = get_friendly_elapsed(self.bucket.net_duration)
+        duration_badge = QLabel(f"⏱ {duration_str}")
+        duration_badge.setStyleSheet("""
+                    background-color: rgba(184, 134, 11, 120);
+                    color: rgb(40, 20, 10);
+                    font-size: 10px;
                     padding: 2px 6px;
                     border-radius: 3px;
                 """)
-        self.main_layout.addWidget(session_count_badge)
+        duration_badge.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        info_layout.addWidget(duration_badge)
+        info_layout.addStretch()
+
+        self.main_layout.addLayout(info_layout)
 
         # Badges row below name
         badges_layout = QHBoxLayout()
@@ -96,30 +103,35 @@ class ActivityCard(QFrame):
         # Date badge with emoji
         scale = self.habit.get_schedule().get_scale()
         date_str = get_friendly_datetime(self.bucket.start, scale)
-
         date_badge = QLabel(f"📅 {date_str}")
         date_badge.setStyleSheet("""
-            background-color: rgba(200, 185, 160, 120);
-            color: rgb(70, 50, 35);
-            font-size: 9px;
-            padding: 2px 6px;
-            border-radius: 3px;
-        """)
+                    background-color: rgba(200, 185, 160, 120);
+                    color: rgb(70, 50, 35);
+                    font-size: 10px;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                """)
         badges_layout.addWidget(date_badge)
 
-        # Duration badge with emoji
-        duration_str = get_friendly_elapsed(self.bucket.net_duration)
-        duration_badge = QLabel(f"⏱ {duration_str}")
-        duration_badge.setStyleSheet("""
-            background-color: rgba(184, 134, 11, 120);
-            color: rgb(40, 20, 10);
-            font-size: 9px;
-            padding: 2px 6px;
-            border-radius: 3px;
-        """)
-        badges_layout.addWidget(duration_badge)
+        # Session count badge
+        session_count_badge = QLabel(f"{self.bucket.sessions} session{'s' if self.bucket.sessions != 1 else ''}")
+        session_count_badge.setStyleSheet("""
+                            background-color: rgba(220, 210, 195, 100);
+                            color: rgb(90, 70, 55);
+                            font-size: 10px;
+                            padding: 2px 6px;
+                            border-radius: 3px;
+                        """)
+        badges_layout.addWidget(session_count_badge)
 
         self.main_layout.addLayout(badges_layout)
+
+        # Productivity rate progress bar
+        total_time = (self.bucket.end - self.bucket.start).total_seconds()
+        if total_time > 0:
+            productivity_rate = self.bucket.net_duration / total_time
+            progress_bar = ProductivityProgressBar(productivity_rate, parent=self)
+            self.main_layout.addWidget(progress_bar)
 
         # Expansion stripe with three dots
         self.expand_stripe = QLabel("···")

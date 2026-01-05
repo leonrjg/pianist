@@ -119,7 +119,8 @@ class IndexPage(SheetPage):
     def _create_day_header(self, text):
         """Create a styled day header"""
         label = QLabel(f"♪ {text}")
-        font = QFont("Palatino", 12)
+        # Use the application's default font family with larger size
+        font = QFont(label.font().family(), 12)
         font.setBold(True)
         label.setFont(font)
         label.setStyleSheet("""

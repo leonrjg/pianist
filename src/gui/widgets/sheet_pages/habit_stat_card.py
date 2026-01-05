@@ -2,10 +2,12 @@
 Habit Stat Card - Expanded card showing detailed habit statistics.
 """
 
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtGui import QFont, QCursor
 from PyQt6.QtCore import Qt
 from typing import Optional, Callable
+
+from .productivity_progress_bar import ProductivityProgressBar
 
 
 class HabitStatCard(QFrame):
@@ -116,40 +118,11 @@ class HabitStatCard(QFrame):
 
     def _add_progress_section(self, layout, completion_rate):
         """Add completion rate progress bar"""
-        # Completion rate label
-        rate_text = f"{int(completion_rate * 100)}% consistency"
-        rate_label = QLabel(rate_text)
-        rate_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
-        layout.addWidget(rate_label)
-
-        # Progress bar styled as vintage gauge
-        progress_bar = QProgressBar()
-        progress_bar.setMinimum(0)
-        progress_bar.setMaximum(100)
-        progress_bar.setValue(int(completion_rate * 100))
-        progress_bar.setTextVisible(False)
-        progress_bar.setFixedHeight(8)
-
-        # Style based on performance
-        if completion_rate >= 0.8:
-            bar_color = "rgb(184, 134, 11)"  # Brass - excellent
-        elif completion_rate >= 0.5:
-            bar_color = "rgb(140, 110, 80)"  # Brown - good
-        else:
-            bar_color = "rgb(180, 160, 140)"  # Light sepia - needs attention
-
-        progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                background-color: rgba(230, 225, 210, 180);
-                border: 1px solid rgb(200, 185, 160);
-                border-radius: 4px;
-            }}
-            QProgressBar::chunk {{
-                background-color: {bar_color};
-                border-radius: 3px;
-            }}
-        """)
-
+        progress_bar = ProductivityProgressBar(
+            completion_rate,
+            label_text=f"{int(completion_rate * 100)}% consistency",
+            parent=self
+        )
         layout.addWidget(progress_bar)
 
     def mousePressEvent(self, event):
