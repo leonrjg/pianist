@@ -1,6 +1,5 @@
 """Utility functions for time formatting."""
-from calendar import day_abbr
-from datetime import datetime, timedelta
+from datetime import datetime
 import gettext
 
 t = gettext.gettext

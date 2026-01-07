@@ -11,6 +11,7 @@ from .habit_stat_card import HabitStatCard
 from .champion_banner import ChampionBanner
 from .calendar_graph import CalendarGraph
 from .vintage_dropdown import VintageDropdown
+from .activity_card import ActivityCard
 
 # Import database models and analytics
 import sys
@@ -54,16 +55,6 @@ class StatsPage(SheetPage):
                 layout.addWidget(no_habits_label)
                 return
 
-            # At-a-glance summary cards
-            self._build_summary_section(layout, habits)
-
-            layout.addSpacing(8)
-
-            # Champion habit spotlight
-            self._build_champion_section(layout, habits)
-
-            layout.addSpacing(8)
-
             # Time range selector
             time_range_layout = QHBoxLayout()
             time_range_layout.setSpacing(6)
@@ -78,6 +69,15 @@ class StatsPage(SheetPage):
 
             time_range_layout.addStretch()
             layout.addLayout(time_range_layout)
+            layout.addSpacing(8)
+
+            # At-a-glance summary cards
+            self._build_summary_section(layout, habits)
+
+            layout.addSpacing(8)
+
+            # Champion habit spotlight
+            self._build_champion_section(layout, habits)
 
             layout.addSpacing(8)
 
@@ -99,12 +99,13 @@ class StatsPage(SheetPage):
 
             layout.addSpacing(8)
 
-            # Section header for habit performance
-            perf_header = self._create_section_header("Performance")
-            layout.addWidget(perf_header)
+            # Recent activity section
+            activity_header = self._create_section_header("Recent Activity")
+            layout.addWidget(activity_header)
 
-            # Individual habit stat cards
-            self._build_habit_stats_section(layout, habits)
+            self._build_activity_section(layout, habits)
+
+            layout.addSpacing(8)
 
         except Exception as e:
             error_label = self._create_text_label(f"Error loading statistics: {e}", secondary=True)
@@ -229,6 +230,33 @@ class StatsPage(SheetPage):
         else:
             return 365  # Default to 1 year
 
+    def _build_activity_section(self, layout, habits):
+        """Build recent activity list with activity cards"""
+        # Collect all buckets from all habits
+        all_buckets = []
+        for habit in habits:
+            buckets = habit.get_activity_buckets()
+            for bucket in buckets[:10]:  # Take up to 10 most recent per habit
+                all_buckets.append((habit, bucket))
+
+        if not all_buckets:
+            no_activity_label = self._create_text_label("No recent activity.", secondary=True)
+            layout.addWidget(no_activity_label)
+            return
+
+        # Sort by bucket end time (most recent first)
+        all_buckets.sort(key=lambda x: x[1].end, reverse=True)
+
+        # Display up to 20 most recent activities
+        for habit, bucket in all_buckets[:20]:
+            card = ActivityCard(
+                habit,
+                bucket,
+                on_navigate=self._navigate_to_habit,
+                parent=self
+            )
+            layout.addWidget(card)
+
     def _navigate_to_habit(self, habit):
-        """Navigate to habit statistics page"""
-        self.navigate_to.emit('habit_stats', habit.id)
+        """Navigate to habit detail page"""
+        self.navigate_to.emit('habit_detail', habit.id)

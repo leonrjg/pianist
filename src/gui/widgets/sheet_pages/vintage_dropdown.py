@@ -20,6 +20,7 @@ class VintageDropdown(QPushButton):
 
         self.setText(self.selected_item)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setMaximumWidth(100)
 
         # Vintage button styling
         self.setStyleSheet("""
@@ -33,6 +34,10 @@ class VintageDropdown(QPushButton):
             }
             QPushButton:hover {
                 color: rgb(160, 110, 70);
+            }
+            QPushButton::menu-indicator {
+                right: 6px;
+                bottom: 2px;
             }
         """)
 

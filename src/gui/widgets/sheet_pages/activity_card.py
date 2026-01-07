@@ -21,18 +21,20 @@ from core.util.time import get_friendly_elapsed, get_friendly_datetime
 class ActivityCard(QFrame):
     """Expandable card displaying a bucket with individual sessions"""
 
-    def __init__(self, habit, bucket, on_navigate: Optional[Callable] = None, parent=None):
+    def __init__(self, habit, bucket, on_navigate: Optional[Callable] = None, compact: bool = False, parent=None):
         """
         Args:
             habit: Habit object
             bucket: Bucket object
             on_navigate: Optional callback to navigate to habit detail
+            compact: If True, hide habit name for single-habit views
             parent: Parent widget
         """
         super().__init__(parent)
         self.habit = habit
         self.bucket = bucket
         self.on_navigate = on_navigate
+        self.compact = compact
         self.expanded = False
         self.sessions_widget = None
 
@@ -49,7 +51,7 @@ class ActivityCard(QFrame):
                 border-right: 1px solid rgb(200, 185, 160);
                 border-bottom: 1px solid rgb(200, 185, 160);
                 border-radius: 3px;
-                padding: 6px;
+                padding: 4px;
                 margin: 2px 0px;
             }
             ActivityCard:hover {
@@ -69,38 +71,9 @@ class ActivityCard(QFrame):
 
     def _build_summary_section(self):
         """Build the collapsed summary view"""
-        info_layout = QHBoxLayout()
-        info_layout.setSpacing(4)
-
-        # Habit name
-        name_label = QLabel(self.habit.name)
-        name_font = QFont()
-        name_font.setBold(True)
-        name_label.setFont(name_font)
-        name_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
-        info_layout.addWidget(name_label)
-
-        # Duration badge with emoji
-        duration_str = get_friendly_elapsed(self.bucket.net_duration)
-        duration_badge = QLabel(f"⏱ {duration_str}")
-        duration_badge.setStyleSheet("""
-                    background-color: rgba(184, 134, 11, 120);
-                    color: rgb(40, 20, 10);
-                    font-size: 10px;
-                    padding: 2px 6px;
-                    border-radius: 3px;
-                """)
-        duration_badge.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        info_layout.addWidget(duration_badge)
-        info_layout.addStretch()
-
-        self.main_layout.addLayout(info_layout)
-
-        # Badges row below name
-        badges_layout = QHBoxLayout()
-        badges_layout.setSpacing(4)
-
-        # Date badge with emoji
+        date_layout = QHBoxLayout()
+        date_layout.setSpacing(4)
+        
         scale = self.habit.get_schedule().get_scale()
         date_str = get_friendly_datetime(self.bucket.start, scale)
         date_badge = QLabel(f"📅 {date_str}")
@@ -108,23 +81,42 @@ class ActivityCard(QFrame):
                     background-color: rgba(200, 185, 160, 120);
                     color: rgb(70, 50, 35);
                     font-size: 10px;
-                    padding: 2px 6px;
+                    padding: 2px;
                     border-radius: 3px;
                 """)
-        badges_layout.addWidget(date_badge)
+        date_layout.addWidget(date_badge)
 
-        # Session count badge
-        session_count_badge = QLabel(f"{self.bucket.sessions} session{'s' if self.bucket.sessions != 1 else ''}")
-        session_count_badge.setStyleSheet("""
-                            background-color: rgba(220, 210, 195, 100);
-                            color: rgb(90, 70, 55);
-                            font-size: 10px;
-                            padding: 2px 6px;
+        if not self.compact:
+            # Habit name (skip in compact mode)
+            name_label = QLabel(self.habit.name)
+            name_font = QFont()
+            name_font.setBold(True)
+            name_label.setFont(name_font)
+            name_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
+            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            # Use Qt's native text eliding
+            font_metrics = name_label.fontMetrics()
+            elided_text = font_metrics.elidedText(self.habit.name, Qt.TextElideMode.ElideRight, 80)
+            name_label.setText(elided_text)
+            name_label.setToolTip(self.habit.name)  # Show full name on hover
+
+            date_layout.addWidget(name_label)
+
+        # Duration badge with emoji
+        duration_str = get_friendly_elapsed(self.bucket.net_duration)
+        duration_badge = QLabel(f"⏱ {duration_str}")
+        duration_badge.setStyleSheet("""
+                            background-color: rgba(184, 134, 11, 120);
+                            color: rgb(40, 20, 10);
+                            font-size: 9px;
+                            padding: 2px 0px;
                             border-radius: 3px;
                         """)
-        badges_layout.addWidget(session_count_badge)
+        duration_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        date_layout.addWidget(duration_badge)
 
-        self.main_layout.addLayout(badges_layout)
+        self.main_layout.addLayout(date_layout)
 
         # Productivity rate progress bar
         total_time = (self.bucket.end - self.bucket.start).total_seconds()
@@ -133,8 +125,7 @@ class ActivityCard(QFrame):
             progress_bar = ProductivityProgressBar(productivity_rate, parent=self)
             self.main_layout.addWidget(progress_bar)
 
-        # Expansion stripe with three dots
-        self.expand_stripe = QLabel("···")
+        self.expand_stripe = QLabel(f"📶 {self.bucket.sessions} sessions")
         self.expand_stripe.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.expand_stripe.setStyleSheet("""
             background-color: rgba(200, 185, 160, 80);

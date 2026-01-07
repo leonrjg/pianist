@@ -116,7 +116,6 @@ class SheetMenu(QWidget):
         MenuItem('repertoire', 'Repertoire', 'gui/icons/list.svg'),
         MenuItem('habit_detail', 'New Habit', 'gui/icons/new.svg'),
         MenuItem('stats', 'Stats', 'gui/icons/stats.svg'),
-        MenuItem('activity', 'Activity', 'gui/icons/activity.svg'),
         MenuItem('settings', 'Settings', 'gui/icons/settings.svg'),
     ]
 

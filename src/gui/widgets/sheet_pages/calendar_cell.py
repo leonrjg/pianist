@@ -2,8 +2,8 @@
 Calendar Cell - Single day cell for contribution calendar graph.
 """
 
-from PyQt6.QtWidgets import QFrame
-from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QFrame, QLabel
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtCore import Qt
 from datetime import date
 
@@ -42,7 +42,7 @@ class CalendarCell(QFrame):
     def _setup_ui(self):
         """Setup cell UI with color and tooltip"""
         # Fixed size
-        self.setFixedSize(8, 8)
+        self.setFixedSize(10, 10)
 
         # Determine color based on duration and threshold
         color = self._get_color()
@@ -58,6 +58,18 @@ class CalendarCell(QFrame):
                 border: 1px solid rgb(184, 134, 11);
             }}
         """)
+
+        # Add day number label if this is the first day of the month
+        if self.cell_date.day == 1:
+            day_label = QLabel("1", self)
+            day_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            day_label.setStyleSheet("""
+                background: transparent;
+                color: rgb(70, 50, 35);
+                font-size: 7px;
+                font-weight: bold;
+            """)
+            day_label.setGeometry(0, 0, 10, 10)
 
         # Set tooltip
         self._set_tooltip()

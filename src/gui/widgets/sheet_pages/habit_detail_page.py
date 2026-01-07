@@ -69,16 +69,14 @@ class HabitDetailPage(SheetPage):
                 return
 
         # Page title
-        if not self.habit:
-            title = self._create_section_header("New Habit")
-            layout.addWidget(title)
-        else:
-            card = HabitStatCard(
-                self.habit,
-                stats={'streak': self.habit.get_longest_streak()},
-                on_click=lambda h: self.navigate_to.emit('habit_stats', self.habit.id),
-                parent=self)
-            layout.addWidget(card)
+        title = self._create_section_header("New Habit" if not self.habit else self.habit.name)
+        layout.addWidget(title)
+
+        # Statistics button (if editing)
+        if self.habit:
+            stats_button = VintageButton("View Statistics", button_type="secondary", parent=self)
+            stats_button.clicked.connect(lambda: self.navigate_to.emit('habit_stats', self.habit.id))
+            layout.addWidget(stats_button)
 
         form_widget = QWidget()
         form_layout = QVBoxLayout()
@@ -401,7 +399,7 @@ class HabitDetailPage(SheetPage):
             # Emit signal to refresh piano window
             self.content_updated.emit()
 
-            self.navigate_to.emit("index")
+            self.navigate_to.emit("index", None)
 
         except Exception as e:
             # Clear the habit reference on failure so retry will create new
@@ -430,7 +428,7 @@ class HabitDetailPage(SheetPage):
 
                 self.habit.delete_instance()
                 self.content_updated.emit()
-                self.navigate_to.emit("index")
+                self.navigate_to.emit("index", None)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to delete: {e}")
 

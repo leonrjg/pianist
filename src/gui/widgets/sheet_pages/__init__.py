@@ -22,7 +22,6 @@ from .habit_detail_page import HabitDetailPage
 from .habit_stats_page import HabitStatsPage
 from .settings_page import SettingsPage
 from .stats_page import StatsPage
-from .activity_page import ActivityPage
 from .mood_page import MoodPage
 
 __all__ = [
@@ -47,7 +46,6 @@ __all__ = [
     'HabitDetailPage',
     'HabitStatsPage',
     'StatsPage',
-    'ActivityPage',
     'SettingsPage',
     'MoodPage',
 ]

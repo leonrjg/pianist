@@ -22,7 +22,6 @@ class VintageLineEdit(QLineEdit):
                 background-color: rgba(255, 252, 245, 200);
                 border: 1px solid rgb(200, 185, 160);
                 border-radius: 3px;
-                padding: 6px 8px;
                 color: rgb(70, 50, 35);
                 font-size: 11px;
                 selection-background-color: rgba(184, 134, 11, 120);

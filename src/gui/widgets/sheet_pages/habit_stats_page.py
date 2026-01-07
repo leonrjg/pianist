@@ -2,7 +2,7 @@
 Habit Statistics Page - Detailed statistics with calendar contribution graph for a single habit.
 """
 
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget, QScrollArea
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
@@ -10,6 +10,7 @@ from .base_page import SheetPage
 from .calendar_graph import CalendarGraph
 from .stat_card import StatCard
 from .vintage_dropdown import VintageDropdown
+from .activity_card import ActivityCard
 
 # Import database models and analytics
 import sys
@@ -29,6 +30,10 @@ class HabitStatsPage(SheetPage):
         self._calendar_graph = None
         self._calendar_container = None
         self._time_range_dropdown = None
+        self._time_card = None
+        self._productivity_card = None
+        self._consistency_card = None
+        self._summary_container = None
         super().__init__(parent)
 
     def get_page_title(self) -> str:
@@ -93,8 +98,17 @@ class HabitStatsPage(SheetPage):
 
         layout.addSpacing(8)
 
-        # Summary stats cards
-        self._build_summary_section(layout)
+        # Summary stats cards container
+        self._summary_container = QWidget()
+        self._summary_container.setStyleSheet("background: transparent;")
+        summary_container_layout = QVBoxLayout()
+        summary_container_layout.setContentsMargins(0, 0, 0, 0)
+        summary_container_layout.setSpacing(4)
+        self._summary_container.setLayout(summary_container_layout)
+        layout.addWidget(self._summary_container, 0)  # 0 stretch factor - don't expand
+
+        # Build summary section
+        self._build_summary_section(days_back=30)
 
         layout.addSpacing(8)
 
@@ -116,6 +130,14 @@ class HabitStatsPage(SheetPage):
 
         layout.addSpacing(8)
 
+        # Recent activity section
+        activity_header = self._create_section_header("Recent Activity")
+        layout.addWidget(activity_header)
+
+        self._build_activity_section(layout)
+
+        layout.addSpacing(8)
+
         # Footer links
         layout.addWidget(self._create_separator())
 
@@ -130,25 +152,61 @@ class HabitStatsPage(SheetPage):
 
         layout.addStretch()
 
-    def _build_summary_section(self, layout):
-        """Build summary statistics cards"""
-        summary_layout = QHBoxLayout()
-        summary_layout.setSpacing(4)
+    def _build_summary_section(self, days_back=365):
+        """Build summary statistics cards for the given time range"""
+        # Clear container
+        container_layout = self._summary_container.layout()
+        
+        # Remove existing cards if any
+        if self._time_card:
+            container_layout.removeWidget(self._time_card)
+            self._time_card.deleteLater()
+            self._time_card = None
+        if self._productivity_card:
+            container_layout.removeWidget(self._productivity_card)
+            self._productivity_card.deleteLater()
+            self._productivity_card = None
+        if self._consistency_card:
+            container_layout.removeWidget(self._consistency_card)
+            self._consistency_card.deleteLater()
+            self._consistency_card = None
 
-        # Total time
+        # Filter buckets by time range
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+        
         buckets = self.habit.get_activity_buckets()
-        if buckets:
-            total_time = analytics.get_time_spent(buckets)
+        filtered_buckets = [b for b in buckets if b.start >= cutoff_date]
+        
+        # Calculate total time
+        if filtered_buckets:
+            total_time = analytics.get_time_spent(filtered_buckets)
             total_time_str = get_friendly_elapsed(total_time)
         else:
             total_time_str = "00:00"
 
-        # Total practice time card
-        time_card = StatCard("Practice Time", total_time_str, "⏱", parent=self)
-        summary_layout.addWidget(time_card)
-        summary_layout.addStretch()
+        # Calculate productivity rate (net duration / total time)
+        total_net_duration = sum(b.net_duration for b in filtered_buckets)
+        total_elapsed_time = sum((b.end - b.start).total_seconds() for b in filtered_buckets)
+        if total_elapsed_time > 0:
+            productivity_rate = total_net_duration / total_elapsed_time
+            productivity_str = f"{int(productivity_rate * 100)}%"
+        else:
+            productivity_str = "0%"
 
-        layout.addLayout(summary_layout)
+        # Total practice time card
+        self._time_card = StatCard("Practice Time", total_time_str, "⏱", parent=self)
+        container_layout.addWidget(self._time_card, 0)
+
+        # Productivity card
+        self._productivity_card = StatCard("Productivity", productivity_str, "⚡", parent=self)
+        container_layout.addWidget(self._productivity_card, 0)
+
+        # Consistency card
+        self._consistency_card = StatCard("Consistency", "0%", "📊", parent=self)
+        container_layout.addWidget(self._consistency_card, 0)
+
+        container_layout.addStretch()
 
     def _build_calendar(self, days_back=365):
         """Build calendar graph with specified time range"""
@@ -213,8 +271,25 @@ class HabitStatsPage(SheetPage):
         """Handle time range selection change"""
         days_back = self._get_days_back(range_str)
 
+        # Rebuild summary section with new time range
+        self._build_summary_section(days_back)
+        
         # Rebuild calendar in the container
         self._build_calendar(days_back)
+
+    def _build_activity_section(self, layout):
+        """Build recent activity list with compact cards"""
+        buckets = self.habit.get_activity_buckets()
+
+        if not buckets:
+            no_activity_label = self._create_text_label("No activity yet.", secondary=True)
+            layout.addWidget(no_activity_label)
+            return
+
+        # Show up to 10 most recent buckets
+        for bucket in buckets[:10]:
+            card = ActivityCard(self.habit, bucket, compact=True, parent=self)
+            layout.addWidget(card)
 
     def _get_days_back(self, range_str: str) -> int:
         """Convert range string to days"""

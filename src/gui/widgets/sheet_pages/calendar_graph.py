@@ -21,7 +21,7 @@ class CalendarGraph(QFrame):
     """GitHub-style calendar contribution graph"""
 
     # Day abbreviations for left labels
-    DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"]  # Sunday to Saturday
+    DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     # Month abbreviations
     MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -181,7 +181,7 @@ class CalendarGraph(QFrame):
                 font-size: 9px;
                 background: transparent;
             """)
-            day_label.setFixedWidth(12)
+            day_label.setFixedWidth(20)
             layout.addWidget(day_label, day + 1, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
     def _add_cells(self, layout: QGridLayout):
@@ -229,4 +229,4 @@ class CalendarGraph(QFrame):
         more_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 9px; background: transparent;")
         legend_layout.addWidget(more_label, 0, len(colors) + 1)
 
-        layout.addWidget(legend_widget, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(legend_widget, alignment=Qt.AlignmentFlag.AlignCenter)

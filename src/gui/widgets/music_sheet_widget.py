@@ -13,7 +13,7 @@ from PyQt6.QtCore import pyqtSignal, Qt, QPointF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPolygonF
 
 from .page_turn_animation import PageTurnAnimation
-from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, ActivityPage, SettingsPage, MoodPage
+from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, SettingsPage, MoodPage
 from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
@@ -64,7 +64,6 @@ class PageType(Enum):
     HABIT_DETAIL = "habit_detail"
     HABIT_STATS = "habit_stats"
     STATS = "stats"
-    ACTIVITY = "activity"
     SETTINGS = "settings"
     MOOD = "mood"
 
@@ -287,8 +286,6 @@ class MusicSheetWidget(QWidget):
                 return HabitStatsPage(habit_id=data, parent=self)
             elif page_type == PageType.STATS.value:
                 return StatsPage(self)
-            elif page_type == PageType.ACTIVITY.value:
-                return ActivityPage(self)
             elif page_type == PageType.SETTINGS.value:
                 return SettingsPage(self)
             elif page_type == PageType.MOOD.value:
