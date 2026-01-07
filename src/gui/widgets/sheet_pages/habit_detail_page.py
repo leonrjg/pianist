@@ -123,6 +123,12 @@ class HabitDetailPage(SheetPage):
             # Set to minimum date to show "No end date"
             self._end_date_edit.setDate(QDate(1900, 1, 1))
         basic_section.add_field("End date:", self._end_date_edit)
+        
+        # Show span if both start and end dates are set
+        if self.habit and self.habit.started_at and self.habit.ended_at:
+            span_days = (self.habit.ended_at.date() - self.habit.started_at.date()).days + 1
+            span_label = self._create_text_label(f"Duration: {span_days} days", secondary=True)
+            basic_section.add_widget(span_label)
 
         form_layout.addWidget(basic_section)
 

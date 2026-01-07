@@ -2,7 +2,7 @@
 Habit Card - Reusable vintage-styled card component for displaying habits.
 """
 
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtGui import QFont, QCursor
 from PyQt6.QtCore import Qt
 from typing import Optional, Callable
@@ -13,7 +13,7 @@ class HabitCard(QFrame):
 
     def __init__(self, habit, subtitle: Optional[str] = None,
                  accent_color: Optional[str] = None, on_click: Optional[Callable] = None,
-                 completed: bool = False, parent=None):
+                 completed: bool = False, is_start_date: bool = False, is_end_date: bool = False, parent=None):
         """
         Args:
             habit: Habit object to display
@@ -21,6 +21,8 @@ class HabitCard(QFrame):
             accent_color: Optional left border color (defaults to sepia)
             on_click: Optional callback when card is clicked (receives habit)
             completed: Whether the task is completed (shows checkmark)
+            is_start_date: Whether this task is on the habit's start date
+            is_end_date: Whether this task is on the habit's end date
             parent: Parent widget
         """
         super().__init__(parent)
@@ -29,6 +31,8 @@ class HabitCard(QFrame):
         self.accent_color = accent_color or "rgb(200, 185, 160)"
         self.on_click = on_click
         self.completed = completed
+        self.is_start_date = is_start_date
+        self.is_end_date = is_end_date
 
         self._setup_ui()
 
@@ -99,11 +103,42 @@ class HabitCard(QFrame):
         name_label.setStyleSheet(f"color: {text_color}; background: transparent;")
         layout.addWidget(name_label)
 
-        # Optional subtitle
+        # Optional subtitle with start badge
         if self.subtitle:
+            subtitle_layout = QHBoxLayout()
+            subtitle_layout.setContentsMargins(0, 0, 0, 0)
+            subtitle_layout.setSpacing(4)
+            
+            # Add start badge if this is the start date
+            if self.is_start_date:
+                start_badge = QLabel("🏁 Start")
+                start_badge.setStyleSheet("""
+                    background-color: rgba(200, 185, 160, 120);
+                    color: rgb(70, 50, 35);
+                    font-size: 9px;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                """)
+                subtitle_layout.addWidget(start_badge)
+            
+            # Add end badge if this is the end date
+            if self.is_end_date:
+                end_badge = QLabel("🎻 End")
+                end_badge.setStyleSheet("""
+                    background-color: rgba(200, 185, 160, 120);
+                    color: rgb(70, 50, 35);
+                    font-size: 9px;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                """)
+                subtitle_layout.addWidget(end_badge)
+            
             subtitle_label = QLabel(self.subtitle)
             subtitle_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 10px; background: transparent;")
-            layout.addWidget(subtitle_label)
+            subtitle_layout.addWidget(subtitle_label)
+            subtitle_layout.addStretch()
+            
+            layout.addLayout(subtitle_layout)
 
     def mousePressEvent(self, event):
         """Handle click to trigger callback"""

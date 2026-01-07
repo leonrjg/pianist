@@ -67,6 +67,10 @@ class IndexPage(SheetPage):
 
                         # Create subtitle with time and schedule
                         time_str = get_friendly_datetime(task_dt)
+                        
+                        # Check if task date matches habit's start or end date
+                        is_start_date = task_dt.date() == habit.started_at.date()
+                        is_end_date = habit.ended_at and task_dt.date() == habit.ended_at.date()
                         subtitle = f"{time_str} • {habit.schedule}"
 
                         # Get urgency color
@@ -78,6 +82,8 @@ class IndexPage(SheetPage):
                             accent_color=accent_color,
                             on_click=self._navigate_to_habit,
                             completed=completed,
+                            is_start_date=is_start_date,
+                            is_end_date=is_end_date,
                             parent=self
                         )
                         layout.addWidget(card)
