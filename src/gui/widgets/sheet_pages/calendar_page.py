@@ -24,21 +24,27 @@ from core.analytics import get_upcoming_tasks
 
 
 class TaskPopup(QWidget):
-    """Vertical popup showing tasks for a selected day."""
+    """Popup showing tasks for a selected day."""
 
     closed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._setup_ui()
+        
+        # Fade animation
+        from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
+        self._fade_anim = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_anim.setDuration(150)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
 
     def _setup_ui(self):
         """Setup the popup UI"""
         layout = QVBoxLayout()
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(3)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(4)
         self.setLayout(layout)
 
         # Task input at top
@@ -225,11 +231,16 @@ class TaskPopup(QWidget):
         painter.drawPath(path)
 
     def show_at_position(self, pos: QPoint):
-        """Show the popup at the specified position"""
+        """Show the popup at the specified position with fade in"""
+        from PyQt6.QtCore import QTimer
         self.move(pos)
+        self.setWindowOpacity(0)
         self.show()
-        self.raise_()
-        self.activateWindow()
+        self._fade_anim.setStartValue(0)
+        self._fade_anim.setEndValue(1)
+        self._fade_anim.start()
+        # Delay raise to happen after focus settles
+        QTimer.singleShot(0, self.raise_)
 
     def closeEvent(self, event):
         """Handle close event"""
@@ -245,8 +256,6 @@ class CalendarWheelFilter(QWidget):
         self._calendar = calendar
         self._scroll_area = None
         
-        # Find and install filter on all child widgets that might handle wheel events
-        from PyQt6.QtWidgets import QAbstractItemView, QTableView
         for child in calendar.findChildren(QWidget):
             child.installEventFilter(self)
     
@@ -256,13 +265,12 @@ class CalendarWheelFilter(QWidget):
     def eventFilter(self, obj, event):
         from PyQt6.QtCore import QEvent
         if event.type() == QEvent.Type.Wheel:
-            # Forward to scroll area
             if self._scroll_area:
                 scrollbar = self._scroll_area.verticalScrollBar()
                 if scrollbar:
                     delta = event.angleDelta().y()
                     scrollbar.setValue(scrollbar.value() - delta)
-            return True  # Block the event from reaching the calendar
+            return True
         return False
 
 
@@ -277,7 +285,14 @@ class TaskCalendarWidget(QCalendarWidget):
         self._max_tasks_per_day = 1
         self._setup_style()
         
-        # Connect the built-in clicked signal
+        # Remove weekend highlighting
+        weekend_format = QTextCharFormat()
+        weekend_format.setForeground(QColor(70, 50, 35))  # Same as regular days
+        self.setWeekdayTextFormat(Qt.DayOfWeek.Saturday, weekend_format)
+        self.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, weekend_format)
+        
+        # Connect to selectionChanged for date changes, clicked for re-raising popup
+        self.selectionChanged.connect(self._on_selection_changed)
         self.clicked.connect(self._on_date_clicked)
 
     def _setup_style(self):
@@ -406,8 +421,12 @@ class TaskCalendarWidget(QCalendarWidget):
             painter.setBrush(dot_color)
             painter.drawEllipse(dot_x - dot_size // 2, dot_y - dot_size // 2, dot_size, dot_size)
 
+    def _on_selection_changed(self):
+        """Handle selection change - update popup content"""
+        pass
+
     def _on_date_clicked(self, date: QDate):
-        """Handle date click from built-in signal"""
+        """Handle any click - ensure popup stays visible"""
         self.day_clicked.emit(date)
 
 
@@ -418,7 +437,6 @@ class CalendarPage(SheetPage):
         self._calendar = None
         self._popup = None
         self._wheel_filter = None
-        self._pending_date = None  # Date to show after popup closes
         super().__init__(parent)
 
     def get_page_title(self) -> str:
@@ -434,12 +452,6 @@ class CalendarPage(SheetPage):
         # Page title
         title = self._create_section_header("Calendar")
         layout.addWidget(title)
-
-        # Description
-        desc = self._create_text_label("Click a day to view scheduled tasks", secondary=True)
-        layout.addWidget(desc)
-
-        layout.addSpacing(8)
 
         # Create custom calendar widget
         self._calendar = TaskCalendarWidget(self)
@@ -459,9 +471,13 @@ class CalendarPage(SheetPage):
         layout.addWidget(self._calendar)
         layout.addStretch()
 
-        # Create popup (hidden initially)
-        self._popup = TaskPopup()
+        # Create popup (hidden initially) - parent to main window to stay in hierarchy
+        self._popup = TaskPopup(self.window())
         self._popup.closed.connect(self._on_popup_closed)
+        
+        # Close popup when focus leaves it
+        from PyQt6.QtWidgets import QApplication
+        QApplication.instance().focusChanged.connect(self._on_focus_changed)
 
     def _load_tasks(self):
         """Load upcoming tasks and organize by date"""
@@ -493,16 +509,6 @@ class CalendarPage(SheetPage):
 
     def _on_day_clicked(self, date: QDate):
         """Handle day click - show popup with tasks"""
-        # If popup is visible, store the date and let it close first
-        if self._popup.isVisible():
-            self._pending_date = date
-            self._popup.close()
-            return
-        
-        self._show_popup_for_date(date)
-
-    def _show_popup_for_date(self, date: QDate):
-        """Show popup with tasks for the given date"""
         tasks = self._calendar._tasks_by_date.get(date, [])
         self._popup.set_tasks(date, tasks)
         
@@ -516,13 +522,15 @@ class CalendarPage(SheetPage):
         self._popup.show_at_position(QPoint(popup_x, popup_y))
 
     def _on_popup_closed(self):
-        """Handle popup close - show pending date if any"""
-        if self._pending_date:
-            date = self._pending_date
-            self._pending_date = None
-            # Use timer to show after close completes
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(0, lambda: self._show_popup_for_date(date))
+        """Handle popup close"""
+        pass
+
+    def _on_focus_changed(self, old, new):
+        """Close popup when focus moves outside of it"""
+        if self._popup and self._popup.isVisible():
+            # Check if new focus is not within the popup
+            if new is None or not self._popup.isAncestorOf(new):
+                self._popup.close()
 
     def showEvent(self, event):
         """Set up scroll area reference when page is shown"""
@@ -537,17 +545,15 @@ class CalendarPage(SheetPage):
                 parent = parent.parent()
 
     def hideEvent(self, event):
-        """Clean up when page is hidden"""
+        """Close popup when page is hidden"""
         if self._popup:
             self._popup.close()
-        self._pending_date = None
         super().hideEvent(event)
 
     def refresh(self):
         """Refresh the calendar with updated tasks"""
         if self._popup:
             self._popup.close()
-        self._pending_date = None
         if self._calendar:
             self._load_tasks()
         super().refresh()
