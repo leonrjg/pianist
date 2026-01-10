@@ -256,6 +256,8 @@ class CalendarWheelFilter(QWidget):
         self._calendar = calendar
         self._scroll_area = None
         
+        # Install on calendar itself and all children
+        calendar.installEventFilter(self)
         for child in calendar.findChildren(QWidget):
             child.installEventFilter(self)
     
@@ -390,36 +392,76 @@ class TaskCalendarWidget(QCalendarWidget):
         self.updateCells()
 
     def paintCell(self, painter, rect, date):
-        """Override to paint task indicators below day numbers"""
-        # Call parent to draw the day number
-        super().paintCell(painter, rect, date)
+        """Override to paint day number and task indicator dot, vertically stacked"""
+        painter.save()
+        
+        # Determine if this is the selected date
+        is_selected = (date == self.selectedDate())
+        
+        # Determine if this is current month
+        is_current_month = (date.month() == self.monthShown() and date.year() == self.yearShown())
+        
+        # Background for selected date
+        if is_selected:
+            painter.fillRect(rect, QColor(184, 134, 11, 180))
+        
+        # Text color
+        if is_selected:
+            text_color = QColor(255, 252, 245)
+        elif is_current_month:
+            text_color = QColor(70, 50, 35)
+        else:
+            text_color = QColor(150, 140, 120)
         
         # Check if this date has tasks
         qdate = QDate(date.year(), date.month(), date.day())
-        if qdate in self._tasks_by_date:
+        has_tasks = qdate in self._tasks_by_date
+        
+        # Calculate layout - number on top, dot below, both centered
+        dot_size = 5
+        spacing = 2
+        number_height = 14  # Approximate height for the number
+        
+        if has_tasks:
+            # Total height of number + spacing + dot
+            total_height = number_height + spacing + dot_size
+            top_y = rect.center().y() - total_height // 2
+        else:
+            top_y = rect.center().y() - number_height // 2
+        
+        # Draw the day number
+        painter.setPen(text_color)
+        number_rect = rect.adjusted(0, 0, 0, 0)
+        number_rect.setTop(top_y)
+        number_rect.setHeight(number_height)
+        painter.drawText(number_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, str(date.day()))
+        
+        # Draw dot if has tasks
+        if has_tasks:
             tasks = self._tasks_by_date[qdate]
             task_count = len(tasks)
             
-            # Calculate dot opacity based on task count (darker = more tasks)
+            # Calculate dot opacity based on task count
             if self._max_tasks_per_day > 0:
                 intensity = task_count / self._max_tasks_per_day
             else:
                 intensity = 0
             
-            # Draw dot below the day number (at the very bottom of the cell)
-            dot_size = 4
+            # Dot position - centered below the number
             dot_x = rect.center().x()
-            dot_y = rect.bottom() - 4  # Moved closer to bottom to avoid overlapping number
+            dot_y = top_y + number_height + spacing + dot_size // 2
             
-            # Color: brass with varying opacity
+            # Color: brass with varying opacity (stark difference)
             base_color = QColor(184, 134, 11)
-            alpha = int(100 + (155 * intensity))  # Range from 100 to 255
-            dot_color = QColor(base_color.red(), base_color.green(), base_color.blue(), alpha)
+            alpha = int(20 + (235 * intensity * intensity))  # Quadratic for starker contrast
+            dot_color = QColor(base_color.red(), base_color.green(), base_color.blue(), min(alpha, 255))
             
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(dot_color)
-            painter.drawEllipse(dot_x - dot_size // 2, dot_y - dot_size // 2, dot_size, dot_size)
+            painter.drawEllipse(int(dot_x - dot_size // 2), int(dot_y - dot_size // 2), dot_size, dot_size)
+        
+        painter.restore()
 
     def _on_selection_changed(self):
         """Handle selection change - update popup content"""
@@ -448,10 +490,6 @@ class CalendarPage(SheetPage):
     def build_content(self):
         """Build the calendar page content"""
         layout = self.layout()
-
-        # Page title
-        title = self._create_section_header("Calendar")
-        layout.addWidget(title)
 
         # Create custom calendar widget
         self._calendar = TaskCalendarWidget(self)
