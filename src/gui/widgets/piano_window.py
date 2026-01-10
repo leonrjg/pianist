@@ -13,11 +13,10 @@ Heavy lifting is delegated to:
 - Painters: FramePainter, KeyPainter, BrassPainter
 """
 
-import sys
 import time
 from PyQt6.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout
-from PyQt6.QtCore import Qt, QTimer, QRect, QPoint, QRectF, QSize, pyqtSignal
-from PyQt6.QtGui import QPainter, QIcon, QPen, QBrush, QPainterPath, QPixmap
+from PyQt6.QtCore import Qt, QTimer, QPoint, QRectF, QSize, pyqtSignal
+from PyQt6.QtGui import QPainter, QIcon, QPainterPath
 
 from core.db import initialize_database
 from core.habit.habit import Habit
@@ -26,7 +25,7 @@ from core.util.time import get_friendly_elapsed
 from ..constants import PianoLayout, PianoColors, Animations, Interactions
 from ..models import PianoGeometry, PianoState
 from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager
-from ..painters import FramePainter, KeyPainter, BrassPainter
+from ..painters import FramePainter, KeyPainter
 from .music_sheet_widget import MusicSheetWidget
 from .marquee import Marquee
 
