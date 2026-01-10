@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.log import Log
-from core.util.time import get_friendly_elapsed, get_friendly_datetime
+from core.util.time import get_friendly_elapsed, get_friendly_datetime, HOUR
 
 
 class ActivityCard(QFrame):
@@ -74,8 +74,7 @@ class ActivityCard(QFrame):
         date_layout = QHBoxLayout()
         date_layout.setSpacing(4)
         
-        scale = self.habit.get_schedule().get_scale()
-        date_str = get_friendly_datetime(self.bucket.start, scale)
+        date_str = get_friendly_datetime(self.bucket.start, HOUR)
         date_badge = QLabel(f"📅 {date_str}")
         date_badge.setStyleSheet("""
                     background-color: rgba(200, 185, 160, 120);
@@ -85,23 +84,6 @@ class ActivityCard(QFrame):
                     border-radius: 3px;
                 """)
         date_layout.addWidget(date_badge)
-
-        if not self.compact:
-            # Habit name (skip in compact mode)
-            name_label = QLabel(self.habit.name)
-            name_font = QFont()
-            name_font.setBold(True)
-            name_label.setFont(name_font)
-            name_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
-            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            # Use Qt's native text eliding
-            font_metrics = name_label.fontMetrics()
-            elided_text = font_metrics.elidedText(self.habit.name, Qt.TextElideMode.ElideRight, 80)
-            name_label.setText(elided_text)
-            name_label.setToolTip(self.habit.name)  # Show full name on hover
-
-            date_layout.addWidget(name_label)
 
         # Duration badge with emoji
         duration_str = get_friendly_elapsed(self.bucket.net_duration)
@@ -118,25 +100,46 @@ class ActivityCard(QFrame):
 
         self.main_layout.addLayout(date_layout)
 
-        # Productivity rate progress bar
+        if not self.compact:
+            # Habit name badge on its own row (skip in compact mode)
+            self.name_badge = QLabel(self.habit.name)
+            self.name_badge.setStyleSheet("""
+                background-color: rgba(140, 110, 80, 120);
+                color: rgb(70, 50, 35);
+                font-size: 10px;
+                font-weight: bold;
+                padding: 2px;
+                border-radius: 3px;
+            """)
+            self.name_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.name_badge.setToolTip(self.habit.name)  # Show full name on hover
+            self.name_badge.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            self.main_layout.addWidget(self.name_badge)
+        else:
+            self.name_badge = None
+
+        # Productivity rate progress bar (only show if duration >= 1 minute)
         total_time = (self.bucket.end - self.bucket.start).total_seconds()
-        if total_time > 0:
+        if total_time >= 60:
             productivity_rate = self.bucket.net_duration / total_time
             progress_bar = ProductivityProgressBar(productivity_rate, parent=self)
             self.main_layout.addWidget(progress_bar)
 
-        self.expand_stripe = QLabel(f"📶 {self.bucket.sessions} sessions")
-        self.expand_stripe.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.expand_stripe.setStyleSheet("""
-            background-color: rgba(200, 185, 160, 80);
-            color: rgb(100, 80, 65);
-            font-size: 12px;
-            padding: 2px;
-            border-radius: 2px;
-            margin-top: 2px;
-        """)
-        self.expand_stripe.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.main_layout.addWidget(self.expand_stripe)
+        if self.bucket.sessions > 1:
+            self.expand_stripe = QLabel(f"📶 {self.bucket.sessions} sessions")
+            self.expand_stripe.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.expand_stripe.setStyleSheet("""
+                background-color: rgba(200, 185, 160, 80);
+                color: rgb(100, 80, 65);
+                font-size: 9px;
+                padding: 1px;
+                border-radius: 2px;
+                margin-top: 1px;
+            """)
+            self.expand_stripe.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            self.main_layout.addWidget(self.expand_stripe)
+        else:
+            self.expand_stripe = None
 
     def _build_sessions_section(self):
         """Build the expanded sessions view"""
@@ -185,9 +188,14 @@ class ActivityCard(QFrame):
             self.sessions_widget.hide()
 
     def mousePressEvent(self, event):
-        """Handle click on stripe to toggle expansion"""
-        # Only toggle if clicking on the stripe
-        if self.expand_stripe.geometry().contains(event.pos()):
+        """Handle click on stripe to toggle expansion, or name badge to navigate"""
+        # Navigate if clicking on name badge
+        if self.name_badge and self.name_badge.geometry().contains(event.pos()):
+            if self.on_navigate:
+                self.on_navigate(self.habit)
+            return
+        # Toggle expansion if clicking on the stripe
+        if self.expand_stripe and self.expand_stripe.geometry().contains(event.pos()):
             self.toggle_expand()
 
     def _delete_log(self, log: Log):

@@ -91,6 +91,11 @@ class HabitCard(QFrame):
         layout.setSpacing(2)
         self.setLayout(layout)
 
+        # Name row with schedule badge
+        name_layout = QHBoxLayout()
+        name_layout.setContentsMargins(0, 0, 0, 0)
+        name_layout.setSpacing(6)
+
         # Habit name (bold) with optional checkmark
         name_text = f"✓ {self.habit.name}" if self.completed else self.habit.name
         name_label = QLabel(name_text)
@@ -101,7 +106,21 @@ class HabitCard(QFrame):
         # Dimmed color if completed
         text_color = "rgb(120, 100, 80)" if self.completed else "rgb(70, 50, 35)"
         name_label.setStyleSheet(f"color: {text_color}; background: transparent;")
-        layout.addWidget(name_label)
+        name_layout.addWidget(name_label)
+
+        # Schedule badge
+        schedule_badge = QLabel(self.habit.schedule)
+        schedule_badge.setStyleSheet("""
+            background-color: rgba(200, 185, 160, 120);
+            color: rgb(70, 50, 35);
+            font-size: 9px;
+            padding: 2px 4px;
+            border-radius: 3px;
+        """)
+        name_layout.addWidget(schedule_badge)
+        name_layout.addStretch()
+
+        layout.addLayout(name_layout)
 
         # Optional subtitle with start badge
         if self.subtitle:

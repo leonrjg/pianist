@@ -27,6 +27,8 @@ class DailySchedule(Schedule):
         current = now
         for _ in range(days):
             prev_task = self.get_previous_task(current)
+            if prev_task is None:
+                break
             tasks.append(prev_task)
             current = prev_task
         return tasks

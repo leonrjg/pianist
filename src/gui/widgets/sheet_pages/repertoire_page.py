@@ -2,6 +2,8 @@
 Repertoire Page - List of all habits.
 """
 
+from datetime import datetime
+
 from PyQt6.QtGui import QFont
 
 from .base_page import SheetPage
@@ -12,6 +14,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.habit import Habit
+from core.util.time import get_friendly_datetime
 
 
 class RepertoirePage(SheetPage):
@@ -37,10 +40,19 @@ class RepertoirePage(SheetPage):
 
             if habits:
                 for habit in habits:
-                    # Create habit card with schedule info
+                    # Get next scheduled task
+                    schedule = habit.get_schedule()
+                    next_task = schedule.get_next_task(datetime.now())
+                    if next_task:
+                        scale = schedule.get_scale()
+                        subtitle = f"Next: {get_friendly_datetime(next_task, scale)}"
+                    else:
+                        subtitle = habit.schedule
+                    
+                    # Create habit card with next task info
                     card = HabitCard(
                         habit,
-                        subtitle=habit.schedule,
+                        subtitle=subtitle,
                         on_click=self._navigate_to_habit,
                         parent=self
                     )

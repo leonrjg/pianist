@@ -95,7 +95,7 @@ class MonthlySchedule(Schedule):
         next_task = self.start + timedelta(days=30 * months_since_start)
 
         # If we've already passed the calculated date, go to the next month
-        if next_task < from_dt:
+        if next_task.date() < from_dt.date():
             next_task = self.start + timedelta(days=30 * (months_since_start + 1))
 
         if next_task.date() > self.end.date():

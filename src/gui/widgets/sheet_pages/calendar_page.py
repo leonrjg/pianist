@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.habit import Habit
-from core.analytics import get_upcoming_tasks
+from core.analytics import get_tasks_in_range
 
 
 class TaskPopup(QWidget):
@@ -518,18 +518,18 @@ class CalendarPage(SheetPage):
         QApplication.instance().focusChanged.connect(self._on_focus_changed)
 
     def _load_tasks(self):
-        """Load upcoming tasks and organize by date"""
+        """Load tasks and organize by date"""
         try:
             # Get all habits
             habits = list(Habit.select())
             
-            # Get upcoming tasks for next 365 days
+            # Get tasks for past and future 365 days
             timespan = 365 * 24 * 60 * 60
-            upcoming_tasks = get_upcoming_tasks(habits, timespan)
+            all_tasks = get_tasks_in_range(habits, timespan)
             
             # Group tasks by date
             tasks_by_date: Dict[QDate, List[dict]] = {}
-            for task in upcoming_tasks:
+            for task in all_tasks:
                 task_dt = task['datetime']
                 qdate = QDate(task_dt.year, task_dt.month, task_dt.day)
                 

@@ -130,3 +130,31 @@ def get_upcoming_tasks(habits: list[Habit], timespan: int) -> list[dict]:
                 'completed': habit.is_task_completed(next_task)
             })
     return sorted(upcoming_tasks, key=lambda x: x['datetime'])
+
+def get_tasks_in_range(habits: list[Habit], timespan: int) -> list[dict]:
+    """
+    Get scheduled tasks from all habits within a timespan (past and future).
+
+    Args:
+        habits: List of Habit objects to check for tasks.
+        timespan: Time range in seconds to look back and ahead from now.
+
+    Returns:
+        List of dictionaries sorted by datetime.
+    """
+    tasks = []
+    for habit in habits:
+        schedule = habit.get_schedule()
+        for task in schedule.get_previous_tasks(timespan):
+            tasks.append({
+                'habit': habit,
+                'datetime': task,
+                'completed': habit.is_task_completed(task)
+            })
+        for task in schedule.get_next_tasks(timespan):
+            tasks.append({
+                'habit': habit,
+                'datetime': task,
+                'completed': habit.is_task_completed(task)
+            })
+    return sorted(tasks, key=lambda x: x['datetime'])

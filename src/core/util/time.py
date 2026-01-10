@@ -31,7 +31,7 @@ def get_friendly_datetime(dt: datetime, scale: int = DAY) -> str:
         day = t('Today')
     elif datetime.now().day == dt.day + 1:
         day = t('Yesterday')
-    return dt.strftime(f"{day}, %b %d{' (%H:%M)' if scale < DAY else ''}")
+    return dt.strftime(f"{day}, %b %d{' at %H:%M' if scale < DAY else ''}")
 
 def get_timespan(start: datetime, end: datetime = None) -> int:
     """Get the timespan in seconds between two datetime objects."""

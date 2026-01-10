@@ -30,17 +30,20 @@ class ProductivityProgressBar(QProgressBar):
         # Color based on performance
         if self.rate >= 0.8:
             bar_color = "rgb(184, 134, 11)"  # Brass - excellent
+            text_color = "rgb(255, 250, 240)"  # Light color for dark bar
         elif self.rate >= 0.6:
             bar_color = "rgb(140, 110, 80)"  # Brown - good
+            text_color = "rgb(255, 250, 240)"  # Light color for dark bar
         else:
             bar_color = "rgb(180, 160, 140)"  # Light sepia - needs attention
+            text_color = "black"
 
         self.setStyleSheet(f"""
             ProductivityProgressBar {{
                 background-color: rgba(230, 225, 210, 180);
                 border: 1px solid rgb(200, 185, 160);
                 border-radius: 4px;
-                color: black;
+                color: {text_color};
                 font-size: 9px;
                 text-align: center;
             }}

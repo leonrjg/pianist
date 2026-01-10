@@ -226,7 +226,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         font = QFont("Luxurious Roman", 18)
         font.setBold(True)
         label.setFont(font)
-        label.setStyleSheet("color: rgb(70, 50, 35); padding: 2px 0px;")
+        label.setStyleSheet("color: rgb(70, 50, 35);")
         return label
 
     def _create_text_label(self, text: str, secondary=False) -> 'QLabel':
