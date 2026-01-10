@@ -23,6 +23,7 @@ from .habit_stats_page import HabitStatsPage
 from .settings_page import SettingsPage
 from .stats_page import StatsPage
 from .mood_page import MoodPage
+from .calendar_page import CalendarPage
 
 __all__ = [
     'SheetPage',
@@ -48,4 +49,5 @@ __all__ = [
     'StatsPage',
     'SettingsPage',
     'MoodPage',
+    'CalendarPage',
 ]

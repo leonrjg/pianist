@@ -114,6 +114,7 @@ class SheetMenu(QWidget):
     MENU_ITEMS = [
         MenuItem('index', 'Next Tasks', 'gui/icons/next.svg'),
         MenuItem('repertoire', 'Repertoire', 'gui/icons/list.svg'),
+        MenuItem('calendar', 'Calendar', 'gui/icons/list.svg'),
         MenuItem('habit_detail', 'New Habit', 'gui/icons/new.svg'),
         MenuItem('stats', 'Stats', 'gui/icons/stats.svg'),
         MenuItem('settings', 'Settings', 'gui/icons/settings.svg'),
