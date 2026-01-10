@@ -28,6 +28,7 @@ from ..models import PianoGeometry, PianoState
 from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager
 from ..painters import FramePainter, KeyPainter, BrassPainter
 from .music_sheet_widget import MusicSheetWidget
+from .marquee import Marquee
 
 
 class PianoFloatingWindow(QWidget):
@@ -134,6 +135,16 @@ class PianoFloatingWindow(QWidget):
         self.music_sheet_widget.habit_updated.connect(self.on_habit_updated_from_sheet)
         self.music_sheet_widget.hide()  # Initially hidden
         self._position_music_sheet_widget()
+
+        # ===== Tips Marquee (Below music stand holder) =====
+        tips = [
+            "Tip: rearrange keys by clicking the Reorder button and dragging keys",
+            "Tip: When in compact mode, double-click anywhere to hide the window for a few seconds",
+            "Tip: Right-click the mood button to manage moods",
+            "Tip: Right-click a key for more options",
+        ]
+        self.tips_marquee = Marquee(tips, self)
+        self._position_tips_marquee()
 
         # ===== Initialize Keys =====
         self.update_keys_for_window_size()
@@ -298,6 +309,7 @@ class PianoFloatingWindow(QWidget):
         # No need to update geometry_model - it queries window dimensions directly
         self.update_keys_for_window_size()
         self._position_music_sheet_widget()  # Reposition music sheet widget
+        self._position_tips_marquee()  # Reposition tips marquee
         self._position_control_buttons_container()  # Reposition control buttons
         self.update()
 
@@ -835,6 +847,19 @@ class PianoFloatingWindow(QWidget):
         height = drawer_rect.height() - (margin * 2) - 20
 
         self.music_sheet_widget.setGeometry(x, y, width, height)
+
+    def _position_tips_marquee(self):
+        """Position the tips marquee below the music sheet widget"""
+        drawer_rect = self.geometry_model.toggleable_drawer_rect
+
+        margin = 6
+        marquee_height = 20
+        x = drawer_rect.x() + margin
+        y = drawer_rect.y() + drawer_rect.height() - marquee_height
+        width = drawer_rect.width() - (margin * 2)
+
+        self.tips_marquee.setGeometry(x, y, width, marquee_height)
+        self.tips_marquee.raise_()
 
     def on_habit_updated_from_sheet(self):
         """Handle habit updates from the music sheet widget"""
