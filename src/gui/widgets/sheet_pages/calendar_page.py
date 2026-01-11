@@ -309,7 +309,8 @@ class TaskCalendarWidget(QCalendarWidget):
             
             /* Navigation bar */
             QCalendarWidget QWidget#qt_calendar_navigationbar {
-                background-color: rgb(184, 134, 11);
+                background-color: rgb(201, 147, 78);
+                border-radius: 3px;
                 border-bottom: 1px solid rgb(160, 115, 10);
             }
             

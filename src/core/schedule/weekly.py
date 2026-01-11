@@ -47,11 +47,14 @@ class WeeklySchedule(Schedule):
         if from_dt <= self.start:
             return None
         
-        weeks_since_start = (from_dt - self.start).days // 7
-        if weeks_since_start == 0:
+        days_since_start = (from_dt - self.start).days
+        weeks_since_start = days_since_start // 7
+        if days_since_start % 7 == 0:
+            weeks_since_start -= 1
+        if weeks_since_start < 0:
             return None
         
-        return self.start + timedelta(weeks=weeks_since_start - 1)
+        return self.start + timedelta(weeks=weeks_since_start)
 
     def get_next_tasks(self, timespan: int) -> List[datetime]:
         """Get upcoming weekly tasks within the given timespan.
