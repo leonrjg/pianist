@@ -50,7 +50,10 @@ class DailySchedule(Schedule):
         if days_since_start == 0:
             return None
         
-        return self.start + timedelta(days=days_since_start - 1)
+        prev_task = self.start + timedelta(days=days_since_start - 1)
+        if self.end and prev_task.date() > self.end.date():
+            return self.get_previous_task(self.end)
+        return prev_task
 
     def get_next_tasks(self, timespan: int) -> set[datetime]:
         """Get upcoming daily tasks within the given timespan.

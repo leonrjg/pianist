@@ -88,7 +88,7 @@ class WeeklySchedule(Schedule):
         Returns:
             The next weekly occurrence, or None if past end date.
         """
-        if from_dt < self.start:
+        if from_dt.date() <= self.start.date():
             return self.start
 
         weeks_since_start = (from_dt - self.start).days // 7
