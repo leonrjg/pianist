@@ -148,6 +148,7 @@ class Audio:
         'drawer': "gui/sounds/drawer.wav",
         'page': "gui/sounds/page.wav",
         'thunk': "gui/sounds/thunk.wav",
+        'notification': "gui/sounds/notification.wav",
     }
 
 

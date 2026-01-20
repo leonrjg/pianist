@@ -3,8 +3,8 @@ Base SheetPage - Abstract base class for all music sheet pages.
 """
 
 from abc import ABCMeta, abstractmethod
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QScrollArea
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QSizePolicy
+from PyQt6.QtCore import pyqtSignal, Qt, QEvent
 from PyQt6.QtGui import QColor, QPalette
 
 
@@ -147,6 +147,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         # Container widget for scroll content
         scroll_content = QWidget()
         scroll_content.setStyleSheet("background: transparent;")
+        scroll_content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(12, 12, 12, 12)
         content_layout.setSpacing(6)
@@ -159,8 +160,24 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         # Override layout() to return content layout for subclasses
         self._main_layout = main_layout
         self._content_layout = content_layout
+        self._scroll_area = scroll_area
+        self._scroll_content = scroll_content
 
+        self._scroll_area.viewport().installEventFilter(self)
         self.build_content()
+        self._update_content_width()
+
+    def _update_content_width(self):
+        """Clamp content width to current viewport."""
+        if self._scroll_area and self._scroll_content:
+            viewport_width = self._scroll_area.viewport().width()
+            if viewport_width > 0:
+                self._scroll_content.setMaximumWidth(viewport_width)
+
+    def resizeEvent(self, event):
+        """Keep content width in sync on page resize."""
+        super().resizeEvent(event)
+        self._update_content_width()
 
     def layout(self):
         """Override to return the content layout for subclasses to use"""
@@ -190,6 +207,12 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
             if item.widget():
                 item.widget().deleteLater()
         self.build_content()
+        self._update_content_width()
+
+    def eventFilter(self, obj, event):
+        if obj is self._scroll_area.viewport() and event.type() == QEvent.Type.Resize:
+            self._update_content_width()
+        return super().eventFilter(obj, event)
 
     def _create_link_label(self, text: str, callback=None) -> 'QLabel':
         """Create a clickable link-styled label with vintage ink aesthetic"""

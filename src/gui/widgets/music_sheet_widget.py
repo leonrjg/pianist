@@ -13,7 +13,7 @@ from PyQt6.QtCore import pyqtSignal, Qt, QPointF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPolygonF
 
 from .page_turn_animation import PageTurnAnimation
-from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, SettingsPage, MoodPage, CalendarPage
+from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, SettingsPage, MoodPage, CalendarPage, ReminderPage, ReminderDetailPage
 from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
@@ -67,6 +67,8 @@ class PageType(Enum):
     SETTINGS = "settings"
     MOOD = "mood"
     CALENDAR = "calendar"
+    REMINDERS = "reminders"
+    REMINDER_DETAIL = "reminder_detail"
 
 
 class MusicSheetWidget(QWidget):
@@ -293,6 +295,10 @@ class MusicSheetWidget(QWidget):
                 return MoodPage(self)
             elif page_type == PageType.CALENDAR.value:
                 return CalendarPage(self)
+            elif page_type == PageType.REMINDERS.value:
+                return ReminderPage(self)
+            elif page_type == PageType.REMINDER_DETAIL.value:
+                return ReminderDetailPage(reminder_id=data, parent=self)
             else:
                 print(f"Unknown page type: {page_type}")
                 return None

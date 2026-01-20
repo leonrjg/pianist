@@ -24,10 +24,12 @@ from core.util.time import get_friendly_elapsed
 
 from ..constants import PianoLayout, PianoColors, Animations, Interactions
 from ..models import PianoGeometry, PianoState
-from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager
+from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager, ReminderManager
 from ..painters import FramePainter, KeyPainter
 from .music_sheet_widget import MusicSheetWidget
 from .marquee import Marquee
+from core.reminder.context import ContextEvaluator
+from core.notification.service import NotificationService
 
 
 class PianoFloatingWindow(QWidget):
@@ -115,6 +117,16 @@ class PianoFloatingWindow(QWidget):
         self.reorder_mode_manager.pulse_updated.connect(self.update)
         self.reorder_mode_manager.reorder_mode_toggled.connect(self.on_reorder_mode_toggled)
         self.reorder_mode_manager.set_num_keys(len(self.keys))
+
+        # Reminder system
+        self.context_evaluator = ContextEvaluator()
+        self.reminder_manager = ReminderManager(self.context_evaluator)
+        self.reminder_manager.notification_requested.connect(self._on_reminder_notification)
+        self.reminder_manager.start()
+
+        # Notification service
+        self.notification_service = NotificationService.get_instance()
+        self.notification_service.set_parent(self)
 
         # ===== Key Press Visual Effect =====
         self.press_timer = QTimer()
@@ -971,12 +983,27 @@ class PianoFloatingWindow(QWidget):
 
     # ===== Cleanup =====
 
+    def _on_reminder_notification(self, title: str, message: str, urgency: str):
+        """Handle reminder notification request."""
+        self.notification_service.show_reminder_notification(title, message, urgency)
+
     def closeEvent(self, event):
         """Clean up when window closes"""
+        # Stop all threads first (don't wait yet)
         if hasattr(self, 'session_manager'):
             self.session_manager.cleanup()
-            self.session_manager.wait(3000)
 
+        if hasattr(self, 'reminder_manager'):
+            self.reminder_manager.stop()
+
+        # Now wait for threads with short timeouts (parallel)
+        if hasattr(self, 'session_manager'):
+            self.session_manager.wait(500)  # Reduced from 3000ms
+
+        if hasattr(self, 'reminder_manager'):
+            self.reminder_manager.wait(500)  # Reduced from 2000ms
+
+        # Clean up other managers
         if hasattr(self, 'drawer_animation_manager'):
             self.drawer_animation_manager.cleanup()
 

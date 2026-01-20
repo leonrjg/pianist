@@ -7,6 +7,7 @@ from .drawer_animation_manager import DrawerAnimationManager
 from .window_size_manager import WindowSizeManager
 from .reorder_mode_manager import ReorderModeManager
 from .auto_session_manager import AutoSessionManager
+from .reminder_manager import ReminderManager
 
 __all__ = [
     'SessionProcessManager',
@@ -16,5 +17,6 @@ __all__ = [
     'DrawerAnimationManager',
     'WindowSizeManager',
     'ReorderModeManager',
-    'AutoSessionManager'
+    'AutoSessionManager',
+    'ReminderManager'
 ]

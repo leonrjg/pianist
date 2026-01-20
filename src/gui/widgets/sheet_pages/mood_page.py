@@ -296,7 +296,8 @@ class MoodPage(SheetPage):
     def _create_subsection_header(self, text: str) -> QLabel:
         """Create a subsection header"""
         label = QLabel(text)
-        font = QFont("Palatino", 11)
+        font = QFont()
+        font.setPointSize(11)
         font.setBold(True)
         label.setFont(font)
         label.setStyleSheet("color: rgb(70, 50, 35); padding: 4px 0px 2px 0px;")
