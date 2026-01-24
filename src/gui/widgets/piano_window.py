@@ -981,6 +981,18 @@ class PianoFloatingWindow(QWidget):
                 return True
         return super().eventFilter(obj, event)
 
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts."""
+        # Check for Ctrl+F (or Cmd+F on macOS) to open search
+        if event.key() == Qt.Key.Key_F and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            # Only open search if drawer is visible
+            if self.state.toggleable_drawer_visible:
+                self.music_sheet_widget.show_search_bar()
+                event.accept()
+                return
+        
+        super().keyPressEvent(event)
+
     # ===== Cleanup =====
 
     def _on_reminder_notification(self, title: str, message: str, urgency: str):

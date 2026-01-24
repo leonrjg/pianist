@@ -117,6 +117,21 @@ class MusicSheetWidget(QWidget):
         self._stack.setStyleSheet("background: transparent; border: none;")
         layout.addWidget(self._stack)
 
+        # Search bar (floating overlay, initially hidden)
+        from .search_bar_widget import SearchBarWidget
+        from .text_search_engine import TextSearchEngine
+        self._search_bar = SearchBarWidget(self)
+        self._search_bar.hide()
+        self._search_engine = TextSearchEngine()
+        self._current_matches = []
+        self._current_match_index = -1
+        
+        # Connect search bar signals
+        self._search_bar.search_changed.connect(self._on_search_changed)
+        self._search_bar.next_match.connect(self._on_next_match)
+        self._search_bar.previous_match.connect(self._on_previous_match)
+        self._search_bar.close_requested.connect(self.hide_search_bar)
+        
         # Dog ear overlay - always on top
         self._dog_ear_overlay = DogEarOverlay(self)
         self._dog_ear_overlay.setGeometry(self.rect())
@@ -210,6 +225,12 @@ class MusicSheetWidget(QWidget):
             page_type: Type of page (PageType enum value)
             data: Optional data for the page (e.g., habit_id for detail page)
         """
+        # Clear search highlights when switching pages
+        if hasattr(self, '_search_bar') and self._search_bar.isVisible():
+            self._clear_search_highlights()
+            # Re-search on new page if there's a query
+            # Will be handled after page loads by _on_search_changed
+        
         # Cancel any ongoing animation to prevent overlapping pages
         if self._animator.is_running():
             self._animator.cancel()
@@ -260,6 +281,12 @@ class MusicSheetWidget(QWidget):
                 self.sound_manager.play_sound('page')
         else:
             new_page.show()
+        
+        # Re-apply search if search bar is visible
+        if hasattr(self, '_search_bar') and self._search_bar.isVisible():
+            query = self._search_bar.get_search_text()
+            if query:
+                self._on_search_changed(query)
 
     def _disconnect_page_signals(self, page):
         """Safely disconnect all signals from a page"""
@@ -327,8 +354,111 @@ class MusicSheetWidget(QWidget):
     def resizeEvent(self, event):
         """Update overlay geometry when widget is resized"""
         super().resizeEvent(event)
+        
+        if hasattr(self, '_search_bar') and self._search_bar:
+            self._position_search_bar()
+        
         if hasattr(self, '_dog_ear_overlay'):
             self._dog_ear_overlay.setGeometry(self.rect())
+
+    # ===== Search Functionality =====
+
+    def _position_search_bar(self):
+        """Position floating search bar."""
+        if not self._search_bar:
+            return
+        
+        margin = 15
+        height = 35
+        bottom_clearance = 10
+        
+        self._search_bar.setGeometry(
+            margin,
+            self.height() - margin - bottom_clearance - height,
+            self.width() - margin * 2,
+            height
+        )
+
+    def show_search_bar(self):
+        """Show floating search bar and focus input."""
+        self._position_search_bar()
+        self._search_bar.show()
+        self._search_bar.raise_()
+        self._dog_ear_overlay.raise_()  # Keep dog ear on top
+        self._search_bar.focus_input()
+
+    def hide_search_bar(self):
+        """Hide search bar and clear all highlights."""
+        self._search_bar.hide()
+        self._clear_search_highlights()
+
+    def get_current_page(self):
+        """Get the currently visible page."""
+        return self._current_page
+
+    def _on_search_changed(self, query: str):
+        """Handle search query change."""
+        # Clear previous highlights
+        self._clear_search_highlights()
+        
+        if not query:
+            self._search_bar.update_counter(0, 0)
+            return
+        
+        # Get current page
+        current_page = self.get_current_page()
+        if not current_page:
+            self._search_bar.update_counter(0, 0)
+            return
+        
+        # Search for matches
+        self._current_matches = self._search_engine.search(current_page, query, case_sensitive=False)
+        
+        # Update counter
+        total = len(self._current_matches)
+        if total > 0:
+            self._current_match_index = 0
+            self._search_bar.update_counter(1, total)
+            
+            # Highlight all matches
+            self._search_engine.highlight_all_matches(self._current_matches)
+            
+            # Scroll to first match
+            self._search_engine.scroll_to_match(self._current_matches[0])
+        else:
+            self._current_match_index = -1
+            self._search_bar.update_counter(0, 0)
+
+    def _on_next_match(self):
+        """Navigate to next search match."""
+        if not self._current_matches:
+            return
+        
+        # Cycle to next match
+        self._current_match_index = (self._current_match_index + 1) % len(self._current_matches)
+        self._search_bar.update_counter(self._current_match_index + 1, len(self._current_matches))
+        
+        # Scroll to match
+        self._search_engine.scroll_to_match(self._current_matches[self._current_match_index])
+
+    def _on_previous_match(self):
+        """Navigate to previous search match."""
+        if not self._current_matches:
+            return
+        
+        # Cycle to previous match
+        self._current_match_index = (self._current_match_index - 1) % len(self._current_matches)
+        self._search_bar.update_counter(self._current_match_index + 1, len(self._current_matches))
+        
+        # Scroll to match
+        self._search_engine.scroll_to_match(self._current_matches[self._current_match_index])
+
+    def _clear_search_highlights(self):
+        """Clear all search highlights."""
+        if self._current_matches:
+            self._search_engine.clear_highlights(self._current_matches)
+            self._current_matches = []
+            self._current_match_index = -1
 
     def _draw_music_stand_holder(self, painter, widget_rect):
         """Draw a music stand holder/ledge at the bottom of the container"""
