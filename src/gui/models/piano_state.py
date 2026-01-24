@@ -70,6 +70,9 @@ class PianoState(QObject):
         # ===== Mood Bar State =====
         self._mood_bar_visible = False
 
+        # ===== Notes Widget State =====
+        self._notes_visible = False
+
     def start_resize(self, edge: str, start_rect, drag_start_x: int, drag_start_y: int):
         """Start window resize operation"""
         self._is_resizing = True
@@ -338,6 +341,20 @@ class PianoState(QObject):
         """Toggle mood bar visibility"""
         self._mood_bar_visible = not self._mood_bar_visible
 
+    # ===== Notes Widget Properties =====
+
+    @property
+    def notes_visible(self) -> bool:
+        return self._notes_visible
+
+    @notes_visible.setter
+    def notes_visible(self, value: bool):
+        self._notes_visible = value
+
+    def toggle_notes(self):
+        """Toggle notes widget visibility"""
+        self._notes_visible = not self._notes_visible
+
     # ===== State Reset =====
 
     def reset(self):
@@ -360,3 +377,4 @@ class PianoState(QObject):
         self._drag_current_y = 0
         self._drop_target_index = None
         self._mood_bar_visible = False
+        self._notes_visible = False

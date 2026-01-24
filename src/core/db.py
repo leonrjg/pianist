@@ -26,10 +26,11 @@ def initialize_database():
     from core.mood.mood_log import MoodLog
     from core.reminder.reminder import Reminder
     from core.reminder.reminder_log import ReminderLog
+    from core.notes.note import Note
     from core.migrations.runner import run_migrations
 
     db.connect()
-    db.create_tables([Habit, Log, HabitTracker, Mood, MoodLog, Reminder, ReminderLog])
+    db.create_tables([Habit, Log, HabitTracker, Mood, MoodLog, Reminder, ReminderLog, Note])
 
     # Run any pending migrations
     run_migrations()

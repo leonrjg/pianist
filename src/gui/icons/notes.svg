@@ -1,0 +1,8 @@
+<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Notepad paper -->
+  <rect x="2.5" y="1.5" width="9" height="11" rx="0.5" fill="none" stroke="rgb(184, 134, 11)" stroke-width="1.2"/>
+  <!-- Horizontal lines representing text -->
+  <line x1="4" y1="4" x2="10" y2="4" stroke="rgb(184, 134, 11)" stroke-width="0.8"/>
+  <line x1="4" y1="6.5" x2="10" y2="6.5" stroke="rgb(184, 134, 11)" stroke-width="0.8"/>
+  <line x1="4" y1="9" x2="8" y2="9" stroke="rgb(184, 134, 11)" stroke-width="0.8"/>
+</svg>

@@ -255,10 +255,30 @@ class PianoFloatingWindow(QWidget):
         self.mood_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.mood_button.installEventFilter(self)
 
+        # Notes button
+        self.notes_button = QPushButton()
+        self.notes_button.setIcon(QIcon('gui/icons/notes.svg'))
+        self.notes_button.setIconSize(QSize(14, 14))
+        self.notes_button.setFixedSize(20, 20)
+        self.notes_button.setToolTip('Notes')
+        self.notes_button.clicked.connect(self.on_notes_button_clicked)
+        self.notes_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid rgb(184, 134, 11);
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                border-color: rgb(218, 165, 32);
+            }}
+        """)
+        self.notes_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
         control_layout.addWidget(self.close_button)
         control_layout.addWidget(self.maximize_button)
         control_layout.addWidget(self.reorder_button)
         control_layout.addWidget(self.mood_button)
+        control_layout.addWidget(self.notes_button)
         control_layout.addStretch()
 
         self._position_control_buttons_container()
@@ -275,6 +295,12 @@ class PianoFloatingWindow(QWidget):
         self.mood_update_timer.timeout.connect(self.update_mood_button_icon)
         self.mood_update_timer.start(60000)  # Check every minute
         self.update_mood_button_icon()  # Initial update
+
+        # ===== Notes Widget =====
+        from .notes_widget import NotesWidget
+        self.notes_widget = NotesWidget(self)
+        self.notes_widget.closed.connect(self.on_notes_closed)
+        self.notes_widget.hide()
 
     # ===== Window Management =====
 
@@ -322,6 +348,7 @@ class PianoFloatingWindow(QWidget):
         self._position_music_sheet_widget()  # Reposition music sheet widget
         self._position_tips_marquee()  # Reposition tips marquee
         self._position_control_buttons_container()  # Reposition control buttons
+        self._update_notes_widget_position()  # Update notes widget position
         self.update()
 
     def _position_control_buttons_container(self):
@@ -528,6 +555,8 @@ class PianoFloatingWindow(QWidget):
                     self.state.mark_window_moved()  # Mark that window was actually moved
                     # Update drag position without resetting the moved flag
                     self.state.start_drag(current_pos.x(), current_pos.y(), reset_moved_flag=False)
+                    # Update notes widget position when dragging
+                    self._update_notes_widget_position()
         else:
             # Update cursor based on hover position
             self.update_cursor_for_position(event.position().toPoint())
@@ -837,12 +866,18 @@ class PianoFloatingWindow(QWidget):
             self.music_sheet_widget.show()
             self.music_sheet_widget.raise_()  # Bring to front
 
+        # Update notes widget to match new visible width
+        self._update_notes_widget_position()
+
         self.drawer_animation_manager.start_animation(visible, self.geometry_model.toggleable_drawer_width)
 
     def on_drawer_animation_finished(self):
         """Handle drawer animation completion - hide widget after closing animation"""
         if not self.state.toggleable_drawer_visible:
             self.music_sheet_widget.hide()
+        
+        # Update notes widget position/width when drawer finishes animating
+        self._update_notes_widget_position()
 
     # ===== Music Sheet Widget Management =====
 
@@ -980,6 +1015,62 @@ class PianoFloatingWindow(QWidget):
                 self.music_sheet_widget.navigate_to_mood_page()
                 return True
         return super().eventFilter(obj, event)
+
+    # ===== Notes Management =====
+
+    def on_notes_button_clicked(self):
+        """Toggle notes widget visibility"""
+        if self.state.notes_visible:
+            self.notes_widget.close()
+        else:
+            # Calculate visible portion of window (accounting for hidden drawer mask)
+            drawer_width = self.geometry_model.toggleable_drawer_width
+            visible_start_x = drawer_width if not self.state.toggleable_drawer_visible else 0
+            visible_width = self.width() - visible_start_x
+            
+            # Position below window, aligned with visible portion
+            window_pos = self.pos()
+            window_height = self.height()
+            notes_x = window_pos.x() + visible_start_x
+            notes_y = window_pos.y() + window_height
+            
+            print(f"[PianoWindow] on_notes_button_clicked:")
+            print(f"  drawer_width={drawer_width}, drawer_visible={self.state.toggleable_drawer_visible}")
+            print(f"  visible_start_x={visible_start_x}, visible_width={visible_width}")
+            print(f"  window_pos=({window_pos.x()}, {window_pos.y()}), window_height={window_height}")
+            print(f"  notes_x={notes_x}, notes_y={notes_y}")
+            
+            self.notes_widget.show_at_position(QPoint(notes_x, notes_y), visible_width)
+            self.state.notes_visible = True
+
+    def on_notes_closed(self):
+        """Handle notes widget closed"""
+        self.state.notes_visible = False
+
+    def _update_notes_widget_position(self):
+        """Update notes widget position and size when window moves/resizes"""
+        if self.state.notes_visible:
+            # Calculate visible portion of window (accounting for hidden drawer mask)
+            drawer_width = self.geometry_model.toggleable_drawer_width
+            visible_start_x = drawer_width if not self.state.toggleable_drawer_visible else 0
+            visible_width = self.width() - visible_start_x
+            
+            # Update position and width to match visible portion
+            window_pos = self.pos()
+            window_height = self.height()
+            new_x = window_pos.x() + visible_start_x
+            new_y = window_pos.y() + window_height
+            
+            print(f"[PianoWindow] _update_notes_widget_position:")
+            print(f"  drawer_width={drawer_width}, drawer_visible={self.state.toggleable_drawer_visible}")
+            print(f"  visible_start_x={visible_start_x}, visible_width={visible_width}")
+            print(f"  new_x={new_x}, new_y={new_y}")
+            print(f"  notes_widget before: pos={self.notes_widget.pos()}, size={self.notes_widget.size()}")
+            
+            self.notes_widget.move(new_x, new_y)
+            self.notes_widget.setFixedWidth(visible_width)
+            
+            print(f"  notes_widget after: pos={self.notes_widget.pos()}, size={self.notes_widget.size()}")
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
