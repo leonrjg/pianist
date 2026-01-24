@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QProgressBar,
     QSizePolicy,
+    QPushButton,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -33,6 +34,7 @@ from PyQt6.QtGui import (
     QPixmap,
     QPalette,
     QLinearGradient,
+    QIcon,
 )
 
 from ..constants import PianoColors
@@ -155,6 +157,38 @@ class NotificationToast(QWidget):
         self._title_label.setStyleSheet("font-size: 16px; font-weight: 400;")
         self._title_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         top_layout.addWidget(self._title_label, 1, Qt.AlignmentFlag.AlignVCenter)
+        
+        # Close button
+        self._close_button = QPushButton()
+        self._close_button.setFixedSize(20, 20)
+        close_icon_path = os.path.join(os.path.dirname(__file__), '..', 'icons', 'x.svg')
+        if os.path.exists(close_icon_path):
+            self._close_button.setIcon(QIcon(close_icon_path))
+            self._close_button.setIconSize(self._close_button.size() * 0.6)
+        else:
+            self._close_button.setText('×')
+        self._close_button.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: rgba(255, 255, 255, 180);
+                font-size: 18px;
+                font-weight: bold;
+                padding: 0;
+            }
+            QPushButton:hover {
+                background: rgba(255, 255, 255, 20);
+                border-radius: 4px;
+                color: rgba(255, 255, 255, 255);
+            }
+            QPushButton:pressed {
+                background: rgba(255, 255, 255, 30);
+            }
+        """)
+        self._close_button.clicked.connect(self._on_close_clicked)
+        self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        top_layout.addWidget(self._close_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        
         text_layout.addLayout(top_layout)
         
         # Message label (scrollable for long text)
@@ -267,6 +301,7 @@ class NotificationToast(QWidget):
     
     def _start_hide_animation(self):
         """Start the hide animation."""
+        self._hide_timer.stop()
         self._progress_timer.stop()
         screen = self.screen().availableGeometry()
         end_x = screen.right() + 10
@@ -278,6 +313,10 @@ class NotificationToast(QWidget):
         self._fade_anim.setStartValue(1.0)
         self._fade_anim.setEndValue(0.0)
         self._fade_anim.start()
+    
+    def _on_close_clicked(self):
+        """Handle close button click."""
+        self._start_hide_animation()
 
     def _start_timers(self, duration):
         self._remaining_ms = max(0, int(duration))
@@ -352,8 +391,6 @@ class NotificationToast(QWidget):
         super().leaveEvent(event)
     
     def mousePressEvent(self, event):
-        """Dismiss on click."""
-        self._hide_timer.stop()
-        self._progress_timer.stop()
-        self._start_hide_animation()
+        """Handle mouse press events."""
+        # No longer dismisses on click - use close button instead
         super().mousePressEvent(event)
