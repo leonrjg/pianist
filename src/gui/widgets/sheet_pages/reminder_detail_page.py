@@ -20,6 +20,7 @@ from core.db import db
 from core.reminder.reminder import Reminder
 from core.schedule.sm2 import SM2Scheduler
 from core.schedule.stochastic import StochasticScheduler
+from core.schedule.active_window import ActiveWindow
 from core.habit.habit import Habit
 
 
@@ -44,6 +45,10 @@ class ReminderDetailPage(SheetPage):
         # Stochastic fields
         self._rate_spin = None
         self._weight_spin = None
+
+        # Active window fields
+        self._active_start_edit = None
+        self._active_end_edit = None
 
         # Habit link
         self._habit_dropdown = None
@@ -170,6 +175,21 @@ class ReminderDetailPage(SheetPage):
 
         form_layout.addWidget(self._stochastic_section)
 
+        # Active Window Section
+        active_section = FormSection("Active Window")
+
+        self._active_start_edit = VintageLineEdit("HH:MM")
+        self._active_end_edit = VintageLineEdit("HH:MM")
+        start_minutes = self.reminder.active_start_minute if self.reminder else 0
+        end_minutes = self.reminder.active_end_minute if self.reminder else 1440
+        self._active_start_edit.setText(self._format_minutes(start_minutes))
+        self._active_end_edit.setText(self._format_minutes(end_minutes))
+
+        active_section.add_field("Start:", self._active_start_edit)
+        active_section.add_field("End:", self._active_end_edit)
+
+        form_layout.addWidget(active_section)
+
         # Habit Link Section
         habit_section = FormSection("Habit Link (Optional)")
 
@@ -245,6 +265,13 @@ class ReminderDetailPage(SheetPage):
         target_rate = self._rate_spin.value()
         weight = self._weight_spin.value()
 
+        try:
+            active_start = self._parse_time(self._active_start_edit.text(), allow_24=False)
+            active_end = self._parse_time(self._active_end_edit.text(), allow_24=True)
+        except ValueError as e:
+            QMessageBox.warning(self, "Validation Error", str(e))
+            return
+
         # Get habit ID
         habit_id = None
         habit_name = self._habit_dropdown.get_selected()
@@ -256,6 +283,7 @@ class ReminderDetailPage(SheetPage):
                 pass
 
         now = datetime.now()
+        window = ActiveWindow(active_start, active_end)
 
         if self.reminder:
             # Update existing
@@ -269,14 +297,22 @@ class ReminderDetailPage(SheetPage):
             self.reminder.interval_days = interval_days
             self.reminder.target_rate_per_week = target_rate
             self.reminder.weight = weight
+            self.reminder.active_start_minute = active_start
+            self.reminder.active_end_minute = active_end
             self.reminder.updated_at = now
 
             # Recalculate next_fire_at
             last_fire = self.reminder.last_fired_at or self.reminder.created_at
             if reminder_type == 'sr':
-                self.reminder.next_fire_at = SM2Scheduler.get_next_fire_time(last_fire, interval_days)
+                next_time = SM2Scheduler.get_next_fire_time(last_fire, interval_days)
+                self.reminder.next_fire_at = window.clamp(next_time)
             elif reminder_type == 'stochastic':
-                self.reminder.next_fire_at = StochasticScheduler.get_next_fire_time(last_fire, target_rate)
+                self.reminder.next_fire_at = StochasticScheduler.get_next_fire_time(
+                    last_fire,
+                    target_rate,
+                    active_start,
+                    active_end
+                )
 
             self.reminder.save()
         else:
@@ -292,15 +328,23 @@ class ReminderDetailPage(SheetPage):
                 interval_days=interval_days,
                 target_rate_per_week=target_rate,
                 weight=weight,
+                active_start_minute=active_start,
+                active_end_minute=active_end,
                 created_at=now,
                 updated_at=now
             )
 
             # Set initial next_fire_at
             if reminder_type == 'sr':
-                reminder.next_fire_at = SM2Scheduler.get_next_fire_time(now, interval_days)
+                next_time = SM2Scheduler.get_next_fire_time(now, interval_days)
+                reminder.next_fire_at = window.clamp(next_time)
             elif reminder_type == 'stochastic':
-                reminder.next_fire_at = StochasticScheduler.get_next_fire_time(now, target_rate)
+                reminder.next_fire_at = StochasticScheduler.get_next_fire_time(
+                    now,
+                    target_rate,
+                    active_start,
+                    active_end
+                )
 
             reminder.save()
 
@@ -330,3 +374,36 @@ class ReminderDetailPage(SheetPage):
             self.reminder.delete_instance()
             self.content_updated.emit()
             self.navigate_to.emit('reminders', None)
+
+    @staticmethod
+    def _format_minutes(total_minutes: int) -> str:
+        total_minutes = int(total_minutes)
+        if total_minutes == 1440:
+            return "24:00"
+        hours = max(0, total_minutes) // 60
+        minutes = max(0, total_minutes) % 60
+        return f"{hours:02d}:{minutes:02d}"
+
+    @staticmethod
+    def _parse_time(value: str, allow_24: bool) -> int:
+        text = value.strip()
+        parts = text.split(":")
+        if len(parts) != 2:
+            raise ValueError("Time must be in HH:MM format")
+
+        try:
+            hours = int(parts[0])
+            minutes = int(parts[1])
+        except ValueError:
+            raise ValueError("Time must be in HH:MM format")
+
+        if hours == 24 and minutes == 0 and allow_24:
+            return 1440
+
+        if hours < 0 or hours > 23 or minutes < 0 or minutes > 59:
+            raise ValueError("Time must be between 00:00 and 23:59")
+
+        if hours == 24:
+            raise ValueError("Start time cannot be 24:00")
+
+        return hours * 60 + minutes

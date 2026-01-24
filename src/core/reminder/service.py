@@ -13,6 +13,7 @@ from .reminder_log import ReminderLog
 from .actions import ActionHandler
 from ..schedule.sm2 import SM2Scheduler
 from ..schedule.stochastic import StochasticScheduler
+from ..schedule.active_window import ActiveWindow
 from ..notification.service import NotificationService
 
 
@@ -106,11 +107,22 @@ class ReminderService:
         now = datetime.now()
         last_fire = base_time or reminder.last_fired_at or reminder.created_at
         
+        window = ActiveWindow(
+            getattr(reminder, "active_start_minute", 0),
+            getattr(reminder, "active_end_minute", 1440)
+        )
+
         if reminder.reminder_type == 'sr':
-            reminder.next_fire_at = SM2Scheduler.get_next_fire_time(last_fire, reminder.interval_days)
+            next_time = SM2Scheduler.get_next_fire_time(last_fire, reminder.interval_days)
+            reminder.next_fire_at = window.clamp(next_time)
         elif reminder.reminder_type == 'stochastic':
             if reminder.target_rate_per_week:
-                reminder.next_fire_at = StochasticScheduler.get_next_fire_time(last_fire, reminder.target_rate_per_week)
+                reminder.next_fire_at = StochasticScheduler.get_next_fire_time(
+                    last_fire,
+                    reminder.target_rate_per_week,
+                    window.start_minute,
+                    window.end_minute
+                )
         
         reminder.updated_at = now
         reminder.save()

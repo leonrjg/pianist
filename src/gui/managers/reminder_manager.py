@@ -149,7 +149,7 @@ class ReminderManager(QThread):
         if self.last_notification_time:
             time_since_last = (now - self.last_notification_time).total_seconds()
             if time_since_last < self.ANTI_SPAM_GAP_MINUTES * 60:
-                logger.info(f"Anti-spam: Skipping {reminder.name} (too soon)")
+                logger.info(f"{datetime.now()} - Anti-spam: Skipping {reminder.name} (too soon)")
                 return
 
         # Get context modifier
@@ -177,4 +177,4 @@ class ReminderManager(QThread):
         # Emit signal
         self.reminder_fired.emit(reminder.id, result.message)
 
-        logger.info(f"Fired reminder: {reminder.name} (context: {context_modifier:.2f})")
+        logger.info(f"{datetime.now()} - Fired reminder: {reminder.name} (context: {context_modifier:.2f})")

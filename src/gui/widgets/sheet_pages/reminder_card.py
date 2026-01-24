@@ -131,4 +131,20 @@ class ReminderCard(QFrame):
         if r.next_fire_at:
             lines.append(f"Next: {r.next_fire_at.strftime('%Y-%m-%d %H:%M')}")
 
+        # Active window
+        start_minute = getattr(r, "active_start_minute", 0)
+        end_minute = getattr(r, "active_end_minute", 1440)
+        if start_minute == end_minute:
+            lines.append("Window: All day")
+        else:
+            lines.append(f"Window: {self._format_minutes(start_minute)}–{self._format_minutes(end_minute)}")
+
         return "\n".join(lines)
+
+    @staticmethod
+    def _format_minutes(total_minutes: int) -> str:
+        if total_minutes == 1440:
+            return "24:00"
+        hours = max(0, int(total_minutes)) // 60
+        minutes = max(0, int(total_minutes)) % 60
+        return f"{hours:02d}:{minutes:02d}"

@@ -63,10 +63,10 @@ class NotificationService:
             urgency: Urgency level ('low', 'normal', 'high')
         """
         if urgency == 'high':
-            duration = 8000
+            duration = 15000
         elif urgency == 'low':
-            duration = 4000
-        else:
             duration = 5000
+        else:
+            duration = 12000
 
         self.show_toast(reminder_name, message, duration, urgency)

@@ -6,7 +6,7 @@ from pynput import mouse, keyboard
 
 logger = logging.getLogger(__name__)
 
-EPSILON = 2
+EPSILON = 4 # seconds
 
 class IOTracker(Tracker):
     def __init__(self):

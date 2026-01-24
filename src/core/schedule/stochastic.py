@@ -7,6 +7,8 @@ Generates random fire times with target rate per week.
 import random
 from datetime import datetime, timedelta
 
+from .active_window import ActiveWindow
+
 
 class StochasticScheduler:
     """
@@ -20,7 +22,12 @@ class StochasticScheduler:
     MIN_GAP_MINUTES = 15  # Minimum 15 minutes between stochastic reminders
 
     @staticmethod
-    def get_next_fire_time(last_fired_at: datetime, target_rate_per_week: float) -> datetime:
+    def get_next_fire_time(
+        last_fired_at: datetime,
+        target_rate_per_week: float,
+        active_start_minute: int = 0,
+        active_end_minute: int = 1440
+    ) -> datetime:
         """
         Calculate next fire time using exponential distribution.
 
@@ -34,17 +41,30 @@ class StochasticScheduler:
         if target_rate_per_week <= 0:
             raise ValueError("Target rate must be positive")
 
-        # Convert rate to lambda (events per second)
-        lambda_rate = target_rate_per_week / StochasticScheduler.WEEK_SECONDS
+        window = ActiveWindow(active_start_minute, active_end_minute)
+        active_minutes = window.length_minutes()
+        active_seconds_per_week = active_minutes * 60 * 7
 
-        # Sample from exponential distribution
-        wait_seconds = random.expovariate(lambda_rate)
+        if active_seconds_per_week <= 0:
+            raise ValueError("Active window must have positive duration")
 
-        # Enforce minimum gap
+        # Convert rate to lambda (events per active second)
+        lambda_rate = target_rate_per_week / active_seconds_per_week
+
+        # Sample from exponential distribution (active seconds)
+        wait_active_seconds = random.expovariate(lambda_rate)
+
+        # Compute next time within the active window
+        base_time = window.clamp(last_fired_at)
+        next_time = window.advance_by_active_seconds(base_time, wait_active_seconds)
+
+        # Enforce minimum gap in wall-clock time
         min_gap_seconds = StochasticScheduler.MIN_GAP_MINUTES * 60
-        wait_seconds = max(wait_seconds, min_gap_seconds)
+        min_time = last_fired_at + timedelta(seconds=min_gap_seconds)
+        if next_time < min_time:
+            next_time = window.clamp(min_time)
 
-        return last_fired_at + timedelta(seconds=wait_seconds)
+        return next_time
 
     @staticmethod
     def should_fire(reminders: list, now: datetime = None) -> tuple:

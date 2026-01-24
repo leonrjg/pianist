@@ -31,6 +31,8 @@ class Reminder(BaseModel):
     # Scheduling
     last_fired_at = DateTimeField(null=True)
     next_fire_at = DateTimeField(null=True)
+    active_start_minute = IntegerField(default=0)  # minutes from midnight
+    active_end_minute = IntegerField(default=1440)  # minutes from midnight
     context_config = TextField(default='{}')  # JSON for context modifiers
     is_enabled = BooleanField(default=True)
     created_at = DateTimeField(default=datetime.now)
