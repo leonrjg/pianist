@@ -106,12 +106,12 @@ class NotesWidget(QWidget):
             }}
             QScrollBar:vertical {{
                 background-color: rgb(61, 40, 23);
-                width: 12px;
-                border-radius: 6px;
+                width: 6px;
+                border-radius: 3px;
             }}
             QScrollBar::handle:vertical {{
                 background-color: rgb(184, 134, 11);
-                border-radius: 6px;
+                border-radius: 3px;
                 min-height: 20px;
             }}
             QScrollBar::handle:vertical:hover {{
@@ -201,6 +201,11 @@ class NotesWidget(QWidget):
         """Adjust widget height based on text content"""
         # Get content height from document
         doc = self.text_edit.document()
+        
+        # Force document to calculate layout based on text edit width
+        # This ensures proper height calculation even on first show
+        doc.setTextWidth(self.text_edit.viewport().width())
+        
         content_height = doc.size().height()
         
         # Add padding for header and margins (header ~30px + margins ~12px)
