@@ -139,15 +139,9 @@ class NotesWidget(QWidget):
             pos: Position to show the widget at
             width: Width of the widget (should match piano window)
         """
-        print(f"[NotesWidget] show_at_position called: pos=({pos.x()}, {pos.y()}), width={width}")
-        print(f"[NotesWidget] Before setFixedWidth: geometry={self.geometry()}")
-        
         self.setFixedWidth(width)
-        print(f"[NotesWidget] After setFixedWidth: geometry={self.geometry()}")
-        
         self.move(pos)
-        print(f"[NotesWidget] After move: geometry={self.geometry()}, pos={self.pos()}")
-        
+
         # Load note content
         self._note = Note.get_global_note()
         self.text_edit.blockSignals(True)  # Prevent triggering save on load
@@ -157,16 +151,13 @@ class NotesWidget(QWidget):
         
         # Adjust height based on loaded content
         self._adjust_height()
-        print(f"[NotesWidget] After _adjust_height: geometry={self.geometry()}, height={self.height()}")
-        
+
         self.show()
-        print(f"[NotesWidget] After show (before re-position): geometry={self.geometry()}, pos={self.pos()}")
-        
+
         # Re-apply position after show() to fix first-show positioning issue
         # Qt may adjust position on first show, so we force it back
         self.move(pos)
-        print(f"[NotesWidget] After re-position: geometry={self.geometry()}, pos={self.pos()}")
-        
+
         self.raise_()
         self.activateWindow()
         self.text_edit.setFocus()
@@ -213,13 +204,10 @@ class NotesWidget(QWidget):
         
         # Clamp between min and max
         new_height = max(self.MIN_HEIGHT, min(total_height, self.MAX_HEIGHT))
-        
-        print(f"[NotesWidget] _adjust_height: content_height={content_height}, total_height={total_height}, new_height={new_height}")
-        
+
         # Update height
         old_height = self.height()
         self.setFixedHeight(new_height)
-        print(f"[NotesWidget] Height changed: {old_height} -> {self.height()}, pos={self.pos()}")
 
     def _update_save_status(self, status: str, error_msg: str = ''):
         """

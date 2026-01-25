@@ -125,21 +125,18 @@ class ActivityCard(QFrame):
             progress_bar = ProductivityProgressBar(productivity_rate, parent=self)
             self.main_layout.addWidget(progress_bar)
 
-        if self.bucket.sessions > 1:
-            self.expand_stripe = QLabel(f"📶 {self.bucket.sessions} sessions")
-            self.expand_stripe.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.expand_stripe.setStyleSheet("""
-                background-color: rgba(200, 185, 160, 80);
-                color: rgb(100, 80, 65);
-                font-size: 9px;
-                padding: 1px;
-                border-radius: 2px;
-                margin-top: 1px;
-            """)
-            self.expand_stripe.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            self.main_layout.addWidget(self.expand_stripe)
-        else:
-            self.expand_stripe = None
+        self.expand_stripe = QLabel(f"📶 {self.bucket.sessions} sessions")
+        self.expand_stripe.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.expand_stripe.setStyleSheet("""
+            background-color: rgba(200, 185, 160, 80);
+            color: rgb(100, 80, 65);
+            font-size: 9px;
+            padding: 1px;
+            border-radius: 2px;
+            margin-top: 1px;
+        """)
+        self.expand_stripe.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.main_layout.addWidget(self.expand_stripe)
 
     def _build_sessions_section(self):
         """Build the expanded sessions view"""
