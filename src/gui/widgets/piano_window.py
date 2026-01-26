@@ -141,6 +141,9 @@ class PianoFloatingWindow(QWidget):
         # ===== Management Window =====
         self.management_window = None
 
+        # ===== Notes Widget (init placeholder) =====
+        self.notes_widget = None
+
         # ===== Music Sheet Widget (Interactive Drawer Content) =====
         self.music_sheet_widget = MusicSheetWidget(self, sound_manager=self.sound_manager)
         self.music_sheet_widget.habit_updated.connect(self.on_habit_updated_from_sheet)
@@ -301,6 +304,9 @@ class PianoFloatingWindow(QWidget):
         self.notes_widget = NotesWidget(self)
         self.notes_widget.closed.connect(self.on_notes_closed)
         self.notes_widget.hide()
+        
+        # Install event filter to forward notes drag events to piano
+        self.notes_widget.installEventFilter(self)
 
     # ===== Window Management =====
 
@@ -1006,7 +1012,8 @@ class PianoFloatingWindow(QWidget):
             """)
 
     def eventFilter(self, obj, event):
-        """Filter events for mood button right-click"""
+        """Filter events for mood button right-click and notes widget drag forwarding"""
+        # Handle mood button right-click
         if obj == self.mood_button and event.type() == event.Type.MouseButtonPress:
             if event.button() == Qt.MouseButton.RightButton:
                 # Open drawer and navigate to mood page
@@ -1014,12 +1021,77 @@ class PianoFloatingWindow(QWidget):
                     self.toggle_toggleable_drawer()
                 self.music_sheet_widget.navigate_to_mood_page()
                 return True
+        
+        # Handle notes widget drag events - forward to piano window
+        if self.notes_widget is not None and obj == self.notes_widget:
+            if event.type() == event.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    # Calculate relative position in piano window coordinates
+                    from PyQt6.QtCore import QPointF
+                    notes_global_pos = self.notes_widget.mapToGlobal(event.position().toPoint())
+                    piano_local_pos = self.mapFromGlobal(notes_global_pos)
+                    
+                    # Create new event with piano coordinates and forward to piano
+                    # PyQt6 requires QPointF
+                    from PyQt6.QtGui import QMouseEvent
+                    piano_event = QMouseEvent(
+                        event.Type.MouseButtonPress,
+                        QPointF(piano_local_pos),
+                        QPointF(notes_global_pos),
+                        event.button(),
+                        event.buttons(),
+                        event.modifiers()
+                    )
+                    self.mousePressEvent(piano_event)
+                    return True
+            
+            elif event.type() == event.Type.MouseMove:
+                if event.buttons() == Qt.MouseButton.LeftButton:
+                    # Forward drag events to piano
+                    from PyQt6.QtCore import QPointF
+                    notes_global_pos = self.notes_widget.mapToGlobal(event.position().toPoint())
+                    piano_local_pos = self.mapFromGlobal(notes_global_pos)
+                    
+                    from PyQt6.QtGui import QMouseEvent
+                    piano_event = QMouseEvent(
+                        event.Type.MouseMove,
+                        QPointF(piano_local_pos),
+                        QPointF(notes_global_pos),
+                        event.button(),
+                        event.buttons(),
+                        event.modifiers()
+                    )
+                    self.mouseMoveEvent(piano_event)
+                    return True
+            
+            elif event.type() == event.Type.MouseButtonRelease:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    # Forward release to piano
+                    from PyQt6.QtCore import QPointF
+                    notes_global_pos = self.notes_widget.mapToGlobal(event.position().toPoint())
+                    piano_local_pos = self.mapFromGlobal(notes_global_pos)
+                    
+                    from PyQt6.QtGui import QMouseEvent
+                    piano_event = QMouseEvent(
+                        event.Type.MouseButtonRelease,
+                        QPointF(piano_local_pos),
+                        QPointF(notes_global_pos),
+                        event.button(),
+                        event.buttons(),
+                        event.modifiers()
+                    )
+                    self.mouseReleaseEvent(piano_event)
+                    return True
+        
         return super().eventFilter(obj, event)
 
     # ===== Notes Management =====
 
     def on_notes_button_clicked(self):
         """Toggle notes widget visibility"""
+        if self.notes_widget is None:
+            return
+            
         if self.state.notes_visible:
             self.notes_widget.close()
         else:
@@ -1033,12 +1105,6 @@ class PianoFloatingWindow(QWidget):
             window_height = self.height()
             notes_x = window_pos.x() + visible_start_x
             notes_y = window_pos.y() + window_height
-            
-            print(f"[PianoWindow] on_notes_button_clicked:")
-            print(f"  drawer_width={drawer_width}, drawer_visible={self.state.toggleable_drawer_visible}")
-            print(f"  visible_start_x={visible_start_x}, visible_width={visible_width}")
-            print(f"  window_pos=({window_pos.x()}, {window_pos.y()}), window_height={window_height}")
-            print(f"  notes_x={notes_x}, notes_y={notes_y}")
             
             self.notes_widget.show_at_position(QPoint(notes_x, notes_y), visible_width)
             self.state.notes_visible = True
@@ -1061,16 +1127,26 @@ class PianoFloatingWindow(QWidget):
             new_x = window_pos.x() + visible_start_x
             new_y = window_pos.y() + window_height
             
-            print(f"[PianoWindow] _update_notes_widget_position:")
-            print(f"  drawer_width={drawer_width}, drawer_visible={self.state.toggleable_drawer_visible}")
-            print(f"  visible_start_x={visible_start_x}, visible_width={visible_width}")
-            print(f"  new_x={new_x}, new_y={new_y}")
-            print(f"  notes_widget before: pos={self.notes_widget.pos()}, size={self.notes_widget.size()}")
-            
             self.notes_widget.move(new_x, new_y)
             self.notes_widget.setFixedWidth(visible_width)
-            
-            print(f"  notes_widget after: pos={self.notes_widget.pos()}, size={self.notes_widget.size()}")
+
+    def changeEvent(self, event):
+        """Handle window state changes - synchronize notes widget"""
+        if event.type() == event.Type.WindowStateChange:
+            # Only handle notes widget if it exists (initialized)
+            if hasattr(self, 'notes_widget'):
+                if self.isMinimized():
+                    # Hide notes when piano minimizes
+                    if self.state.notes_visible and self.notes_widget.isVisible():
+                        self.notes_widget._was_visible_before_hide = True
+                        self.notes_widget.hide()
+                else:
+                    # Restore notes when piano restores
+                    if self.notes_widget._was_visible_before_hide:
+                        self.notes_widget._was_visible_before_hide = False
+                        self.notes_widget.show()
+        
+        super().changeEvent(event)
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""

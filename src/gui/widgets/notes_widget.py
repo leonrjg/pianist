@@ -23,8 +23,12 @@ class NotesWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # Use Window flag but maintain parent relationship for proper lifecycle management
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        # Track if notes were visible before parent state change
+        self._was_visible_before_hide = False
         
         # Dynamic height between min and max
         self.setMinimumHeight(self.MIN_HEIGHT)
@@ -254,6 +258,20 @@ class NotesWidget(QWidget):
         self._save_content()
         
         super().focusOutEvent(event)
+
+    def changeEvent(self, event):
+        """Handle window state changes - synchronize with parent window"""
+        if event.type() == event.Type.WindowStateChange:
+            # If parent window minimizes/hides, hide notes
+            if self.parent() and hasattr(self.parent(), 'isMinimized'):
+                if self.parent().isMinimized() and self.isVisible():
+                    self._was_visible_before_hide = True
+                    self.hide()
+                elif not self.parent().isMinimized() and self._was_visible_before_hide:
+                    self._was_visible_before_hide = False
+                    self.show()
+        
+        super().changeEvent(event)
 
     def closeEvent(self, event):
         """Handle close event - save before closing"""
