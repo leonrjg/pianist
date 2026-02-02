@@ -36,6 +36,7 @@ class Habit(BaseModel):
     id = AutoField()
     name = CharField(unique=True)
     schedule: str = CharField(index=True)
+    schedule_step = IntegerField(default=1)
     created_at = DateTimeField(default=datetime.now().date())
     updated_at = DateTimeField(default=datetime.now().date())
     started_at = DateTimeField(default=datetime.now().date())
@@ -59,12 +60,15 @@ class Habit(BaseModel):
         """Get actual Schedule instance based on schedule type."""
         # Use ended_at if set, otherwise use a far future date
         end = self.ended_at if self.ended_at else datetime(2100, 1, 1)
-        
+
+        # Get step value, with backward compatibility fallback
+        step = self.schedule_step if hasattr(self, 'schedule_step') else 1
+
         registry = {
-            'hourly': lambda: HourlySchedule(start=self.started_at, end=end),
-            'daily': lambda: DailySchedule(start=self.started_at, end=end),
-            'weekly': lambda: WeeklySchedule(start=self.started_at, end=end),
-            'monthly': lambda: MonthlySchedule(start=self.started_at, end=end),
+            'hourly': lambda: HourlySchedule(start=self.started_at, end=end, step=step),
+            'daily': lambda: DailySchedule(start=self.started_at, end=end, step=step),
+            'weekly': lambda: WeeklySchedule(start=self.started_at, end=end, step=step),
+            'monthly': lambda: MonthlySchedule(start=self.started_at, end=end, step=step),
             'exponential_3': lambda: ExponentialSchedule(start=self.started_at, end=end, base=3),
         }
 

@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
-from .schedule import Schedule
+from .regular import RegularSchedule
 from core.util import time
 
 
-class HourlySchedule(Schedule):
-    """A schedule that repeats tasks every hour from the start date."""
+class HourlySchedule(RegularSchedule):
+    """A schedule that repeats tasks every N hours from the start date."""
     def get_previous_tasks(self, timespan: int) -> List[datetime]:
         """Get previous hourly tasks within the given timespan.
 
@@ -17,7 +17,7 @@ class HourlySchedule(Schedule):
             to oldest.
         """
         now = datetime.now()
-        hours = timespan // time.HOUR
+        hours = timespan // (time.HOUR * self.step)
 
         tasks = []
         current = now
@@ -41,10 +41,11 @@ class HourlySchedule(Schedule):
             return None
 
         hours_since_start = int((from_dt - self.start).total_seconds() // time.HOUR)
-        if hours_since_start == 0:
+        intervals_since_start = hours_since_start // self.step
+        if intervals_since_start == 0:
             return None
 
-        return self.start + timedelta(hours=hours_since_start - 1)
+        return self.start + timedelta(hours=(intervals_since_start - 1) * self.step)
 
     def get_next_tasks(self, timespan: int) -> List[datetime]:
         """Get upcoming hourly tasks within the given timespan.
@@ -57,7 +58,7 @@ class HourlySchedule(Schedule):
             to latest.
         """
         now = datetime.now()
-        hours = timespan // time.HOUR
+        hours = timespan // (time.HOUR * self.step)
 
         tasks = []
         current = now
@@ -80,12 +81,13 @@ class HourlySchedule(Schedule):
             return self.start
 
         hours_since_start = int((from_dt - self.start).total_seconds() // 3600)
-        next_task = self.start + timedelta(hours=hours_since_start + 1)
-        
+        intervals_since_start = hours_since_start // self.step
+        next_task = self.start + timedelta(hours=(intervals_since_start + 1) * self.step)
+
         if next_task.date() > self.end.date():
             return None
         return next_task
 
     def get_scale(self) -> int:
-        return time.HOUR
+        return time.HOUR * self.step
 

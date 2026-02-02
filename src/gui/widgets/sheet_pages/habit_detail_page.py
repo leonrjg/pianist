@@ -31,6 +31,7 @@ class HabitDetailPage(SheetPage):
         self.habit = None
         self._name_edit = None
         self._schedule_dropdown = None
+        self._step_spinbox = None
         self._start_date_edit = None
         self._end_date_edit = None
         self._duration_spin = None
@@ -97,6 +98,35 @@ class HabitDetailPage(SheetPage):
         default_schedule = self.habit.schedule if self.habit else None
         self._schedule_dropdown = VintageDropdown(schedules, default_schedule)
         basic_section.add_field("Schedule:", self._schedule_dropdown)
+
+        # Step field (repeat every N intervals)
+        step_layout = QHBoxLayout()
+        step_layout.setContentsMargins(0, 0, 0, 0)
+        step_layout.setSpacing(8)
+
+        from PyQt6.QtWidgets import QLabel
+        repeat_label = QLabel("Repeat every")
+        repeat_label.setStyleSheet("color: #666;")
+        step_layout.addWidget(repeat_label)
+
+        self._step_spinbox = VintageSpinBox()
+        self._step_spinbox.setMinimum(1)
+        self._step_spinbox.setMaximum(999)
+        self._step_spinbox.setMaximumWidth(60)
+        if self.habit and hasattr(self.habit, 'schedule_step'):
+            self._step_spinbox.setValue(self.habit.schedule_step)
+        else:
+            self._step_spinbox.setValue(1)
+        step_layout.addWidget(self._step_spinbox)
+
+        intervals_label = QLabel("interval(s)")
+        intervals_label.setStyleSheet("color: #666;")
+        step_layout.addWidget(intervals_label)
+        step_layout.addStretch()
+
+        step_widget = QWidget()
+        step_widget.setLayout(step_layout)
+        basic_section.add_widget(step_widget)
 
         # Start date field
         self._start_date_edit = VintageDateEdit()
@@ -336,6 +366,7 @@ class HabitDetailPage(SheetPage):
             return
 
         schedule = self._schedule_dropdown.get_selected()
+        schedule_step = self._step_spinbox.value()
         duration = self._duration_spin.value()
         timeout = self._timeout_spin.value()
         visible = self._visible_checkbox.isChecked()
@@ -358,11 +389,12 @@ class HabitDetailPage(SheetPage):
                     # Update existing
                     self.habit.name = name
                     self.habit.schedule = schedule
+                    self.habit.schedule_step = schedule_step
                     self.habit.started_at = start_date
                     self.habit.ended_at = end_date
                 else:
                     # Create new
-                    self.habit = Habit.create(name=name, schedule=schedule, started_at=start_date, ended_at=end_date)
+                    self.habit = Habit.create(name=name, schedule=schedule, schedule_step=schedule_step, started_at=start_date, ended_at=end_date)
 
                 if duration > 0:
                     self.habit.allocated_time = duration * 60
