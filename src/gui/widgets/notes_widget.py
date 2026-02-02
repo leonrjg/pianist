@@ -6,10 +6,54 @@ Displays a text editor for taking notes with auto-save functionality.
 
 from PyQt6.QtWidgets import QWidget, QTextEdit, QPushButton, QLabel, QVBoxLayout, QHBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer
-from PyQt6.QtGui import QPainter, QColor, QPainterPath, QIcon
+from PyQt6.QtGui import QPainter, QColor, QPainterPath, QIcon, QKeyEvent, QTextBlockFormat, QTextCursor
 
 from core.notes.note import Note
 from ..constants import PianoColors
+
+
+class AutoIndentTextEdit(QTextEdit):
+    """QTextEdit with auto-indent support for tab characters"""
+
+    def keyPressEvent(self, event: QKeyEvent):
+        """Handle key press events with auto-indent for tabs"""
+        # Check if Enter/Return was pressed
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            cursor = self.textCursor()
+
+            # Get the current line text
+            cursor.select(cursor.SelectionType.LineUnderCursor)
+            line_text = cursor.selectedText()
+
+            # Count leading tabs
+            tab_count = 0
+            for char in line_text:
+                if char == '\t':
+                    tab_count += 1
+                else:
+                    break
+
+            # Check if line has tabs
+            if tab_count > 0:
+                # Check if line contains only tabs (no other content)
+                if line_text.strip() == '':
+                    # Empty indented line - remove tabs and insert plain newline
+                    cursor.movePosition(cursor.MoveOperation.StartOfLine)
+                    cursor.movePosition(cursor.MoveOperation.EndOfLine, cursor.MoveMode.KeepAnchor)
+                    cursor.removeSelectedText()
+                    cursor.insertText('\n')
+                    self.setTextCursor(cursor)
+                    return
+                else:
+                    # Line has content - insert newline with same indentation
+                    cursor.clearSelection()
+                    cursor.movePosition(cursor.MoveOperation.EndOfLine)
+                    cursor.insertText('\n' + '\t' * tab_count)
+                    self.setTextCursor(cursor)
+                    return
+
+        # Default behavior for all other keys
+        super().keyPressEvent(event)
 
 
 class NotesWidget(QWidget):
@@ -94,10 +138,20 @@ class NotesWidget(QWidget):
 
         main_layout.addLayout(header)
 
-        # Text editor
-        self.text_edit = QTextEdit()
+        # Text editor with auto-indent
+        self.text_edit = AutoIndentTextEdit()
+        self.text_edit.setAcceptRichText(False)
         self.text_edit.setPlaceholderText("Write your notes here...")
         self.text_edit.textChanged.connect(self._on_text_changed)
+        self.text_edit.setTabStopDistance(10)  # Reduce tab width from default ~80px to 30px
+
+        # Set line height for better readability
+        block_format = QTextBlockFormat()
+        block_format.setLineHeight(140, QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
+        cursor = self.text_edit.textCursor()
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.setBlockFormat(block_format)
+
         self.text_edit.setStyleSheet(f"""
             QTextEdit {{
                 background-color: rgb(92, 61, 46);
