@@ -15,7 +15,9 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.habit import Habit
+from core.habit.manual_task import ManualTask
 from core.analytics import get_upcoming_tasks
+from core.db import db
 
 
 class IndexPage(SheetPage):
@@ -31,7 +33,8 @@ class IndexPage(SheetPage):
         """Build the index page content"""
         layout = self.layout()
 
-        habits = list(Habit.select().order_by(Habit.display_order, Habit.name))
+        # Load only non-archived habits
+        habits = [h for h in Habit.select().order_by(Habit.display_order, Habit.name) if not h.archived]
 
         # Page title
         title = self._create_section_header(self.get_page_title())
@@ -80,6 +83,8 @@ class IndexPage(SheetPage):
                             completed=completed,
                             is_start_date=is_start_date,
                             is_end_date=is_end_date,
+                            task_datetime=task_dt,
+                            on_complete=self._on_task_completion_toggled,
                             parent=self
                         )
                         layout.addWidget(card)
@@ -149,4 +154,28 @@ class IndexPage(SheetPage):
     def _navigate_to_habit(self, habit):
         """Navigate to habit detail page"""
         self.navigate_to.emit('habit_detail', habit.id)
+
+    def _on_task_completion_toggled(self, habit, task_datetime, new_state):
+        """Handle task completion toggle - create or delete ManualTask"""
+        try:
+            with db.atomic():
+                if new_state:
+                    # Mark as complete - create ManualTask
+                    ManualTask.create(
+                        habit=habit,
+                        title=None,
+                        completed_at=task_datetime
+                    )
+                else:
+                    # Unmark - delete ManualTask
+                    ManualTask.delete().where(
+                        (ManualTask.habit == habit) &
+                        (ManualTask.completed_at == task_datetime)
+                    ).execute()
+
+            # Refresh the page to update UI
+            self.refresh()
+
+        except Exception as e:
+            print(f"Error toggling task completion: {e}")
 

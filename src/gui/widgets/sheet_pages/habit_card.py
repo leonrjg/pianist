@@ -2,10 +2,11 @@
 Habit Card - Reusable vintage-styled card component for displaying habits.
 """
 
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PyQt6.QtGui import QFont, QCursor
 from PyQt6.QtCore import Qt
 from typing import Optional, Callable
+from datetime import datetime
 
 
 class HabitCard(QFrame):
@@ -13,7 +14,9 @@ class HabitCard(QFrame):
 
     def __init__(self, habit, subtitle: Optional[str] = None,
                  accent_color: Optional[str] = None, on_click: Optional[Callable] = None,
-                 completed: bool = False, is_start_date: bool = False, is_end_date: bool = False, parent=None):
+                 completed: bool = False, is_start_date: bool = False, is_end_date: bool = False,
+                 task_datetime: Optional[datetime] = None, on_complete: Optional[Callable] = None,
+                 parent=None):
         """
         Args:
             habit: Habit object to display
@@ -23,6 +26,8 @@ class HabitCard(QFrame):
             completed: Whether the task is completed (shows checkmark)
             is_start_date: Whether this task is on the habit's start date
             is_end_date: Whether this task is on the habit's end date
+            task_datetime: Optional datetime for the scheduled task (enables completion button)
+            on_complete: Optional callback when completion is toggled (receives habit, task_datetime, new_state)
             parent: Parent widget
         """
         super().__init__(parent)
@@ -33,6 +38,8 @@ class HabitCard(QFrame):
         self.completed = completed
         self.is_start_date = is_start_date
         self.is_end_date = is_end_date
+        self.task_datetime = task_datetime
+        self.on_complete = on_complete
 
         self._setup_ui()
 
@@ -120,6 +127,49 @@ class HabitCard(QFrame):
         name_layout.addWidget(schedule_badge)
         name_layout.addStretch()
 
+        # Completion button (if task_datetime and on_complete provided)
+        if self.task_datetime and self.on_complete:
+            complete_btn = QPushButton()
+            complete_btn.setFixedSize(24, 24)
+            complete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+
+            if self.completed:
+                # Checked state - filled checkmark
+                complete_btn.setText("✓")
+                complete_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(184, 134, 11, 180);
+                        border: 2px solid rgb(184, 134, 11);
+                        border-radius: 12px;
+                        color: rgb(255, 252, 245);
+                        font-size: 14px;
+                        font-weight: bold;
+                        padding: 0px;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(218, 165, 32, 200);
+                        border-color: rgb(218, 165, 32);
+                    }
+                """)
+            else:
+                # Unchecked state - empty circle
+                complete_btn.setText("")
+                complete_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: rgba(255, 252, 245, 150);
+                        border: 2px solid rgb(150, 130, 100);
+                        border-radius: 12px;
+                        padding: 0px;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(255, 252, 245, 200);
+                        border-color: rgb(184, 134, 11);
+                    }
+                """)
+
+            complete_btn.clicked.connect(lambda: self._toggle_completion())
+            name_layout.addWidget(complete_btn)
+
         layout.addLayout(name_layout)
 
         # Optional subtitle with start badge
@@ -163,3 +213,9 @@ class HabitCard(QFrame):
         """Handle click to trigger callback"""
         if self.on_click:
             self.on_click(self.habit)
+
+    def _toggle_completion(self):
+        """Toggle completion state and notify callback"""
+        if self.on_complete:
+            new_state = not self.completed
+            self.on_complete(self.habit, self.task_datetime, new_state)

@@ -164,15 +164,26 @@ class Habit(BaseModel):
         """
         Check if the habit's task for the given datetime has been completed.
 
+        Checks both actual tracked sessions (via activity buckets) and manual completions.
+
         Args:
             task: The datetime of the scheduled task to check.
 
         Returns:
-            True if the task was completed, False otherwise.
+            True if the task was completed (either tracked or manually), False otherwise.
         """
+        # Check for real tracked session
         buckets = self.get_activity_buckets()
         bucket = self._find_bucket_for_task(buckets, task)
-        return bucket is not None and self._qualifies_for_streak(bucket)
+        if bucket is not None and self._qualifies_for_streak(bucket):
+            return True
+
+        # Check for manual completion
+        from core.habit.manual_task import ManualTask
+        return ManualTask.select().where(
+            (ManualTask.habit == self) &
+            (ManualTask.completed_at == task)
+        ).exists()
 
     def _find_bucket_for_task(self, buckets: list[Bucket], task: datetime) -> Optional[Bucket]:
         """Find the bucket that contains the given task datetime, if any."""
