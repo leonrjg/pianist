@@ -8,6 +8,7 @@ from PyQt6.QtGui import QFont
 
 from .base_page import SheetPage
 from .habit_card import HabitCard
+from .vintage_form_widgets import VintageButton
 
 # Import database models
 import sys
@@ -19,6 +20,11 @@ from core.util.time import get_friendly_datetime
 
 class RepertoirePage(SheetPage):
     """Repertoire page showing list of all habits"""
+
+    def __init__(self, parent=None):
+        self._show_archived_only = False
+        self._archived_button = None
+        super().__init__(parent)
 
     def get_page_title(self) -> str:
         return "Repertoire"
@@ -34,9 +40,23 @@ class RepertoirePage(SheetPage):
         title = self._create_section_header(self.get_page_title())
         layout.addWidget(title)
 
+        # Archived button
+        button_text = "Show Active" if self._show_archived_only else "Show Archived"
+        self._archived_button = VintageButton(button_text, button_type="secondary", parent=self)
+        self._archived_button.clicked.connect(self._toggle_archived_view)
+        layout.addWidget(self._archived_button)
+
         # Load habits from database
         try:
-            habits = list(Habit.select().order_by(Habit.display_order, Habit.name))
+            query = Habit.select().order_by(Habit.display_order, Habit.name)
+
+            # Filter based on archived view mode
+            if self._show_archived_only:
+                # Show only archived habits
+                habits = [h for h in query if h.archived]
+            else:
+                # Show only non-archived habits
+                habits = [h for h in query if not h.archived]
 
             if habits:
                 for habit in habits:
@@ -48,7 +68,11 @@ class RepertoirePage(SheetPage):
                         subtitle = f"Next: {get_friendly_datetime(next_task, scale)}"
                     else:
                         subtitle = habit.schedule
-                    
+
+                    # Add archived indicator if archived
+                    if habit.archived:
+                        subtitle = f"[ARCHIVED] {subtitle}"
+
                     # Create habit card with next task info
                     card = HabitCard(
                         habit,
@@ -70,3 +94,9 @@ class RepertoirePage(SheetPage):
     def _navigate_to_habit(self, habit):
         """Navigate to habit detail page"""
         self.navigate_to.emit('habit_detail', habit.id)
+
+    def _toggle_archived_view(self):
+        """Toggle between showing active habits and archived habits."""
+        self._show_archived_only = not self._show_archived_only
+        # Rebuild the page content to switch views
+        self.refresh()

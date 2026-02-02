@@ -37,6 +37,7 @@ class HabitDetailPage(SheetPage):
         self._duration_spin = None
         self._timeout_spin = None
         self._visible_checkbox = None
+        self._archive_button = None
         self._notes_widget = None
 
         # Dynamic tracker widgets - populated during build_content
@@ -190,6 +191,9 @@ class HabitDetailPage(SheetPage):
         # Show as key checkbox
         self._visible_checkbox = VintageCheckBox("Show as piano key")
         self._visible_checkbox.setChecked(self.habit.visible if self.habit else True)
+        # Disable if habit is archived
+        if self.habit and self.habit.archived:
+            self._visible_checkbox.setEnabled(False)
         display_section.add_widget(self._visible_checkbox)
 
         form_layout.addWidget(display_section)
@@ -288,6 +292,13 @@ class HabitDetailPage(SheetPage):
             delete_button = VintageButton("Delete", button_type="danger", parent=self)
             delete_button.clicked.connect(self._delete_habit)
             button_layout.addWidget(delete_button)
+
+        # Archive button (if editing)
+        if self.habit:
+            archive_text = "Unarchive" if self.habit.archived else "Archive"
+            self._archive_button = VintageButton(archive_text, button_type="secondary", parent=self)
+            self._archive_button.clicked.connect(self._archive_habit)
+            button_layout.addWidget(self._archive_button)
 
         # Save button
         save_button = VintageButton("Save", button_type="primary", parent=self)
@@ -469,6 +480,38 @@ class HabitDetailPage(SheetPage):
                 self.navigate_to.emit("index", None)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to delete: {e}")
+
+    def _archive_habit(self):
+        """Archive or unarchive the current habit"""
+        if not self.habit:
+            return
+
+        try:
+            # Toggle archived state
+            self.habit.archived = not self.habit.archived
+
+            if self.habit.archived:
+                # When archiving: disable visible and uncheck it
+                self.habit.visible = False
+                self._visible_checkbox.setChecked(False)
+                self._visible_checkbox.setEnabled(False)
+            else:
+                # When unarchiving: re-enable visible checkbox
+                self._visible_checkbox.setEnabled(True)
+
+            # Save immediately
+            self.habit.save()
+
+            # Update button text
+            if self._archive_button:
+                new_text = "Unarchive" if self.habit.archived else "Archive"
+                self._archive_button.setText(new_text)
+
+            # Emit signal to refresh other views
+            self.content_updated.emit()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to archive: {e}")
 
     def hideEvent(self, event):
         """Stop updates when page is hidden."""

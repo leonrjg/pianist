@@ -70,8 +70,8 @@ class PianoFloatingWindow(QWidget):
         )
 
         # ===== Load Habits =====
-        # Load all habits for AutoSessionManager (includes non-visible)
-        all_habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        # Load all habits for AutoSessionManager (includes non-visible, excludes archived)
+        all_habits = [h for h in Habit.select().order_by(Habit.display_order, Habit.id) if not h.archived]
         # Load only visible habits for piano keys
         self.habits = [h for h in all_habits if h.visible]
         self.state.num_habits = len(self.habits)
@@ -915,8 +915,8 @@ class PianoFloatingWindow(QWidget):
 
     def on_habit_updated_from_sheet(self):
         """Handle habit updates from the music sheet widget"""
-        # Reload all habits and filter visible ones for piano keys
-        all_habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        # Reload all habits and filter visible ones for piano keys (exclude archived)
+        all_habits = [h for h in Habit.select().order_by(Habit.display_order, Habit.id) if not h.archived]
         self.habits = [h for h in all_habits if h.visible]
         self.state.num_habits = len(self.habits)
 
@@ -945,8 +945,8 @@ class PianoFloatingWindow(QWidget):
 
     def refresh_habits(self):
         """Refresh habits list when management window updates them"""
-        # Reload all habits and filter visible ones for piano keys
-        all_habits = list(Habit.select().order_by(Habit.display_order, Habit.id))
+        # Reload all habits and filter visible ones for piano keys (exclude archived)
+        all_habits = [h for h in Habit.select().order_by(Habit.display_order, Habit.id) if not h.archived]
         self.habits = [h for h in all_habits if h.visible]
         self.state.num_habits = len(self.habits)
 

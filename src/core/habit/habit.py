@@ -31,6 +31,7 @@ class Habit(BaseModel):
         inactivity_threshold: Time in seconds to consider inactivity (only relevant for trackers).
         allocated_time: Total allocated time for the habit in seconds (minimum time to qualify for streaks).
         visible: Whether the habit appears as a piano key (True) or only in drawer lists (False).
+        archived: Whether the habit is archived (retired but historical data preserved).
         note: Markdown notes for the habit.
     """
     id = AutoField()
@@ -45,6 +46,7 @@ class Habit(BaseModel):
     allocated_time: Optional[int] = IntegerField(null=True)
     display_order = IntegerField(default=0)
     visible = BooleanField(default=True)
+    archived = BooleanField(default=False)
     note = TextField(null=True)
     
     def __init__(self, *args, **kwargs):
