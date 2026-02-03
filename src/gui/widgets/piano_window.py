@@ -868,6 +868,9 @@ class PianoFloatingWindow(QWidget):
         # Play end sound
         self.sound_manager.play_sound('end')
 
+        # Mark as manually ended to prevent autostart for an hour
+        self.auto_session_manager.mark_session_manually_ended(habit)
+
         # Stop the session
         self.end_session(habit)
 

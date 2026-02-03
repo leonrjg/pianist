@@ -497,54 +497,95 @@ class CalendarPage(SheetPage):
         self._calendar.setGridVisible(True)
         self._calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
         self._calendar.setNavigationBarVisible(True)
-        
+
         # Install wheel event filter to redirect scrolling to page
         self._wheel_filter = CalendarWheelFilter(self._calendar, self)
-        
-        # Load tasks and update calendar
+
+        # Load tasks for current month
         self._load_tasks()
-        
+
+        # Reload tasks when month changes
+        self._calendar.currentPageChanged.connect(self._on_month_changed)
+
         # Connect day click signal
         self._calendar.day_clicked.connect(self._on_day_clicked)
-        
+
         layout.addWidget(self._calendar)
         layout.addStretch()
 
         # Create popup (hidden initially) - parent to main window to stay in hierarchy
         self._popup = TaskPopup(self.window())
         self._popup.closed.connect(self._on_popup_closed)
-        
+
         # Close popup when focus leaves it
         from PyQt6.QtWidgets import QApplication
         QApplication.instance().focusChanged.connect(self._on_focus_changed)
 
     def _load_tasks(self):
-        """Load tasks and organize by date"""
+        """Load tasks for currently visible month with buffer"""
         try:
-            # Get all habits
             habits = list(Habit.select())
-            
-            # Get tasks for past and future 365 days
-            timespan = 365 * 24 * 60 * 60
-            all_tasks = get_tasks_in_range(habits, timespan)
-            
+            now = datetime.now()
+
+            # Get visible month center date
+            year = self._calendar.yearShown()
+            month = self._calendar.monthShown()
+            center_date = datetime(year, month, 15)
+
+            # Calculate date range ±60 days around visible month
+            buffer_days = 60
+            start_date = center_date - timedelta(days=buffer_days)
+            end_date = center_date + timedelta(days=buffer_days)
+
+            # Calculate timespans relative to now (schedule methods work from now)
+            prev_timespan = int((now - start_date).total_seconds())
+            next_timespan = int((end_date - now).total_seconds())
+
+            # Collect tasks for each habit in range
+            all_tasks = []
+            for habit in habits:
+                schedule = habit.get_schedule()
+
+                # Get previous tasks (if start_date is in the past)
+                if prev_timespan > 0:
+                    for task in schedule.get_previous_tasks(prev_timespan):
+                        if start_date <= task <= end_date:
+                            all_tasks.append({
+                                'habit': habit,
+                                'datetime': task,
+                                'completed': habit.is_task_completed(task)
+                            })
+
+                # Get next tasks (if end_date is in the future)
+                if next_timespan > 0:
+                    for task in schedule.get_next_tasks(next_timespan):
+                        if start_date <= task <= end_date:
+                            all_tasks.append({
+                                'habit': habit,
+                                'datetime': task,
+                                'completed': habit.is_task_completed(task)
+                            })
+
             # Group tasks by date
             tasks_by_date: Dict[QDate, List[dict]] = {}
             for task in all_tasks:
                 task_dt = task['datetime']
                 qdate = QDate(task_dt.year, task_dt.month, task_dt.day)
-                
+
                 if qdate not in tasks_by_date:
                     tasks_by_date[qdate] = []
                 tasks_by_date[qdate].append(task)
-            
-            # Update calendar
+
             self._calendar.set_tasks(tasks_by_date)
-            
+
         except Exception as e:
             print(f"Error loading tasks: {e}")
             import traceback
             traceback.print_exc()
+
+    def _on_month_changed(self, year: int, month: int):
+        """Reload tasks when user navigates to different month"""
+        self._load_tasks()
 
     def _on_day_clicked(self, date: QDate):
         """Handle day click - show popup with tasks"""

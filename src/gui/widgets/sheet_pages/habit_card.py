@@ -92,11 +92,21 @@ class HabitCard(QFrame):
         if self.on_click:
             self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
-        # Layout
+        # Main layout
         layout = QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(2)
         self.setLayout(layout)
+
+        # Create horizontal layout to hold text section and completion button
+        main_content_layout = QHBoxLayout()
+        main_content_layout.setContentsMargins(0, 0, 0, 0)
+        main_content_layout.setSpacing(6)
+
+        # Text section (vertical layout for name and subtitle)
+        text_section = QVBoxLayout()
+        text_section.setContentsMargins(0, 0, 0, 0)
+        text_section.setSpacing(2)
 
         # Name row with schedule badge
         name_layout = QHBoxLayout()
@@ -126,6 +136,48 @@ class HabitCard(QFrame):
         """)
         name_layout.addWidget(schedule_badge)
         name_layout.addStretch()
+
+        text_section.addLayout(name_layout)
+
+        # Optional subtitle with start badge
+        if self.subtitle:
+            subtitle_layout = QHBoxLayout()
+            subtitle_layout.setContentsMargins(0, 0, 0, 0)
+            subtitle_layout.setSpacing(4)
+
+            # Add start badge if this is the start date
+            if self.is_start_date:
+                start_badge = QLabel("🏁 Start")
+                start_badge.setStyleSheet("""
+                    background-color: rgba(200, 185, 160, 120);
+                    color: rgb(70, 50, 35);
+                    font-size: 9px;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                """)
+                subtitle_layout.addWidget(start_badge)
+
+            # Add end badge if this is the end date
+            if self.is_end_date:
+                end_badge = QLabel("🎻 End")
+                end_badge.setStyleSheet("""
+                    background-color: rgba(200, 185, 160, 120);
+                    color: rgb(70, 50, 35);
+                    font-size: 9px;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                """)
+                subtitle_layout.addWidget(end_badge)
+
+            subtitle_label = QLabel(self.subtitle)
+            subtitle_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 10px; background: transparent;")
+            subtitle_layout.addWidget(subtitle_label)
+            subtitle_layout.addStretch()
+
+            text_section.addLayout(subtitle_layout)
+
+        # Add text section to main content layout
+        main_content_layout.addLayout(text_section)
 
         # Completion button (if task_datetime and on_complete provided)
         if self.task_datetime and self.on_complete:
@@ -168,46 +220,10 @@ class HabitCard(QFrame):
                 """)
 
             complete_btn.clicked.connect(lambda: self._toggle_completion())
-            name_layout.addWidget(complete_btn)
+            main_content_layout.addWidget(complete_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
 
-        layout.addLayout(name_layout)
-
-        # Optional subtitle with start badge
-        if self.subtitle:
-            subtitle_layout = QHBoxLayout()
-            subtitle_layout.setContentsMargins(0, 0, 0, 0)
-            subtitle_layout.setSpacing(4)
-            
-            # Add start badge if this is the start date
-            if self.is_start_date:
-                start_badge = QLabel("🏁 Start")
-                start_badge.setStyleSheet("""
-                    background-color: rgba(200, 185, 160, 120);
-                    color: rgb(70, 50, 35);
-                    font-size: 9px;
-                    padding: 2px 4px;
-                    border-radius: 3px;
-                """)
-                subtitle_layout.addWidget(start_badge)
-            
-            # Add end badge if this is the end date
-            if self.is_end_date:
-                end_badge = QLabel("🎻 End")
-                end_badge.setStyleSheet("""
-                    background-color: rgba(200, 185, 160, 120);
-                    color: rgb(70, 50, 35);
-                    font-size: 9px;
-                    padding: 2px 4px;
-                    border-radius: 3px;
-                """)
-                subtitle_layout.addWidget(end_badge)
-            
-            subtitle_label = QLabel(self.subtitle)
-            subtitle_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 10px; background: transparent;")
-            subtitle_layout.addWidget(subtitle_label)
-            subtitle_layout.addStretch()
-            
-            layout.addLayout(subtitle_layout)
+        # Add main content layout to card
+        layout.addLayout(main_content_layout)
 
     def mousePressEvent(self, event):
         """Handle click to trigger callback"""
