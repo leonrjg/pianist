@@ -95,7 +95,7 @@ class Habit(BaseModel):
         bucket = (date_to_int(Log.start) / size).cast('INTEGER')
 
         duration = Case(None, [(Log.end.is_null(), 0)],
-                        default=(date_to_int(Log.end) - date_to_int(Log.start) - fn.COALESCE(Log.idle_time, 0)))
+                        default=(date_to_int(Log.end) - date_to_int(Log.start) - fn.COALESCE(Log.idle_time, 0) + fn.COALESCE(Log.offset, 0)))
 
         rows = (Log.select(
             fn.MIN(Log.start).alias('start'),

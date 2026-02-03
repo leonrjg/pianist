@@ -37,6 +37,12 @@ def session_worker_process(habit_id, habit_name, command_queue, result_queue):
                     elif command == 'get_elapsed':
                         elapsed = session.get_elapsed_time()
                         result_queue.put(('elapsed', habit_id, elapsed))
+                    elif isinstance(command, tuple) and command[0] == 'adjust_time':
+                        delta_seconds = command[1]
+                        session.adjust_time(delta_seconds)
+                        # Immediately send updated elapsed time for responsive UI
+                        elapsed = session.get_elapsed_time()
+                        result_queue.put(('elapsed', habit_id, elapsed))
 
                 # Send periodic elapsed time updates
                 elapsed = session.get_elapsed_time()
@@ -115,6 +121,21 @@ class SessionProcessManager(QThread):
     def is_session_active(self):
         """Check if any session is active"""
         return len(self.processes) > 0
+
+    def adjust_session_time(self, habit_id, delta_seconds):
+        """
+        Adjust the time of a running session.
+
+        Args:
+            habit_id: ID of the habit whose session to adjust
+            delta_seconds: Number of seconds to add (positive) or subtract (negative)
+        """
+        if habit_id in self.processes:
+            process, command_queue, result_queue = self.processes[habit_id]
+            try:
+                command_queue.put(('adjust_time', delta_seconds))
+            except Exception as e:
+                self.error_occurred.emit(f"Error adjusting session time: {str(e)}")
 
     def run(self):
         """Monitor all session processes for updates"""

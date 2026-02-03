@@ -63,7 +63,7 @@ class NotesWidget(QWidget):
     closed = pyqtSignal()
     
     # Height bounds
-    MIN_HEIGHT = 90   # ~3 lines of text
+    MIN_HEIGHT = 100   # ~3 lines of text
     MAX_HEIGHT = 300  # Maximum height
 
     def __init__(self, parent=None):
@@ -182,7 +182,7 @@ class NotesWidget(QWidget):
         # Text editor with auto-indent
         self.text_edit = AutoIndentTextEdit()
         self.text_edit.setAcceptRichText(False)
-        self.text_edit.setPlaceholderText("Write your notes here...")
+        self.text_edit.setPlaceholderText("What are you doing now?")
         self.text_edit.textChanged.connect(self._on_text_changed)
         self.text_edit.setTabStopDistance(10)  # Reduce tab width from default ~80px to 30px
 

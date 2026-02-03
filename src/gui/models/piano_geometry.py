@@ -7,6 +7,7 @@ This model separates layout calculations from rendering logic, making it easy to
 - Support different window sizes and states
 """
 
+from typing import Optional
 from PyQt6.QtCore import QRect, QPoint
 from ..constants import PianoLayout
 
@@ -120,6 +121,57 @@ class PianoGeometry:
             self.black_key_width + 1,
             int(self.black_key_height)
         )
+
+    def get_time_adjustment_buttons_rects(self, key_index: int) -> dict:
+        """
+        Get rectangles for time adjustment buttons on a black key.
+        Buttons are horizontally stacked (minus on left, plus on right).
+
+        Returns:
+            dict with 'plus' and 'minus' QRect objects
+        """
+        black_key_rect = self.get_black_key_rect(key_index)
+        button_size = 12
+        button_spacing = 0  # Buttons touch each other
+
+        # Total width for both buttons
+        total_width = button_size * 2 + button_spacing
+
+        # Buttons flush with right edge (0px margin)
+        buttons_start_x = black_key_rect.x() + black_key_rect.width() - total_width
+
+        # Center vertically in the black key
+        button_y = black_key_rect.y() + (black_key_rect.height() - button_size) / 2
+
+        return {
+            'minus': QRect(int(buttons_start_x), int(button_y), button_size, button_size),
+            'plus': QRect(int(buttons_start_x + button_size + button_spacing), int(button_y), button_size, button_size)
+        }
+
+    @property
+    def time_button_width(self) -> int:
+        """Width of time adjustment buttons for layout calculations (0 = overlay, don't reserve space)"""
+        return 0  # Buttons overlay the time display on hover
+
+    def get_time_button_at_point(self, pos: QPoint, key_index: int) -> Optional[str]:
+        """
+        Check if point is on a time button for the given key.
+
+        Args:
+            pos: Point to check
+            key_index: Index of the key to check
+
+        Returns:
+            'plus', 'minus', or None
+        """
+        buttons = self.get_time_adjustment_buttons_rects(key_index)
+
+        if buttons['plus'].contains(pos):
+            return 'plus'
+        elif buttons['minus'].contains(pos):
+            return 'minus'
+
+        return None
 
     @property
     def time_display_area(self) -> QRect:

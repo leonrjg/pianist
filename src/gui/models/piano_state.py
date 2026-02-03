@@ -76,6 +76,9 @@ class PianoState(QObject):
         # ===== Task Completion Hover State =====
         self._hovered_checkmark_index: Optional[int] = None  # Index of key with checkmark being hovered
 
+        # ===== Time Adjustment Button Hover State =====
+        self._hovered_time_button: Optional[tuple[int, str]] = None  # (key_index, button_type: 'plus' or 'minus')
+
     def start_resize(self, edge: str, start_rect, drag_start_x: int, drag_start_y: int):
         """Start window resize operation"""
         self._is_resizing = True
@@ -370,6 +373,18 @@ class PianoState(QObject):
         """Set the index of the key whose checkmark is being hovered"""
         self._hovered_checkmark_index = value
 
+    # ===== Time Adjustment Button Hover Properties =====
+
+    @property
+    def hovered_time_button(self) -> Optional[tuple[int, str]]:
+        """Get the (key_index, button_type) of the hovered time button"""
+        return self._hovered_time_button
+
+    @hovered_time_button.setter
+    def hovered_time_button(self, value: Optional[tuple[int, str]]):
+        """Set the (key_index, button_type) of the hovered time button"""
+        self._hovered_time_button = value
+
     # ===== State Reset =====
 
     def reset(self):
@@ -394,3 +409,4 @@ class PianoState(QObject):
         self._mood_bar_visible = False
         self._notes_visible = False
         self._hovered_checkmark_index = None
+        self._hovered_time_button = None

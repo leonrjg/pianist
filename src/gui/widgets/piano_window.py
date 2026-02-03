@@ -497,6 +497,27 @@ class PianoFloatingWindow(QWidget):
 
         return None
 
+    def _get_time_button_at_point(self, pos: QPoint) -> Optional[tuple[int, str]]:
+        """
+        Get the (key_index, button_type) if point is on a time button, None otherwise.
+
+        Returns:
+            Tuple of (key_index, button_type) where button_type is 'plus' or 'minus', or None
+        """
+        for i in range(len(self.keys) - 1):
+            key_data = self.keys[i]
+            habit = key_data.get('habit')
+
+            # Only check if there's an active session
+            if not habit or not self.session_manager.has_active_session(habit.id):
+                continue
+
+            button_type = self.geometry_model.get_time_button_at_point(pos, i)
+            if button_type:
+                return (i, button_type)
+
+        return None
+
     def _toggle_task_completion(self, habit, task_datetime):
         """Toggle task completion state"""
         try:
@@ -532,20 +553,42 @@ class PianoFloatingWindow(QWidget):
         except Exception as e:
             print(f"Error toggling task completion: {e}")
 
+    def handle_time_adjustment_click(self, habit_id: int, button_type: str):
+        """
+        Handle time adjustment button click.
+
+        Args:
+            habit_id: ID of the habit whose session to adjust
+            button_type: 'plus' or 'minus'
+        """
+        delta_seconds = 60 if button_type == 'plus' else -60
+        self.session_manager.adjust_session_time(habit_id, delta_seconds)
+
     def mousePressEvent(self, event):
         """Handle mouse press"""
         if event.button() == Qt.MouseButton.LeftButton:
             global_pos = event.globalPosition().toPoint()
             local_pos = event.position().toPoint()
 
-            # Check for checkmark click (only if no active session)
-            if not self.session_manager.is_session_active():
-                checkmark_index = self._get_checkmark_index_at_point(local_pos)
-                if checkmark_index is not None and checkmark_index >= 0 and checkmark_index < len(self.keys):
-                    key_data = self.keys[checkmark_index]
-                    if key_data.get('habit') and key_data.get('task_datetime'):
-                        self._toggle_task_completion(key_data['habit'], key_data['task_datetime'])
-                        return
+            # Check for time adjustment button click FIRST (highest priority during sessions)
+            time_button = self._get_time_button_at_point(local_pos)
+            if time_button is not None:
+                key_index, button_type = time_button
+                key_data = self.keys[key_index]
+                habit = key_data.get('habit')
+                if habit:
+                    self.handle_time_adjustment_click(habit.id, button_type)
+                    return
+
+            # Check for checkmark click (only if that habit has no active session)
+            checkmark_index = self._get_checkmark_index_at_point(local_pos)
+            if checkmark_index is not None and checkmark_index >= 0 and checkmark_index < len(self.keys):
+                key_data = self.keys[checkmark_index]
+                habit = key_data.get('habit')
+                # Only allow checkmark click if this specific habit has no active session
+                if habit and key_data.get('task_datetime') and not self.session_manager.has_active_session(habit.id):
+                    self._toggle_task_completion(habit, key_data['task_datetime'])
+                    return
 
             # Check for resize on fallboard left edge (when drawer closed)
             edge = self._get_resize_edge_at_position(local_pos)
@@ -647,18 +690,28 @@ class PianoFloatingWindow(QWidget):
                     # Update notes widget position when dragging
                     self._update_notes_widget_position()
         else:
-            # Check for checkmark hover (only if no active session)
+            # Track hover state for time buttons and checkmarks
             local_pos = event.position().toPoint()
-            if not self.session_manager.is_session_active():
-                checkmark_index = self._get_checkmark_index_at_point(local_pos)
-                if checkmark_index != self.state.hovered_checkmark_index:
-                    self.state.hovered_checkmark_index = checkmark_index
-                    self.update()
-            else:
-                # Clear hover if session is active
-                if self.state.hovered_checkmark_index is not None:
-                    self.state.hovered_checkmark_index = None
-                    self.update()
+
+            # Check for time button hover (only when sessions are active)
+            time_button = self._get_time_button_at_point(local_pos)
+            if time_button != self.state.hovered_time_button:
+                self.state.hovered_time_button = time_button
+                self.update()
+
+            # Check for checkmark hover (only for habits with no active session)
+            checkmark_index = self._get_checkmark_index_at_point(local_pos)
+
+            # Only allow hover if the specific habit has no active session
+            if checkmark_index is not None and checkmark_index >= 0 and checkmark_index < len(self.keys):
+                habit = self.keys[checkmark_index].get('habit')
+                # Clear hover if this habit has an active session
+                if habit and self.session_manager.has_active_session(habit.id):
+                    checkmark_index = None
+
+            if checkmark_index != self.state.hovered_checkmark_index:
+                self.state.hovered_checkmark_index = checkmark_index
+                self.update()
 
             # Update cursor based on hover position
             self.update_cursor_for_position(local_pos)

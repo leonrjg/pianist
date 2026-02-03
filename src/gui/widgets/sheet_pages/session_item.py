@@ -52,7 +52,10 @@ class SessionItem(QFrame):
 
         # Duration
         if self.log.end:
-            duration_str = get_friendly_elapsed((self.log.end - self.log.start).total_seconds() - self.log.idle_time)
+            # Include offset in duration calculation
+            offset = getattr(self.log, 'offset', 0)  # Safe access for backward compatibility
+            duration_seconds = (self.log.end - self.log.start).total_seconds() - self.log.idle_time + offset
+            duration_str = get_friendly_elapsed(duration_seconds)
             duration_badge = QLabel(f"⏱ {duration_str}")
             duration_badge.setStyleSheet("""
                 background-color: rgba(184, 134, 11, 120);
@@ -62,6 +65,14 @@ class SessionItem(QFrame):
                 border-radius: 3px;
             """)
             top_layout.addWidget(duration_badge)
+
+            # Add offset note if manually adjusted
+            if offset != 0:
+                offset_sign = "+" if offset > 0 else ""
+                offset_str = get_friendly_elapsed(abs(offset))
+                offset_note = QLabel(f"Manual time adjustment: {offset_sign}{offset_str}")
+                offset_note.setStyleSheet("color: rgb(100, 80, 65); font-size: 8px; font-style: italic; background: transparent;")
+                top_layout.addWidget(offset_note)
 
         # Session time
         start_time = f"{self.log.start.strftime("%H:%M")} ~ {self.log.end.strftime("%H:%M") if self.log.end else '...'}"
@@ -107,7 +118,8 @@ class SessionItem(QFrame):
         if self.log.end:
             total_time = (self.log.end - self.log.start).total_seconds()
             if total_time > 0:
-                active_time = total_time - self.log.idle_time
+                offset = getattr(self.log, 'offset', 0)  # Safe access for backward compatibility
+                active_time = total_time - self.log.idle_time + offset
                 productivity_rate = active_time / total_time
                 progress_bar = ProductivityProgressBar(productivity_rate, parent=self)
                 main_layout.addWidget(progress_bar)

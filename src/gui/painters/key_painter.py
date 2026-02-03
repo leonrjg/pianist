@@ -227,7 +227,10 @@ class KeyPainter(BasePainter):
         painter.drawLine(int(x), int(y + height - 1), int(x + width), int(y + height - 1))
 
         # Time text on black key
-        KeyPainter.draw_time_display(painter, black_key_rect, state, index, keys_data)
+        KeyPainter.draw_time_display(painter, geometry, black_key_rect, state, index, keys_data)
+
+        # Time adjustment buttons on black key (only when session active)
+        KeyPainter.draw_time_adjustment_buttons(painter, geometry, black_key_rect, state, index, keys_data)
 
         # Task completion checkmark on black key
         KeyPainter.draw_task_checkmark(painter, black_key_rect, state, index, keys_data)
@@ -237,8 +240,8 @@ class KeyPainter(BasePainter):
             painter.restore()
 
     @staticmethod
-    def draw_time_display(painter: QPainter, black_key_rect: QRect, state: PianoState,
-                          index: int, keys_data: list):
+    def draw_time_display(painter: QPainter, geometry: 'PianoGeometry', black_key_rect: QRect,
+                          state: PianoState, index: int, keys_data: list):
         """Draw time display text on a black key"""
         # Find if there's a time display for the corresponding habit
         time_text = ""
@@ -247,13 +250,78 @@ class KeyPainter(BasePainter):
             if habit:
                 time_text = state.get_time_display(habit.id) or ""
 
+        # Use full width - buttons will overlay on hover
+        text_rect = QRect(
+            black_key_rect.x(),
+            black_key_rect.y(),
+            black_key_rect.width(),
+            black_key_rect.height()
+        )
+
         font_size = 12 if len(time_text) <= 5 else 11
         painter.setPen(QPen(PianoColors.BLACK_KEY_TEXT))
         painter.setFont(QFont('Helvetica', font_size))
         painter.drawText(
-            black_key_rect,
+            text_rect,
             Qt.AlignmentFlag.AlignCenter,
             time_text
+        )
+
+    @staticmethod
+    def draw_time_adjustment_buttons(painter: QPainter, geometry: 'PianoGeometry',
+                                     black_key_rect: QRect, state: PianoState,
+                                     index: int, keys_data: list):
+        """Draw time adjustment buttons on a black key (both visible when hovering either, overlays time)"""
+        if index >= len(keys_data):
+            return
+
+        key_data = keys_data[index]
+        habit = key_data.get('habit')
+
+        # Only show buttons if there's an active session for this habit
+        if not habit or not state.has_active_session(habit.id):
+            return
+
+        # Show both buttons when hovering over either one (treat as a block)
+        if state.hovered_time_button and state.hovered_time_button[0] == index:
+            hovered_button_type = state.hovered_time_button[1]
+            buttons = geometry.get_time_adjustment_buttons_rects(index)
+
+            # Draw both buttons
+            KeyPainter._draw_time_button(
+                painter,
+                buttons['minus'],
+                '-',
+                is_hovered=(hovered_button_type == 'minus')
+            )
+            KeyPainter._draw_time_button(
+                painter,
+                buttons['plus'],
+                '+',
+                is_hovered=(hovered_button_type == 'plus')
+            )
+
+    @staticmethod
+    def _draw_time_button(painter: QPainter, rect: QRect, text: str, is_hovered: bool = False):
+        """Draw a single time adjustment button with opaque background"""
+        # Opaque background - slightly brighter when hovered
+        if is_hovered:
+            bg_color = QColor(218, 165, 32)  # Brighter brass when hovered (goldenrod)
+        else:
+            bg_color = QColor(184, 134, 11)  # Standard brass color
+
+        # Draw background
+        painter.setPen(QPen(QColor(140, 100, 8), 1))  # Darker brass border
+        painter.setBrush(QBrush(bg_color))
+        painter.drawRect(rect)
+
+        # Draw text
+        painter.setPen(QPen(QColor(255, 255, 255)))  # White text for contrast
+        painter.setFont(QFont('Helvetica', 10, QFont.Weight.Bold))
+        painter.drawText(
+            rect,
+            Qt.AlignmentFlag.AlignCenter,
+            text
         )
 
     @staticmethod
@@ -264,11 +332,16 @@ class KeyPainter(BasePainter):
             return
 
         key_data = keys_data[index]
+        habit = key_data.get('habit')
         task_datetime = key_data.get('task_datetime')
         is_completed = key_data.get('is_completed', False)
 
-        # Only show checkmark if there's a task
-        if not task_datetime:
+        # Don't show checkmark if there's a task but no habit, or if session is active
+        if not task_datetime or not habit:
+            return
+
+        # Don't show checkmark if this habit has an active session
+        if state.has_active_session(habit.id):
             return
 
         # Calculate checkmark position (center of black key)

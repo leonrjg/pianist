@@ -46,6 +46,7 @@ class Session:
         self.pause_start_time = None
         self.total_paused_time = 0
         self.transition_reason = None
+        self.time_adjustment_offset = 0
 
     def _load_trackers(self):
         """Load all enabled trackers for this habit."""
@@ -83,6 +84,7 @@ class Session:
         def update_record():
             self.log.end = datetime.now()
             self.log.idle_time = self.total_paused_time
+            self.log.offset = self.time_adjustment_offset
             self.log.save()
 
         # Insert initial log record
@@ -128,12 +130,13 @@ class Session:
         with self.elapsed_lock:
             total_time = time.time() - self.start_time
             paused_time = self.total_paused_time
-            
+
             # If currently paused, add the current pause duration
             if self.is_paused() and self.pause_start_time:
                 paused_time += time.time() - self.pause_start_time
-                
-            return int(total_time - paused_time)
+
+            base_elapsed = int(total_time - paused_time)
+            return max(0, base_elapsed + self.time_adjustment_offset)
 
     def end(self, ended_by: str = None):
         """Signal all threads to end and update the log."""
@@ -189,3 +192,29 @@ class Session:
         """Get the reason for the last state transition."""
         with self.state_lock:
             return self.transition_reason
+
+    def adjust_time(self, delta_seconds: int):
+        """
+        Adjust the session time by a delta (positive or negative).
+        The adjustment is clamped so that total elapsed time never goes below 0.
+
+        Args:
+            delta_seconds: Number of seconds to add (positive) or subtract (negative)
+        """
+        with self.elapsed_lock:
+            # Calculate current base elapsed time (without adjustment)
+            total_time = time.time() - self.start_time
+            paused_time = self.total_paused_time
+            if self.is_paused() and self.pause_start_time:
+                paused_time += time.time() - self.pause_start_time
+            base_elapsed = int(total_time - paused_time)
+
+            # Calculate what the new offset would be
+            new_offset = self.time_adjustment_offset + delta_seconds
+
+            # Clamp offset so that base_elapsed + new_offset >= 0
+            # This prevents accumulating negative time beyond zero
+            new_offset = max(new_offset, -base_elapsed)
+
+            self.time_adjustment_offset = new_offset
+            logging.info(f"Session time adjusted by {delta_seconds}s, total offset: {self.time_adjustment_offset}s")

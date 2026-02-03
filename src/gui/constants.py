@@ -27,7 +27,7 @@ class PianoLayout:
 
     # Keys
     KEY_HEIGHT = 40  # Height of each piano key
-    BLACK_KEY_WIDTH_RATIO = 0.5  # Black key width as ratio of white key width
+    BLACK_KEY_WIDTH_RATIO = 0.55  # Black key width as ratio of white key width
     BLACK_KEY_HEIGHT_RATIO = 0.5  # Black key height as ratio of white key height
 
     # Padding

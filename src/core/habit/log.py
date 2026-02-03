@@ -13,3 +13,4 @@ class Log(BaseModel):
     started_by = CharField(null=True)
     ended_by = CharField(null=True)
     idle_time: int = IntegerField(default=0)
+    offset: int = IntegerField(default=0)  # Manual time adjustment in seconds
