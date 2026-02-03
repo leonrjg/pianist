@@ -178,11 +178,13 @@ class Habit(BaseModel):
         if bucket is not None and self._qualifies_for_streak(bucket):
             return True
 
-        # Check for manual completion
+        # Check for manual completion - normalize datetime for comparison
         from core.habit.manual_task import ManualTask
+        normalized_task = task.replace(microsecond=0)
+
         return ManualTask.select().where(
             (ManualTask.habit == self) &
-            (ManualTask.completed_at == task)
+            (ManualTask.completed_at == normalized_task)
         ).exists()
 
     def _find_bucket_for_task(self, buckets: list[Bucket], task: datetime) -> Optional[Bucket]:

@@ -112,6 +112,10 @@ class SessionProcessManager(QThread):
         """Check if a habit has an active session"""
         return habit_id in self.processes
 
+    def is_session_active(self):
+        """Check if any session is active"""
+        return len(self.processes) > 0
+
     def run(self):
         """Monitor all session processes for updates"""
         while self.running:

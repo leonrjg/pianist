@@ -14,13 +14,16 @@ Heavy lifting is delegated to:
 """
 
 import time
+from typing import Optional
 from PyQt6.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout
 from PyQt6.QtCore import Qt, QTimer, QPoint, QRectF, QSize, pyqtSignal
 from PyQt6.QtGui import QPainter, QIcon, QPainterPath
 
-from core.db import initialize_database
+from core.db import initialize_database, db
 from core.habit.habit import Habit
+from core.habit.manual_task import ManualTask
 from core.util.time import get_friendly_elapsed
+from datetime import datetime
 
 from ..constants import PianoLayout, PianoColors, Animations, Interactions
 from ..models import PianoGeometry, PianoState
@@ -390,13 +393,19 @@ class PianoFloatingWindow(QWidget):
                 habit_index = i + self.state.scroll_offset
                 if habit_index < num_actual_habits:
                     habit = all_habits[habit_index]
+                    # Use get_next_tasks() to match Index page behavior (shows all upcoming including overdue)
+                    schedule = habit.get_schedule()
+                    next_tasks = sorted(schedule.get_next_tasks(30 * 24 * 60 * 60))  # 30 days like Index
+                    task_dt = next_tasks[0] if next_tasks else None
                     new_keys.append({
                         'label': habit.name,
                         'habit': habit,
-                        'time': None
+                        'time': None,
+                        'task_datetime': task_dt,
+                        'is_completed': habit.is_task_completed(task_dt) if task_dt else False
                     })
                 else:
-                    new_keys.append({'label': '', 'habit': None, 'time': None})
+                    new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
         else:
             # No scrolling needed
             self.state.scroll_offset = 0
@@ -404,11 +413,21 @@ class PianoFloatingWindow(QWidget):
 
             new_keys = []
             for habit in all_habits[:num_keys_that_fit]:
-                new_keys.append({'label': habit.name, 'habit': habit, 'time': None})
+                # Use get_next_tasks() to match Index page behavior (shows all upcoming including overdue)
+                schedule = habit.get_schedule()
+                next_tasks = sorted(schedule.get_next_tasks(30 * 24 * 60 * 60))  # 30 days like Index
+                task_dt = next_tasks[0] if next_tasks else None
+                new_keys.append({
+                    'label': habit.name,
+                    'habit': habit,
+                    'time': None,
+                    'task_datetime': task_dt,
+                    'is_completed': habit.is_task_completed(task_dt) if task_dt else False
+                })
 
             # Fill remaining slots with empty keys
             while len(new_keys) < num_keys_that_fit:
-                new_keys.append({'label': '', 'habit': None, 'time': None})
+                new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
 
         self.keys = new_keys
 
@@ -458,11 +477,75 @@ class PianoFloatingWindow(QWidget):
             return 'left'
         return None
 
+    def _get_checkmark_index_at_point(self, pos: QPoint) -> Optional[int]:
+        """Get the key index if point is in checkmark region, None otherwise"""
+        # Checkmark is in center of black key area
+        for i in range(len(self.keys) - 1):
+            key_data = self.keys[i]
+            # Only check for keys with tasks
+            if not key_data.get('habit') or not key_data.get('task_datetime'):
+                continue
+
+            black_key_rect = self.geometry_model.get_black_key_rect(i)
+            # Checkmark is center 30px of black key
+            checkmark_width = 30
+            checkmark_x = black_key_rect.x() + (black_key_rect.width() - checkmark_width) / 2
+
+            if (checkmark_x <= pos.x() <= checkmark_x + checkmark_width and
+                black_key_rect.y() <= pos.y() <= black_key_rect.y() + black_key_rect.height()):
+                return i
+
+        return None
+
+    def _toggle_task_completion(self, habit, task_datetime):
+        """Toggle task completion state"""
+        try:
+            normalized_dt = task_datetime.replace(microsecond=0)
+
+            with db.atomic():
+                # Check if already completed
+                existing = ManualTask.select().where(
+                    (ManualTask.habit == habit) &
+                    (ManualTask.completed_at == normalized_dt)
+                ).first()
+
+                if existing:
+                    # Unmark
+                    existing.delete_instance()
+                else:
+                    # Mark complete
+                    ManualTask.create(
+                        habit=habit,
+                        title=None,
+                        completed_at=normalized_dt
+                    )
+
+            # CRITICAL: Refresh keys immediately to recalculate next tasks
+            self.update_keys_for_window_size()
+
+            self.update()
+
+            # Emit signal to update music sheet pages
+            if hasattr(self, 'music_sheet_widget'):
+                self.music_sheet_widget.habit_updated.emit()
+
+        except Exception as e:
+            print(f"Error toggling task completion: {e}")
+
     def mousePressEvent(self, event):
         """Handle mouse press"""
         if event.button() == Qt.MouseButton.LeftButton:
             global_pos = event.globalPosition().toPoint()
             local_pos = event.position().toPoint()
+
+            # Check for checkmark click (only if no active session)
+            if not self.session_manager.is_session_active():
+                checkmark_index = self._get_checkmark_index_at_point(local_pos)
+                if checkmark_index is not None and checkmark_index >= 0 and checkmark_index < len(self.keys):
+                    key_data = self.keys[checkmark_index]
+                    if key_data.get('habit') and key_data.get('task_datetime'):
+                        self._toggle_task_completion(key_data['habit'], key_data['task_datetime'])
+                        return
 
             # Check for resize on fallboard left edge (when drawer closed)
             edge = self._get_resize_edge_at_position(local_pos)
@@ -564,8 +647,21 @@ class PianoFloatingWindow(QWidget):
                     # Update notes widget position when dragging
                     self._update_notes_widget_position()
         else:
+            # Check for checkmark hover (only if no active session)
+            local_pos = event.position().toPoint()
+            if not self.session_manager.is_session_active():
+                checkmark_index = self._get_checkmark_index_at_point(local_pos)
+                if checkmark_index != self.state.hovered_checkmark_index:
+                    self.state.hovered_checkmark_index = checkmark_index
+                    self.update()
+            else:
+                # Clear hover if session is active
+                if self.state.hovered_checkmark_index is not None:
+                    self.state.hovered_checkmark_index = None
+                    self.update()
+
             # Update cursor based on hover position
-            self.update_cursor_for_position(event.position().toPoint())
+            self.update_cursor_for_position(local_pos)
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release"""

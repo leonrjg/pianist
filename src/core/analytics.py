@@ -119,16 +119,21 @@ def get_upcoming_tasks(habits: list[Habit], timespan: int) -> list[dict]:
         - 'habit': The Habit object
         - 'datetime': The datetime of the next scheduled task
     """
+    from datetime import datetime
+
+    today = datetime.now().date()
     upcoming_tasks = []
     for habit in habits:
         schedule = habit.get_schedule()
         next_tasks = schedule.get_next_tasks(timespan)
         for next_task in next_tasks:
-            upcoming_tasks.append({
-                'habit': habit,
-                'datetime': next_task,
-                'completed': habit.is_task_completed(next_task)
-            })
+            # Only include tasks from today forward (exclude past days)
+            if next_task.date() >= today:
+                upcoming_tasks.append({
+                    'habit': habit,
+                    'datetime': next_task,
+                    'completed': habit.is_task_completed(next_task)
+                })
     return sorted(upcoming_tasks, key=lambda x: x['datetime'])
 
 def get_tasks_in_range(habits: list[Habit], timespan: int) -> list[dict]:

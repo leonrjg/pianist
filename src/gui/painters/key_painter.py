@@ -229,6 +229,9 @@ class KeyPainter(BasePainter):
         # Time text on black key
         KeyPainter.draw_time_display(painter, black_key_rect, state, index, keys_data)
 
+        # Task completion checkmark on black key
+        KeyPainter.draw_task_checkmark(painter, black_key_rect, state, index, keys_data)
+
         # Restore painter state if we scaled
         if reorder_manager and reorder_manager.is_reorder_mode:
             painter.restore()
@@ -252,6 +255,46 @@ class KeyPainter(BasePainter):
             Qt.AlignmentFlag.AlignCenter,
             time_text
         )
+
+    @staticmethod
+    def draw_task_checkmark(painter: QPainter, black_key_rect: QRect, state: PianoState,
+                           index: int, keys_data: list):
+        """Draw task completion checkmark on a black key"""
+        if index >= len(keys_data):
+            return
+
+        key_data = keys_data[index]
+        task_datetime = key_data.get('task_datetime')
+        is_completed = key_data.get('is_completed', False)
+
+        # Only show checkmark if there's a task
+        if not task_datetime:
+            return
+
+        # Calculate checkmark position (center of black key)
+        checkmark_size = 16
+        center_x = black_key_rect.x() + black_key_rect.width() / 2
+        center_y = black_key_rect.y() + black_key_rect.height() / 2
+        checkmark_x = center_x - checkmark_size / 2
+        checkmark_y = center_y - checkmark_size / 2
+
+        is_hovered = (state.hovered_checkmark_index == index)
+
+        if is_hovered or is_completed:
+            # Filled brass circle with checkmark
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(184, 134, 11, 200 if is_hovered else 160)))
+            painter.drawEllipse(int(checkmark_x), int(checkmark_y), checkmark_size, checkmark_size)
+
+            # Draw checkmark symbol
+            painter.setPen(QPen(QColor(255, 252, 245), 2))
+            painter.setFont(QFont('Arial', 12, QFont.Weight.Bold))
+            painter.drawText(
+                QRect(int(checkmark_x), int(checkmark_y), checkmark_size, checkmark_size),
+                Qt.AlignmentFlag.AlignCenter,
+                "✓"
+            )
+
 
     @staticmethod
     def draw_drop_indicator(painter: QPainter, geometry: PianoGeometry, state: PianoState):

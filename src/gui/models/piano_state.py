@@ -73,6 +73,9 @@ class PianoState(QObject):
         # ===== Notes Widget State =====
         self._notes_visible = False
 
+        # ===== Task Completion Hover State =====
+        self._hovered_checkmark_index: Optional[int] = None  # Index of key with checkmark being hovered
+
     def start_resize(self, edge: str, start_rect, drag_start_x: int, drag_start_y: int):
         """Start window resize operation"""
         self._is_resizing = True
@@ -355,6 +358,18 @@ class PianoState(QObject):
         """Toggle notes widget visibility"""
         self._notes_visible = not self._notes_visible
 
+    # ===== Task Completion Hover Properties =====
+
+    @property
+    def hovered_checkmark_index(self) -> Optional[int]:
+        """Get the index of the key whose checkmark is being hovered"""
+        return self._hovered_checkmark_index
+
+    @hovered_checkmark_index.setter
+    def hovered_checkmark_index(self, value: Optional[int]):
+        """Set the index of the key whose checkmark is being hovered"""
+        self._hovered_checkmark_index = value
+
     # ===== State Reset =====
 
     def reset(self):
@@ -378,3 +393,4 @@ class PianoState(QObject):
         self._drop_target_index = None
         self._mood_bar_visible = False
         self._notes_visible = False
+        self._hovered_checkmark_index = None

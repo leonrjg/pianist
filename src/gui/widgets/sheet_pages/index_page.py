@@ -158,23 +158,29 @@ class IndexPage(SheetPage):
     def _on_task_completion_toggled(self, habit, task_datetime, new_state):
         """Handle task completion toggle - create or delete ManualTask"""
         try:
+            # Normalize datetime to remove microseconds for consistent storage/comparison
+            normalized_dt = task_datetime.replace(microsecond=0)
+
             with db.atomic():
                 if new_state:
                     # Mark as complete - create ManualTask
                     ManualTask.create(
                         habit=habit,
                         title=None,
-                        completed_at=task_datetime
+                        completed_at=normalized_dt
                     )
                 else:
                     # Unmark - delete ManualTask
                     ManualTask.delete().where(
                         (ManualTask.habit == habit) &
-                        (ManualTask.completed_at == task_datetime)
+                        (ManualTask.completed_at == normalized_dt)
                     ).execute()
 
             # Refresh the page to update UI
             self.refresh()
+
+            # Emit signal to update piano window
+            self.content_updated.emit()
 
         except Exception as e:
             print(f"Error toggling task completion: {e}")
