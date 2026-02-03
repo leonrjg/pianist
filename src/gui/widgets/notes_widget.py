@@ -4,11 +4,12 @@ Notes Widget - Notepad that appears below piano window.
 Displays a text editor for taking notes with auto-save functionality.
 """
 
-from PyQt6.QtWidgets import QWidget, QTextEdit, QPushButton, QLabel, QVBoxLayout, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QTextEdit, QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QComboBox
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QIcon, QKeyEvent, QTextBlockFormat, QTextCursor
 
 from core.notes.note import Note
+from core.habit.habit import Habit
 from ..constants import PianoColors
 
 
@@ -94,10 +95,50 @@ class NotesWidget(QWidget):
         main_layout.setSpacing(0)
         self.setLayout(main_layout)
 
-        # Minimal header with close button and save indicator only
+        # Header with habit selector, save indicator, and close button
         header = QHBoxLayout()
         header.setContentsMargins(2, 0, 2, 4)
         header.setSpacing(8)
+
+        # Habit selector dropdown
+        self.habit_selector = QComboBox()
+        self.habit_selector.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.habit_selector.setMaximumWidth(150)
+        self.habit_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.habit_selector.currentIndexChanged.connect(self._on_habit_changed)
+        self.habit_selector.setStyleSheet(f"""
+            QComboBox {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid rgb(184, 134, 11);
+                border-radius: 3px;
+                color: rgb(218, 165, 32);
+                font-size: 11px;
+                padding: 1px 4px;
+                padding-right: 4px;
+            }}
+            QComboBox:hover {{
+                border-color: rgb(218, 165, 32);
+                background-color: rgb(92, 61, 46);
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 0px;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                width: 0px;
+                height: 0px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid rgb(184, 134, 11);
+                color: rgb(218, 165, 32);
+                selection-background-color: rgb(92, 61, 46);
+                selection-color: rgb(218, 165, 32);
+                padding: 2px;
+            }}
+        """)
+        header.addWidget(self.habit_selector)
 
         header.addStretch()
 
@@ -181,6 +222,58 @@ class NotesWidget(QWidget):
         """)
         main_layout.addWidget(self.text_edit)
 
+    def _populate_habit_selector(self):
+        """Populate the habit selector dropdown with available habits"""
+        # Block signals to prevent triggering _on_habit_changed during population
+        self.habit_selector.blockSignals(True)
+
+        # Clear existing items
+        self.habit_selector.clear()
+
+        # Add "Default note" option (global note with habit = None)
+        self.habit_selector.addItem("Default note", userData=None)
+
+        # Add all non-archived habits
+        habits = Habit.select().where(Habit.archived == False).order_by(Habit.name)
+        for habit in habits:
+            self.habit_selector.addItem(habit.name, userData=habit.id)
+
+        # Re-enable signals
+        self.habit_selector.blockSignals(False)
+
+    def _load_selected_note(self):
+        """Load the note for the currently selected habit"""
+        # Get the selected habit ID from the dropdown
+        habit_id = self.habit_selector.currentData()
+
+        # Load the appropriate note
+        if habit_id is None:
+            # Load global note
+            self._note = Note.get_global_note()
+        else:
+            # Load habit-specific note
+            habit = Habit.get_by_id(habit_id)
+            self._note = Note.get_habit_note(habit)
+
+        # Update text editor without triggering save
+        self.text_edit.blockSignals(True)
+        self.text_edit.setPlainText(self._note.content)
+        self.text_edit.blockSignals(False)
+        self._update_save_status('saved')
+
+    def _on_habit_changed(self, index: int):
+        """Handle habit selection change in dropdown"""
+        # Save current note before switching
+        if self._note is not None:
+            self._save_timer.stop()
+            self._save_content()
+
+        # Load the new note
+        self._load_selected_note()
+
+        # Adjust height for new content
+        self._adjust_height()
+
     def paintEvent(self, event):
         """Draw simple background without border"""
         painter = QPainter(self)
@@ -192,7 +285,7 @@ class NotesWidget(QWidget):
     def show_at_position(self, pos: QPoint, width: int):
         """
         Show the notes widget at the specified position with given width.
-        
+
         Args:
             pos: Position to show the widget at
             width: Width of the widget (should match piano window)
@@ -200,13 +293,23 @@ class NotesWidget(QWidget):
         self.setFixedWidth(width)
         self.move(pos)
 
-        # Load note content
-        self._note = Note.get_global_note()
-        self.text_edit.blockSignals(True)  # Prevent triggering save on load
-        self.text_edit.setPlainText(self._note.content)
-        self.text_edit.blockSignals(False)
-        self._update_save_status('saved')
-        
+        # Populate habit selector
+        self._populate_habit_selector()
+
+        # Auto-select habit if exactly one session is running
+        if self.parent() and hasattr(self.parent(), 'session_manager'):
+            active_habit_ids = list(self.parent().session_manager.processes.keys())
+            if len(active_habit_ids) == 1:
+                active_habit_id = active_habit_ids[0]
+                # Find and select this habit in the dropdown
+                for i in range(self.habit_selector.count()):
+                    if self.habit_selector.itemData(i) == active_habit_id:
+                        self.habit_selector.setCurrentIndex(i)
+                        break
+
+        # Load note content for the selected habit (defaults to global note)
+        self._load_selected_note()
+
         # Adjust height based on loaded content
         self._adjust_height()
 
@@ -241,8 +344,9 @@ class NotesWidget(QWidget):
         
         try:
             content = self.text_edit.toPlainText()
-            self._note.update_content(content)
-            self._update_save_status('saved')
+            if content and content.strip():
+                self._note.update_content(content)
+                self._update_save_status('saved')
         except Exception as e:
             self._update_save_status('error', str(e))
 
