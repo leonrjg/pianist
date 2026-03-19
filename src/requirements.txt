@@ -3,3 +3,5 @@ peewee==3.18.2
 pynput==1.8.1
 pywinctl==0.4.1
 pytest==8.4.2
+requests==2.32.3
+matplotlib==3.9.3

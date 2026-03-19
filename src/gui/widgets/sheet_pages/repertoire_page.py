@@ -75,7 +75,7 @@ class RepertoirePage(SheetPage):
 
                     # Create habit card with next task info
                     card = HabitCard(
-                        habit,
+                        habit=habit,
                         subtitle=subtitle,
                         on_click=self._navigate_to_habit,
                         parent=self

@@ -108,14 +108,14 @@ class ReminderDetailPage(SheetPage):
         # Action Section
         action_section = FormSection("Action")
 
-        actions = ['open_link', 'random_line', 'show_text']
+        actions = ['open_link', 'random_line', 'show_text', 'anki_card']
         default_action = self.reminder.action_type if self.reminder else 'show_text'
         self._action_dropdown = VintageDropdown(actions, default_action)
         action_section.add_field("Action:", self._action_dropdown)
 
         self._payload_edit = QTextEdit()
         self._payload_edit.setMaximumHeight(80)
-        self._payload_edit.setPlaceholderText("URL, file path, or text content")
+        self._payload_edit.setPlaceholderText("URL, file path, deck name, or text content")
         self._payload_edit.setStyleSheet("""
             QTextEdit {
                 background-color: rgba(255, 252, 245, 180);
@@ -354,10 +354,11 @@ class ReminderDetailPage(SheetPage):
     def _trigger_reminder(self):
         """Manually trigger the reminder now."""
         from core.reminder.service import ReminderService
-        
+
         # Reload from database to get latest data
         reminder = Reminder.get_by_id(self.reminder.id)
         result = ReminderService.fire_reminder(reminder, record_fire=False)
+
         if not result.success:
             QMessageBox.warning(self, "Action Failed", f"Failed to execute action:\n{result.error}")
 

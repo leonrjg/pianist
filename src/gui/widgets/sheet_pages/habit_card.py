@@ -1,44 +1,72 @@
 """
-Habit Card - Reusable vintage-styled card component for displaying habits.
+Habit Card - Reusable vintage-styled card component for displaying tasks.
 """
 
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 from PyQt6.QtGui import QFont, QCursor
 from PyQt6.QtCore import Qt
-from typing import Optional, Callable
+from typing import Optional, Callable, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from core.task import Task
 
 
 class HabitCard(QFrame):
-    """Vintage-styled card for displaying a habit with optional details"""
+    """Vintage-styled card for displaying a task (habit or manual)"""
 
-    def __init__(self, habit, subtitle: Optional[str] = None,
+    def __init__(self, task: 'Task' = None, subtitle: Optional[str] = None,
                  accent_color: Optional[str] = None, on_click: Optional[Callable] = None,
-                 completed: bool = False, is_start_date: bool = False, is_end_date: bool = False,
-                 task_datetime: Optional[datetime] = None, on_complete: Optional[Callable] = None,
+                 on_complete: Optional[Callable] = None,
+                 # Legacy parameters for backwards compatibility
+                 habit=None, completed: bool = None, is_start_date: bool = None,
+                 is_end_date: bool = None, task_datetime: Optional[datetime] = None,
                  parent=None):
         """
         Args:
-            habit: Habit object to display
+            task: Task object to display (new unified API)
             subtitle: Optional subtitle text (e.g., time info, schedule)
             accent_color: Optional left border color (defaults to sepia)
-            on_click: Optional callback when card is clicked (receives habit)
-            completed: Whether the task is completed (shows checkmark)
+            on_click: Optional callback when card is clicked (receives habit or None for manual tasks)
+            on_complete: Optional callback when completion is toggled (receives habit, task_datetime, new_state)
+
+            Legacy parameters (for backwards compatibility):
+            habit: Habit object to display
+            completed: Whether the task is completed
             is_start_date: Whether this task is on the habit's start date
             is_end_date: Whether this task is on the habit's end date
-            task_datetime: Optional datetime for the scheduled task (enables completion button)
-            on_complete: Optional callback when completion is toggled (receives habit, task_datetime, new_state)
+            task_datetime: Datetime for the scheduled task
             parent: Parent widget
         """
         super().__init__(parent)
-        self.habit = habit
+
+        # Support both new Task API and legacy habit API
+        if task is not None:
+            self.task = task
+            self.habit = task.habit
+            self.title = task.title
+            self.completed = task.completed
+            self.task_datetime = task.scheduled_at
+            # Only set start/end flags for habit tasks
+            if task.habit:
+                self.is_start_date = task.scheduled_at.date() == task.habit.started_at.date()
+                self.is_end_date = task.habit.ended_at and task.scheduled_at.date() == task.habit.ended_at.date()
+            else:
+                self.is_start_date = False
+                self.is_end_date = False
+        else:
+            # Legacy API
+            self.task = None
+            self.habit = habit
+            self.title = habit.name if habit else "Untitled"
+            self.completed = completed if completed is not None else False
+            self.is_start_date = is_start_date if is_start_date is not None else False
+            self.is_end_date = is_end_date if is_end_date is not None else False
+            self.task_datetime = task_datetime
+
         self.subtitle = subtitle
         self.accent_color = accent_color or "rgb(200, 185, 160)"
         self.on_click = on_click
-        self.completed = completed
-        self.is_start_date = is_start_date
-        self.is_end_date = is_end_date
-        self.task_datetime = task_datetime
         self.on_complete = on_complete
 
         self._setup_ui()
@@ -108,13 +136,13 @@ class HabitCard(QFrame):
         text_section.setContentsMargins(0, 0, 0, 0)
         text_section.setSpacing(2)
 
-        # Name row with schedule badge
+        # Name row with optional schedule badge
         name_layout = QHBoxLayout()
         name_layout.setContentsMargins(0, 0, 0, 0)
         name_layout.setSpacing(6)
 
-        # Habit name (bold) with optional checkmark
-        name_text = f"✓ {self.habit.name}" if self.completed else self.habit.name
+        # Task title (bold) with optional checkmark
+        name_text = f"✓ {self.title}" if self.completed else self.title
         name_label = QLabel(name_text)
         font = QFont()
         font.setBold(True)
@@ -125,16 +153,29 @@ class HabitCard(QFrame):
         name_label.setStyleSheet(f"color: {text_color}; background: transparent;")
         name_layout.addWidget(name_label)
 
-        # Schedule badge
-        schedule_badge = QLabel(self.habit.schedule)
-        schedule_badge.setStyleSheet("""
-            background-color: rgba(200, 185, 160, 120);
-            color: rgb(70, 50, 35);
-            font-size: 9px;
-            padding: 2px 4px;
-            border-radius: 3px;
-        """)
-        name_layout.addWidget(schedule_badge)
+        # Schedule badge (only for habit tasks)
+        if self.habit:
+            schedule_badge = QLabel(self.habit.schedule)
+            schedule_badge.setStyleSheet("""
+                background-color: rgba(200, 185, 160, 120);
+                color: rgb(70, 50, 35);
+                font-size: 9px;
+                padding: 2px 4px;
+                border-radius: 3px;
+            """)
+            name_layout.addWidget(schedule_badge)
+        else:
+            # Manual task badge
+            manual_badge = QLabel("manual")
+            manual_badge.setStyleSheet("""
+                background-color: rgba(140, 110, 180, 120);
+                color: rgb(70, 50, 35);
+                font-size: 9px;
+                padding: 2px 4px;
+                border-radius: 3px;
+            """)
+            name_layout.addWidget(manual_badge)
+
         name_layout.addStretch()
 
         text_section.addLayout(name_layout)

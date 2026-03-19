@@ -14,6 +14,7 @@ Heavy lifting is delegated to:
 """
 
 import time
+import logging
 from typing import Optional
 from PyQt6.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout
 from PyQt6.QtCore import Qt, QTimer, QPoint, QRectF, QSize, pyqtSignal
@@ -261,6 +262,28 @@ class PianoFloatingWindow(QWidget):
         self.mood_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.mood_button.installEventFilter(self)
 
+        # Add Task button
+        self.add_task_button = QPushButton("+")
+        self.add_task_button.setFixedSize(20, 20)
+        self.add_task_button.setToolTip('Add task')
+        self.add_task_button.clicked.connect(self.on_add_task_button_clicked)
+        self.add_task_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid rgb(184, 134, 11);
+                border-radius: 10px;
+                color: rgb(184, 134, 11);
+                font-size: 14px;
+                font-weight: bold;
+                padding-bottom: 2px;
+            }}
+            QPushButton:hover {{
+                border-color: rgb(218, 165, 32);
+                color: rgb(218, 165, 32);
+            }}
+        """)
+        self.add_task_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
         # Notes button
         self.notes_button = QPushButton()
         self.notes_button.setIcon(QIcon('gui/icons/notes.svg'))
@@ -284,6 +307,7 @@ class PianoFloatingWindow(QWidget):
         control_layout.addWidget(self.maximize_button)
         control_layout.addWidget(self.reorder_button)
         control_layout.addWidget(self.mood_button)
+        control_layout.addWidget(self.add_task_button)
         control_layout.addWidget(self.notes_button)
         control_layout.addStretch()
 
@@ -302,12 +326,19 @@ class PianoFloatingWindow(QWidget):
         self.mood_update_timer.start(60000)  # Check every minute
         self.update_mood_button_icon()  # Initial update
 
+        # ===== Add Task Widget =====
+        from .add_task_widget import AddTaskWidget
+        self.add_task_widget = AddTaskWidget(self)
+        self.add_task_widget.task_created.connect(self.on_task_created)
+        self.add_task_widget.closed.connect(self.on_add_task_closed)
+        self.add_task_widget.hide()
+
         # ===== Notes Widget =====
         from .notes_widget import NotesWidget
         self.notes_widget = NotesWidget(self)
         self.notes_widget.closed.connect(self.on_notes_closed)
         self.notes_widget.hide()
-        
+
         # Install event filter to forward notes drag events to piano
         self.notes_widget.installEventFilter(self)
 
@@ -527,7 +558,7 @@ class PianoFloatingWindow(QWidget):
                 # Check if already completed
                 existing = ManualTask.select().where(
                     (ManualTask.habit == habit) &
-                    (ManualTask.completed_at == normalized_dt)
+                    (ManualTask.scheduled_at == normalized_dt)
                 ).first()
 
                 if existing:
@@ -538,6 +569,7 @@ class PianoFloatingWindow(QWidget):
                     ManualTask.create(
                         habit=habit,
                         title=None,
+                        scheduled_at=normalized_dt,
                         completed_at=normalized_dt
                     )
 
@@ -1128,6 +1160,28 @@ class PianoFloatingWindow(QWidget):
         """Handle mood bar closed"""
         self.state.mood_bar_visible = False
 
+    # ===== Add Task Management =====
+
+    def on_add_task_button_clicked(self):
+        """Handle add task button click - show add task widget"""
+        # Position widget to the left of the button
+        button_pos = self.add_task_button.mapToGlobal(self.add_task_button.rect().topLeft())
+        widget_x = button_pos.x() - self.add_task_widget.sizeHint().width() - 10
+        widget_y = button_pos.y()
+        self.add_task_widget.show_at_position(QPoint(widget_x, widget_y))
+
+    def on_task_created(self):
+        """Handle task creation - refresh piano keys and music sheet"""
+        # Refresh keys to update next tasks
+        self.update_keys_for_window_size()
+        # Notify music sheet to refresh pages
+        if hasattr(self, 'music_sheet_widget') and self.music_sheet_widget:
+            self.music_sheet_widget.refresh_current_page()
+
+    def on_add_task_closed(self):
+        """Handle add task widget closed"""
+        pass
+
     def update_mood_button_icon(self):
         """Update mood button icon to show current mood or default"""
         from core.mood.mood import Mood
@@ -1314,9 +1368,13 @@ class PianoFloatingWindow(QWidget):
 
     # ===== Cleanup =====
 
-    def _on_reminder_notification(self, title: str, message: str, urgency: str):
-        """Handle reminder notification request."""
-        self.notification_service.show_reminder_notification(title, message, urgency)
+    def _on_reminder_notification(self, reminder_id: int, message: str, urgency: str):
+        """Handle reminder notification using ActionHandler (supports all action types)."""
+        from core.reminder.reminder import Reminder
+        from core.reminder.actions import ActionHandler
+
+        reminder = Reminder.get_by_id(reminder_id)
+        ActionHandler.show_notification_for_action(reminder, message, urgency)
 
     def closeEvent(self, event):
         """Clean up when window closes"""

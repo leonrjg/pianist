@@ -184,7 +184,8 @@ class Habit(BaseModel):
 
         return ManualTask.select().where(
             (ManualTask.habit == self) &
-            (ManualTask.completed_at == normalized_task)
+            (ManualTask.scheduled_at == normalized_task) &
+            (ManualTask.completed_at.is_null(False))
         ).exists()
 
     def _find_bucket_for_task(self, buckets: list[Bucket], task: datetime) -> Optional[Bucket]:

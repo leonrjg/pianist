@@ -58,8 +58,8 @@ class ReminderService:
         # Send notification first (before action potentially steals focus)
         if not skip_notification and reminder.notification_method == 'desktop':
             urgency = 'high' if is_overdue else 'normal'
-            notification_service = NotificationService.get_instance()
-            notification_service.show_reminder_notification(reminder.name, message, urgency)
+            # ActionHandler orchestrates the appropriate notification flow
+            ActionHandler.show_notification_for_action(reminder, message, urgency)
 
         # Execute action
         error = None
@@ -96,17 +96,54 @@ class ReminderService:
         )
 
     @classmethod
+    def apply_feedback(cls, reminder: Reminder, quality: int):
+        """
+        Apply user feedback to adjust SR parameters.
+
+        Args:
+            reminder: Reminder to update
+            quality: Quality rating 0-3 (0=again, 1=hard, 2=good, 3=easy)
+        """
+        if reminder.reminder_type != 'sr':
+            return  # Only applies to SR reminders
+
+        # Calculate new values using SM2
+        new_ease, new_interval = SM2Scheduler.calculate_next_interval(
+            reminder.ease_factor,
+            reminder.interval_days,
+            quality
+        )
+
+        # Update reminder
+        reminder.ease_factor = new_ease
+        reminder.interval_days = new_interval
+
+        # Reschedule with new interval
+        cls.reschedule(reminder)
+
+        # Update the last log entry with feedback
+        last_log = ReminderLog.select().where(
+            ReminderLog.reminder == reminder
+        ).order_by(ReminderLog.fired_at.desc()).first()
+
+        if last_log:
+            last_log.feedback_rating = quality
+            last_log.save()
+
+        reminder.save()
+
+    @classmethod
     def reschedule(cls, reminder: Reminder, base_time: datetime = None):
         """
         Calculate and set next fire time for reminder.
-        
+
         Args:
             reminder: Reminder to reschedule
             base_time: Base time for calculation (defaults to last_fired_at or created_at)
         """
         now = datetime.now()
         last_fire = base_time or reminder.last_fired_at or reminder.created_at
-        
+
         window = ActiveWindow(
             getattr(reminder, "active_start_minute", 0),
             getattr(reminder, "active_end_minute", 1440)
@@ -123,6 +160,6 @@ class ReminderService:
                     window.start_minute,
                     window.end_minute
                 )
-        
+
         reminder.updated_at = now
         reminder.save()

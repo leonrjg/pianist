@@ -1,0 +1,97 @@
+"""
+Vintage Date Picker - Custom date picker using TaskCalendarWidget.
+
+Shows selected date and opens TaskCalendarWidget popup when clicked.
+"""
+
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
+from PyQt6.QtCore import Qt, QDate, QPoint, pyqtSignal
+from PyQt6.QtGui import QCursor
+from .task_calendar_widget import TaskCalendarWidget
+
+
+class VintageDatePicker(QWidget):
+    """Custom date picker widget with TaskCalendarWidget popup"""
+
+    date_changed = pyqtSignal(QDate)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._current_date = QDate.currentDate()
+        self._calendar_popup = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Setup the UI"""
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.setLayout(layout)
+
+        # Date display button
+        self._date_button = QPushButton()
+        self._date_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self._date_button.clicked.connect(self._show_calendar)
+        self._date_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(255, 252, 245, 220);
+                border: 1px solid rgb(200, 185, 160);
+                border-radius: 3px;
+                color: rgb(70, 50, 35);
+                font-size: 10px;
+                padding: 4px 8px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                border: 1px solid rgb(184, 134, 11);
+                background-color: rgba(255, 255, 250, 240);
+            }
+        """)
+        layout.addWidget(self._date_button)
+
+        # Update button text
+        self._update_button_text()
+
+    def _update_button_text(self):
+        """Update the button text with current date"""
+        self._date_button.setText(self._current_date.toString("MMM d, yyyy"))
+
+    def _show_calendar(self):
+        """Show the calendar popup"""
+        if self._calendar_popup is None:
+            self._calendar_popup = TaskCalendarWidget()
+            self._calendar_popup.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+            self._calendar_popup.setGridVisible(True)
+            self._calendar_popup.setVerticalHeaderFormat(TaskCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
+            self._calendar_popup.setNavigationBarVisible(True)
+            self._calendar_popup.clicked.connect(self._on_date_selected)
+
+        # Set current date
+        self._calendar_popup.setSelectedDate(self._current_date)
+
+        # Position below the button
+        button_pos = self._date_button.mapToGlobal(self._date_button.rect().bottomLeft())
+        popup_x = button_pos.x()
+        popup_y = button_pos.y() + 2
+
+        self._calendar_popup.move(popup_x, popup_y)
+        self._calendar_popup.show()
+        self._calendar_popup.raise_()
+        self._calendar_popup.activateWindow()
+
+    def _on_date_selected(self, date: QDate):
+        """Handle date selection from calendar"""
+        self._current_date = date
+        self._update_button_text()
+        self.date_changed.emit(date)
+        if self._calendar_popup:
+            self._calendar_popup.close()
+
+    def date(self) -> QDate:
+        """Get the currently selected date"""
+        return self._current_date
+
+    def setDate(self, date: QDate):
+        """Set the current date"""
+        self._current_date = date
+        self._update_button_text()

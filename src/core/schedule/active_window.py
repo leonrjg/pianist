@@ -15,17 +15,21 @@ class ActiveWindow:
     def length_minutes(self) -> int:
         if self.start_minute == self.end_minute:
             return 24 * 60
-        if self.start_minute < self.end_minute:
-            return self.end_minute - self.start_minute
-        return (24 * 60 - self.start_minute) + self.end_minute
+        # Normalize end_minute if >= 1440
+        normalized_end = self.end_minute % 1440 if self.end_minute >= 1440 else self.end_minute
+        if self.start_minute < normalized_end:
+            return normalized_end - self.start_minute
+        return (24 * 60 - self.start_minute) + normalized_end
 
     def is_within(self, dt: datetime) -> bool:
         minute = dt.hour * 60 + dt.minute
         if self.start_minute == self.end_minute:
             return True
-        if self.start_minute < self.end_minute:
-            return self.start_minute <= minute < self.end_minute
-        return minute >= self.start_minute or minute < self.end_minute
+        # Normalize end_minute if >= 1440
+        normalized_end = self.end_minute % 1440 if self.end_minute >= 1440 else self.end_minute
+        if self.start_minute < normalized_end:
+            return self.start_minute <= minute < normalized_end
+        return minute >= self.start_minute or minute < normalized_end
 
     def clamp(self, dt: datetime) -> datetime:
         """Return dt if within window, else next window start."""
@@ -39,7 +43,10 @@ class ActiveWindow:
         if start == end:
             return dt
 
-        if start < end:
+        # Normalize end_minute if >= 1440 for comparison
+        normalized_end = end % 1440 if end >= 1440 else end
+
+        if start < normalized_end:
             if minute < start:
                 return dt.replace(hour=start // 60, minute=start % 60, second=0, microsecond=0)
             return (dt + timedelta(days=1)).replace(
@@ -47,7 +54,7 @@ class ActiveWindow:
             )
 
         # Overnight window (e.g., 22:00-02:00)
-        if minute >= start or minute < end:
+        if minute >= start or minute < normalized_end:
             return dt
         return dt.replace(hour=start // 60, minute=start % 60, second=0, microsecond=0)
 
@@ -62,7 +69,12 @@ class ActiveWindow:
             )
 
         start_dt = dt.replace(hour=start // 60, minute=start % 60, second=0, microsecond=0)
-        end_dt = dt.replace(hour=end // 60, minute=end % 60, second=0, microsecond=0)
+
+        # Handle end_minute >= 1440 (end of day = midnight next day)
+        if end >= 1440:
+            end_dt = (dt + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            end_dt = dt.replace(hour=end // 60, minute=end % 60, second=0, microsecond=0)
 
         if start < end:
             return end_dt

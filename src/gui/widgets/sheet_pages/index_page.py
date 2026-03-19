@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.habit import Habit
 from core.habit.manual_task import ManualTask
-from core.analytics import get_upcoming_tasks
+from core.task import get_upcoming_tasks, Task
 from core.db import db
 
 
@@ -50,7 +50,12 @@ class IndexPage(SheetPage):
         """Build and display the upcoming tasks section"""
         try:
             timespan = 30 * 24 * 60 * 60
-            upcoming_tasks = get_upcoming_tasks(habits, timespan)
+            upcoming_tasks = get_upcoming_tasks(
+                habits=habits,
+                timespan=timespan,
+                include_manual=True,
+                include_completed=True
+            )
 
             if upcoming_tasks:
                 # Group tasks by day
@@ -64,26 +69,15 @@ class IndexPage(SheetPage):
 
                     # Task cards for this day
                     for task in tasks:
-                        habit = task['habit']
-                        task_dt = task['datetime']
-                        completed = task.get('completed', False)
-
-                        # Check if task date matches habit's start or end date
-                        is_start_date = task_dt.date() == habit.started_at.date()
-                        is_end_date = habit.ended_at and task_dt.date() == habit.ended_at.date()
-
                         # Get urgency color
-                        accent_color = self._get_urgency_color(task_dt)
+                        accent_color = self._get_urgency_color(task.scheduled_at)
 
+                        # Use Task-based API
                         card = HabitCard(
-                            habit,
-                            subtitle=get_friendly_datetime(task_dt),
+                            task=task,
+                            subtitle=get_friendly_datetime(task.scheduled_at),
                             accent_color=accent_color,
-                            on_click=self._navigate_to_habit,
-                            completed=completed,
-                            is_start_date=is_start_date,
-                            is_end_date=is_end_date,
-                            task_datetime=task_dt,
+                            on_click=self._navigate_to_habit if task.habit else None,
                             on_complete=self._on_task_completion_toggled,
                             parent=self
                         )
@@ -107,7 +101,7 @@ class IndexPage(SheetPage):
 
         grouped = {}
         for task in tasks[:100]:
-            task_date = task['datetime'].date()
+            task_date = task.scheduled_at.date()
 
             # Create friendly label
             if task_date == today:
@@ -156,25 +150,45 @@ class IndexPage(SheetPage):
         self.navigate_to.emit('habit_detail', habit.id)
 
     def _on_task_completion_toggled(self, habit, task_datetime, new_state):
-        """Handle task completion toggle - create or delete ManualTask"""
+        """Handle task completion toggle - create/update/delete ManualTask"""
         try:
             # Normalize datetime to remove microseconds for consistent storage/comparison
             normalized_dt = task_datetime.replace(microsecond=0)
 
             with db.atomic():
-                if new_state:
-                    # Mark as complete - create ManualTask
-                    ManualTask.create(
-                        habit=habit,
-                        title=None,
-                        completed_at=normalized_dt
-                    )
+                if habit is not None:
+                    # Habit task completion toggle
+                    if new_state:
+                        # Mark as complete - create ManualTask record
+                        ManualTask.create(
+                            habit=habit,
+                            title=None,
+                            scheduled_at=normalized_dt,
+                            completed_at=normalized_dt
+                        )
+                    else:
+                        # Unmark - delete ManualTask record
+                        ManualTask.delete().where(
+                            (ManualTask.habit == habit) &
+                            (ManualTask.scheduled_at == normalized_dt)
+                        ).execute()
                 else:
-                    # Unmark - delete ManualTask
-                    ManualTask.delete().where(
-                        (ManualTask.habit == habit) &
-                        (ManualTask.completed_at == normalized_dt)
-                    ).execute()
+                    # Standalone manual task completion toggle
+                    # Find the existing manual task
+                    manual_task = ManualTask.select().where(
+                        (ManualTask.scheduled_at == normalized_dt) &
+                        (ManualTask.habit.is_null())
+                    ).first()
+
+                    if manual_task:
+                        if new_state:
+                            # Mark as complete
+                            manual_task.completed_at = datetime.now()
+                            manual_task.save()
+                        else:
+                            # Mark as incomplete
+                            manual_task.completed_at = None
+                            manual_task.save()
 
             # Refresh the page to update UI
             self.refresh()

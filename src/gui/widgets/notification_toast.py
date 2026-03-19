@@ -7,6 +7,7 @@ A frameless popup that slides in from the corner of the screen.
 import os
 
 from PyQt6.QtWidgets import (
+    QApplication,
     QWidget,
     QLabel,
     QVBoxLayout,
@@ -18,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import (
     Qt,
+    QEvent,
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
@@ -48,13 +50,16 @@ class NotificationToast(QWidget):
     """
     
     # Dimensions
-    WIDTH = 320
+    WIDTH = 350
     MIN_HEIGHT = 44
-    MAX_HEIGHT = 300
+    MAX_HEIGHT = 400
     MARGIN = 30
     SHADOW_SIZE = 6
     BORDER_RADIUS = 12
     ICON_SIZE = 28
+
+    # Timer limits (QTimer uses signed 32-bit int milliseconds)
+    MAX_TIMER_MS = 2147483647  # ~24.8 days
     
     # Colors
     BG_COLOR_TOP = PianoColors.WOOD_MEDIUM
@@ -84,6 +89,8 @@ class NotificationToast(QWidget):
         self._urgency = 'normal'
         self._duration = 12000
         self._icon_pixmap = None
+        self._buttons = None
+        self._key_bindings = {}  # {Qt.Key | (Qt.Key, modifier): callable}
         
         self._load_icon()
         self._setup_ui()
@@ -195,7 +202,7 @@ class NotificationToast(QWidget):
         self._message_label = QLabel()
         self._message_label.setWordWrap(True)
         self._message_label.setAutoFillBackground(False)
-        self._message_label.setTextFormat(Qt.TextFormat.MarkdownText)
+        self._message_label.setTextFormat(Qt.TextFormat.RichText)  # Support HTML from Anki cards
         self._message_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self._message_label.setOpenExternalLinks(True)
         msg_palette = self._message_label.palette()
@@ -218,6 +225,17 @@ class NotificationToast(QWidget):
         self._message_scroll.setWidget(message_container)
 
         text_layout.addWidget(self._message_scroll)
+
+        # Feedback buttons container (hidden by default)
+        self._feedback_container = QWidget()
+        self._feedback_container.setStyleSheet("background: transparent;")
+        self._feedback_container.setContentsMargins(0, 0, 0, 0)
+        self._feedback_layout = QHBoxLayout(self._feedback_container)
+        self._feedback_layout.setContentsMargins(0, 6, 0, 6)
+        self._feedback_layout.setSpacing(6)
+        self._feedback_container.hide()
+        text_layout.addWidget(self._feedback_container)
+        text_layout.setStretchFactor(self._feedback_container, 0)  # Don't stretch
 
         # Countdown progress bar
         self._progress_bar = QProgressBar()
@@ -250,18 +268,52 @@ class NotificationToast(QWidget):
         self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._fade_anim.finished.connect(self._on_fade_finished)
     
-    def show_notification(self, title: str, message: str, duration: int = 7000, urgency: str = 'normal'):
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.KeyPress and self._key_bindings:
+            key = Qt.Key(event.key())
+            mods = event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+            cb = self._key_bindings.get((key, mods)) or (
+                self._key_bindings.get(key) if not mods else None
+            )
+            if cb:
+                cb()
+                return True
+        return False
+
+    def _update_key_bindings(self, bindings: dict):
+        had = bool(self._key_bindings)
+        self._key_bindings = bindings or {}
+        now = bool(self._key_bindings)
+        if now and not had:
+            QApplication.instance().installEventFilter(self)
+        elif not now and had:
+            QApplication.instance().removeEventFilter(self)
+
+    def show_notification(self, title: str, message: str, duration: int = 7000, urgency: str = 'normal',
+                         buttons: list = None, key_bindings: dict = None):
         """
         Display the notification.
-        
+
         Args:
             title: Notification title
             message: Notification message
             duration: Display duration in milliseconds
             urgency: 'low', 'normal', or 'high'
+            buttons: Optional list of button configs:
+                     [{"label": str, "callback": callable, "color": str}, ...]
         """
         self._duration = duration
         self._urgency = urgency
+        self._buttons = buttons
+
+        if key_bindings is not None:
+            self._update_key_bindings(key_bindings)
+
+        # Setup buttons if provided
+        if self._buttons:
+            self._setup_buttons(self._buttons)
+        else:
+            self._feedback_container.hide()
         
         # Adjust size to content
         self._message_label.adjustSize()
@@ -296,8 +348,12 @@ class NotificationToast(QWidget):
         self._fade_anim.setStartValue(0.0)
         self._fade_anim.setEndValue(1.0)
         self._fade_anim.start()
-        
-        self._start_timers(duration)
+
+        # Only auto-close if no buttons (buttons require user interaction)
+        if self._buttons is None or len(self._buttons) == 0:
+            self._start_timers(duration)
+        else:
+            self._progress_bar.hide()
     
     def _start_hide_animation(self):
         """Start the hide animation."""
@@ -314,6 +370,156 @@ class NotificationToast(QWidget):
         self._fade_anim.setEndValue(0.0)
         self._fade_anim.start()
     
+    def _setup_buttons(self, buttons: list):
+        """
+        Setup custom buttons from config.
+
+        Args:
+            buttons: List of {"label": str, "callback": callable, "color": str (optional)}
+        """
+        # Clear existing buttons
+        while self._feedback_layout.count():
+            item = self._feedback_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        # Ensure margins are maintained
+        self._feedback_layout.setContentsMargins(0, 6, 0, 6)
+
+        for button_config in buttons:
+            label = button_config.get("label", "")
+            callback = button_config.get("callback")
+            color = button_config.get("color", "rgba(140, 170, 90, 200)")  # Default green
+            primary = button_config.get("primary", False)
+            icon_path = button_config.get("icon")
+
+            btn = QPushButton(label)
+            btn.setFixedHeight(28)
+
+            if icon_path and os.path.exists(icon_path):
+                btn.setIcon(QIcon(icon_path))
+                btn.setIconSize(btn.size() * 0.55)
+                btn.setText("")
+                btn.setFixedSize(28, 28)
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: rgba(255, 255, 255, 25);
+                        border: none;
+                        border-radius: 4px;
+                        padding: 0;
+                    }}
+                    QPushButton:hover {{
+                        background-color: rgba(255, 255, 255, 50);
+                    }}
+                    QPushButton:pressed {{
+                        background-color: rgba(255, 255, 255, 20);
+                    }}
+                """)
+                btn.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn.clicked.connect(lambda checked, cb=callback, lbl=label: self._on_button_clicked(cb, lbl))
+                self._feedback_layout.addWidget(btn)
+                continue
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            if primary:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {color};
+                        color: rgb(255, 252, 245);
+                        border: none;
+                        padding: 6px 16px;
+                        border-radius: 4px;
+                        font-weight: bold;
+                        font-size: 13px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {color.replace('200)', '230)')};
+                    }}
+                    QPushButton:pressed {{
+                        background-color: {color.replace('200)', '180)')};
+                    }}
+                """)
+                btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            else:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {color};
+                        color: rgb(255, 252, 245);
+                        border: none;
+                        padding: 6px 8px;
+                        border-radius: 4px;
+                        font-weight: bold;
+                        font-size: 10px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {color.replace('200)', '200)').replace('160)', '180)')};
+                    }}
+                    QPushButton:pressed {{
+                        background-color: {color.replace('200)', '180)').replace('160)', '140)')};
+                    }}
+                """)
+            btn.clicked.connect(lambda checked, cb=callback, lbl=label: self._on_button_clicked(cb, lbl))
+            self._feedback_layout.addWidget(btn)
+
+        self._feedback_container.show()
+        self._feedback_container.updateGeometry()  # Force layout recalculation
+
+    def _on_button_clicked(self, callback, label: str):
+        """Handle button click - just call callback, let it handle updates."""
+        if callback:
+            callback()
+
+    def update_content(self, title: str = None, message: str = None, buttons: list = None,
+                      auto_close_after: int = None, key_bindings: dict = None):
+        """
+        Update notification content in place (smooth transition without hide/show).
+
+        Args:
+            title: New title (None = keep current)
+            message: New message (None = keep current)
+            buttons: New buttons (None = keep current, [] = remove buttons)
+            auto_close_after: Auto-close after N milliseconds (None = don't auto-close)
+        """
+        # Update title
+        if title is not None:
+            self._title_label.setText(title)
+
+        # Update message
+        if message is not None:
+            self._message_label.setText(message)
+            self._message_label.adjustSize()
+
+        # Update buttons and manage timers
+        if buttons is not None:
+            had_buttons = self._buttons and len(self._buttons) > 0
+            has_buttons = buttons and len(buttons) > 0
+
+            self._buttons = buttons
+
+            if has_buttons:
+                self._setup_buttons(buttons)
+                # Stop timers when adding buttons (auto_close_after below will restart if needed)
+                self._hide_timer.stop()
+                self._progress_timer.stop()
+                self._progress_bar.hide()
+            else:
+                self._feedback_container.hide()
+                self._progress_bar.show()  # Show progress bar when no buttons
+                # Start timers when removing buttons (if not already closing)
+                if had_buttons and self.windowOpacity() > 0:
+                    if auto_close_after is None:
+                        auto_close_after = 2000  # Default 2 sec for updates without buttons
+
+        # Update key bindings (None = keep current)
+        if key_bindings is not None:
+            self._update_key_bindings(key_bindings)
+
+        # Handle auto-close
+        if auto_close_after is not None:
+            self._hide_timer.stop()
+            self._progress_timer.stop()
+            self._progress_bar.show()
+            self._start_timers(max(0, int(auto_close_after)))
+
     def _on_close_clicked(self):
         """Handle close button click."""
         self._start_hide_animation()
@@ -336,6 +542,7 @@ class NotificationToast(QWidget):
     def _on_fade_finished(self):
         """Handle fade animation completion."""
         if self.windowOpacity() == 0.0:
+            self._update_key_bindings({})
             self.hide()
             self.deleteLater()
     
@@ -375,19 +582,28 @@ class NotificationToast(QWidget):
     
     def enterEvent(self, event):
         """Pause hide timer when mouse enters."""
-        self._hide_timer.stop()
-        self._progress_timer.stop()
-        elapsed = int(self._elapsed_timer.elapsed())
-        self._remaining_ms = max(0, self._remaining_ms - elapsed)
+        # Don't pause timer for notifications with buttons (they don't auto-close)
+        has_buttons = self._buttons and len(self._buttons) > 0
+        if not has_buttons:
+            self._hide_timer.stop()
+            self._progress_timer.stop()
+            # Calculate remaining time, with safety bounds
+            elapsed = int(self._elapsed_timer.elapsed())
+            self._remaining_ms = max(0, min(self._remaining_ms - elapsed, self.MAX_TIMER_MS))
         super().enterEvent(event)
-    
+
     def leaveEvent(self, event):
         """Resume hide timer when mouse leaves."""
-        # Only restart if not already hiding
-        if self.windowOpacity() > 0 and not self._fade_anim.state() == QPropertyAnimation.State.Running:
-            self._elapsed_timer.restart()
-            self._hide_timer.start(self._remaining_ms)
-            self._progress_timer.start()
+        # Don't resume timer for notifications with buttons (they don't auto-close)
+        has_buttons = self._buttons and len(self._buttons) > 0
+        if not has_buttons:
+            # Only restart if not already hiding
+            if self.windowOpacity() > 0 and not self._fade_anim.state() == QPropertyAnimation.State.Running:
+                # Clamp to valid QTimer range to prevent overflow
+                safe_remaining = max(300, min(self._remaining_ms, self.MAX_TIMER_MS))
+                self._elapsed_timer.restart()
+                self._hide_timer.start(safe_remaining)
+                self._progress_timer.start()
         super().leaveEvent(event)
     
     def mousePressEvent(self, event):

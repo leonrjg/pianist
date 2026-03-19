@@ -5,7 +5,8 @@ Checks for due reminders every 30 seconds and fires them with context awareness.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Optional
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -27,10 +28,10 @@ class ReminderManager(QThread):
     """
 
     reminder_fired = pyqtSignal(int, str)  # reminder_id, message
-    notification_requested = pyqtSignal(str, str, str)  # title, message, urgency
+    notification_requested = pyqtSignal(int, str, str)  # reminder_id, message, urgency
 
     CHECK_INTERVAL_MS = 30_000  # 30 seconds
-    ANTI_SPAM_GAP_MINUTES = 15  # Minimum gap between any notifications
+    ANTI_SPAM_GAP_MINUTES = 10  # Minimum gap between any notifications
 
     def __init__(self, context_evaluator: ContextEvaluator):
         """
@@ -43,6 +44,7 @@ class ReminderManager(QThread):
         self.context_evaluator = context_evaluator
         self.running = False
         self.last_notification_time = None
+        self._mute_until: Optional[datetime] = None  # None = not muted; datetime.max = indefinite
 
     def run(self):
         """Main thread loop."""
@@ -71,6 +73,27 @@ class ReminderManager(QThread):
     def stop(self):
         """Stop the manager thread."""
         self.running = False
+
+    def mute(self, hours: Optional[float]):
+        """Mute all reminders. Pass None for indefinite mute."""
+        if hours is None:
+            self._mute_until = datetime.max
+        else:
+            self._mute_until = datetime.now() + timedelta(hours=hours)
+        logger.info(f"Reminders muted until {self._mute_until}")
+
+    def unmute(self):
+        """Re-enable reminders."""
+        self._mute_until = None
+        logger.info("Reminders unmuted")
+
+    @property
+    def is_muted(self) -> bool:
+        if self._mute_until is None:
+            return False
+        if self._mute_until == datetime.max:
+            return True
+        return datetime.now() < self._mute_until
 
     def _check_overdue_on_startup(self):
         """Check for overdue reminders when app starts."""
@@ -145,6 +168,11 @@ class ReminderManager(QThread):
         """
         now = datetime.now()
 
+        # Check mute
+        if self.is_muted:
+            logger.info(f"Reminders muted — skipping {reminder.name}")
+            return
+
         # Check anti-spam gap
         if self.last_notification_time:
             time_since_last = (now - self.last_notification_time).total_seconds()
@@ -159,7 +187,10 @@ class ReminderManager(QThread):
         message = ActionHandler.get_message(reminder)
         if reminder.notification_method == 'desktop':
             urgency = 'high' if is_overdue else 'normal'
-            self.notification_requested.emit(reminder.name, message, urgency)
+
+            # Main thread will use ActionHandler.show_notification_for_action
+            self.notification_requested.emit(reminder.id, message, urgency)
+
             self.last_notification_time = now
 
         # Small delay to let notification appear before action

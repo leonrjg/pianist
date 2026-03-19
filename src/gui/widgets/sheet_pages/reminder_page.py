@@ -2,7 +2,7 @@
 Reminder Page - List view of all reminders with creation button.
 """
 
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QLabel, QScrollArea
+from PyQt6.QtWidgets import QVBoxLayout, QWidget, QLabel, QScrollArea, QHBoxLayout
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
@@ -43,6 +43,12 @@ class ReminderPage(SheetPage):
         new_btn.clicked.connect(lambda: self.navigate_to.emit('reminder_detail', None))
         layout.addWidget(new_btn)
 
+        # Mute section
+        layout.addSpacing(8)
+        layout.addWidget(self._create_separator())
+        layout.addSpacing(4)
+        self._build_mute_section(layout)
+
         # Reminders list
         reminders = Reminder.select().order_by(Reminder.created_at.desc())
 
@@ -59,6 +65,52 @@ class ReminderPage(SheetPage):
                 layout.addWidget(card)
 
         layout.addStretch()
+
+    def _get_reminder_manager(self):
+        """Get the reminder manager from the top-level window."""
+        return getattr(self.window(), 'reminder_manager', None)
+
+    def _build_mute_section(self, layout):
+        """Build the mute reminders controls."""
+        rm = self._get_reminder_manager()
+
+        mute_label = QLabel("Mute all reminders")
+        mute_label.setStyleSheet("color: rgb(70, 50, 35); font-weight: bold; font-size: 12px;")
+        layout.addWidget(mute_label)
+
+        if rm and rm.is_muted:
+            status = QLabel("Reminders are currently muted.")
+            status.setStyleSheet("color: rgb(160, 80, 50); font-style: italic; font-size: 11px;")
+            layout.addWidget(status)
+
+            unmute_btn = VintageButton("Unmute", button_type="secondary", parent=self)
+            unmute_btn.clicked.connect(self._unmute)
+            layout.addWidget(unmute_btn)
+        else:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(6)
+
+            for label, hours in [("1 h", 1), ("4 h", 4), ("24 h", 24), ("Indefinitely", None)]:
+                btn = VintageButton(label, button_type="secondary", parent=self)
+                btn.clicked.connect(lambda _, h=hours: self._mute(h))
+                row_layout.addWidget(btn)
+
+            row_layout.addStretch()
+            layout.addWidget(row)
+
+    def _mute(self, hours):
+        rm = self._get_reminder_manager()
+        if rm:
+            rm.mute(hours)
+        self.refresh()
+
+    def _unmute(self):
+        rm = self._get_reminder_manager()
+        if rm:
+            rm.unmute()
+        self.refresh()
 
     def _toggle_reminder(self, reminder):
         """Toggle reminder enabled state."""
