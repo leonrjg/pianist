@@ -1,3 +1,4 @@
+import logging
 import threading
 from datetime import datetime
 
@@ -5,15 +6,19 @@ import requests
 
 from core.sync.merge import get_model_registry, serialize_row, merge_record
 
+logger = logging.getLogger(__name__)
+
 TIMEOUT = 10
 EPOCH = datetime(1970, 1, 1)
 
 
 def _build_delta(since: datetime) -> list:
+    from core.db import db
     records = []
-    for table_name, model in get_model_registry().items():
-        for row in model.select().where(model.updated_at > since):
-            records.append(serialize_row(row, table_name))
+    with db.atomic():
+        for table_name, model in get_model_registry().items():
+            for row in model.select().where(model.updated_at > since):
+                records.append(serialize_row(row, table_name))
     return records
 
 
@@ -23,9 +28,12 @@ class SyncClient:
         self._lock = threading.Lock()
         self._sync_count: int = 0  # number of delta_syncs currently in-flight
 
-    def register_peer(self, device_id: str, url: str) -> None:
+    def register_peer(self, device_id: str, url: str) -> bool:
+        """Register a peer. Returns True if the peer is newly added, False if already known."""
         with self._lock:
+            is_new = device_id not in self._active_peers
             self._active_peers[device_id] = url
+            return is_new
 
     def unregister_peer(self, device_id: str) -> None:
         with self._lock:
@@ -38,11 +46,13 @@ class SyncClient:
 
     @property
     def is_syncing(self) -> bool:
-        return self._sync_count > 0
+        with self._lock:
+            return self._sync_count > 0
 
     def delta_sync(self, peer_url: str, peer_device_id: str) -> None:
         """Full bidirectional delta sync with a peer."""
-        self._sync_count += 1
+        with self._lock:
+            self._sync_count += 1
         try:
             info = requests.get(f'{peer_url}/sync/info', timeout=TIMEOUT).json()
             if info.get('device_id') != peer_device_id:
@@ -60,7 +70,10 @@ class SyncClient:
                 timeout=TIMEOUT,
             )
             for item in resp.json().get('records', []):
-                merge_record(item['table'], item['data'])
+                try:
+                    merge_record(item['table'], item['data'])
+                except Exception:
+                    logger.exception("Failed to merge record: %s", item.get('table'))
 
             our_delta = _build_delta(since)
             requests.post(f'{peer_url}/sync/push', json={'records': our_delta}, timeout=TIMEOUT)
@@ -73,7 +86,8 @@ class SyncClient:
         except Exception:
             pass  # Will retry on next reconnect
         finally:
-            self._sync_count -= 1
+            with self._lock:
+                self._sync_count -= 1
 
     def live_push(self, record: dict) -> None:
         """Fire-and-forget push of a single record to all active peers."""

@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -38,14 +37,10 @@ def get_model_registry() -> dict:
 
 
 def serialize_row(instance, table_name: str) -> dict:
-    """Serialize a model instance to a JSON-safe dict."""
+    """Serialize a model instance to a JSON-safe dict using Peewee's own DB encoding."""
     row = {}
-    for name in instance._meta.fields:
-        val = instance.__data__.get(name)
-        if isinstance(val, datetime):
-            val = val.isoformat()
-        elif isinstance(val, uuid.UUID):
-            val = str(val)
+    for name, field in instance._meta.fields.items():
+        val = field.db_value(instance.__data__.get(name))
         row[name] = val
     return {'table': table_name, 'data': row}
 
@@ -79,7 +74,7 @@ def merge_record(table: str, incoming: dict) -> None:
 
 
 def _coerce(field, value):
-    """Convert a raw JSON value to the Python type Peewee expects for this field."""
+    """Convert a DB-encoded value back to the Python type Peewee expects."""
     if value is None:
         return None
     return field.python_value(value)

@@ -1,3 +1,4 @@
+import logging
 import socket
 import threading
 from datetime import datetime
@@ -6,6 +7,8 @@ from flask import Flask, request, jsonify
 
 from core.config import get_device_id
 from core.sync.merge import get_model_registry, serialize_row, merge_record
+
+logger = logging.getLogger(__name__)
 
 APP_VERSION = '1.0.0'
 SYNC_PORT = 47832
@@ -30,10 +33,12 @@ def sync_delta():
     except ValueError:
         since_dt = datetime(1970, 1, 1)
 
+    from core.db import db
     records = []
-    for table_name, model in get_model_registry().items():
-        for row in model.select().where(model.updated_at > since_dt):
-            records.append(serialize_row(row, table_name))
+    with db.atomic():
+        for table_name, model in get_model_registry().items():
+            for row in model.select().where(model.updated_at > since_dt):
+                records.append(serialize_row(row, table_name))
 
     return jsonify({
         'device_id': get_device_id(),
@@ -46,7 +51,10 @@ def sync_delta():
 def sync_push():
     payload = request.get_json(force=True)
     for item in payload.get('records', []):
-        merge_record(item['table'], item['data'])
+        try:
+            merge_record(item['table'], item['data'])
+        except Exception:
+            logger.exception("Failed to merge record: %s", item.get('table'))
     return jsonify({'status': 'ok'})
 
 

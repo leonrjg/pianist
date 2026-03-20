@@ -103,12 +103,13 @@ class DiscoveryService:
             update={Device.last_seen: now, Device.name: peer_name},
         ).execute()
 
-        self._client.register_peer(peer_device_id, peer_url)
-        threading.Thread(
-            target=self._client.delta_sync,
-            args=(peer_url, peer_device_id),
-            daemon=True,
-        ).start()
+        is_new = self._client.register_peer(peer_device_id, peer_url)
+        if is_new:
+            threading.Thread(
+                target=self._client.delta_sync,
+                args=(peer_url, peer_device_id),
+                daemon=True,
+            ).start()
         logger.info("Peer found: %s at %s", peer_device_id, peer_url)
 
     def _on_peer_lost(self, name: str) -> None:
