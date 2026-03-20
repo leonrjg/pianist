@@ -1,12 +1,12 @@
 import json
 import logging
-from typing import List, Dict
-from datetime import datetime, timedelta
+from typing import Dict
+from datetime import datetime
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from core.habit.habit import Habit
-from core.habit.habit_tracker import HabitTracker
+from core.habit.service import HabitService
 from core.tracker.window_monitor import WindowMonitor
 from core.tracker.window import WindowTracker
 
@@ -22,15 +22,16 @@ class AutoSessionManager(QObject):
     # Cooldown period after manual session end (in seconds)
     MANUAL_END_COOLDOWN = 60 * 60  # 1 hour
 
-    def __init__(self, habits: List[Habit]):
+    def __init__(self, service):
         """
         Initialize auto-session manager.
 
         Args:
-            habits: List of all habits to monitor
+            service: HabitService — queried live on each window change so newly
+                     added habits are immediately eligible for auto-start.
         """
         super().__init__()
-        self.habits = habits
+        self.service = service
 
         # Track manually ended sessions: habit_id -> timestamp
         self.manual_end_times: Dict[int, datetime] = {}
@@ -42,7 +43,7 @@ class AutoSessionManager(QObject):
 
     def _on_window_changed(self, title: str):
         """Called by WindowMonitor when window title changes."""
-        for habit in self.habits:
+        for habit in self.service.get_all_habits():
             # Check if habit's WindowTracker would match this window
             if self._should_start_session(habit, title):
                 logger.info(f"Auto-session detected for habit '{habit.name}' (window: {title})")
@@ -90,11 +91,7 @@ class AutoSessionManager(QObject):
             return False
 
         # Get habit's WindowTracker config
-        trackers = HabitTracker.select().where(
-            (HabitTracker.habit == habit) &
-            (HabitTracker.tracker == 'WindowTracker') &
-            (HabitTracker.is_enabled == True)
-        )
+        trackers = HabitService.get_window_trackers(habit)
 
         for tracker in trackers:
             config = json.loads(tracker.config)

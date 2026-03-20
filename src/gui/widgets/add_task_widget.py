@@ -12,8 +12,7 @@ from datetime import datetime
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from core.habit.manual_task import ManualTask
-from core.db import db
+from core.task.service import TaskService
 from .vintage_date_picker import VintageDatePicker
 
 
@@ -135,14 +134,7 @@ class AddTaskWidget(QWidget):
             qdate = self.date_input.date()
             scheduled_dt = datetime(qdate.year(), qdate.month(), qdate.day(), 0, 0, 0)
 
-            # Create manual task
-            with db.atomic():
-                ManualTask.create(
-                    habit=None,
-                    title=title,
-                    scheduled_at=scheduled_dt,
-                    completed_at=None
-                )
+            TaskService.create_standalone_task(title, scheduled_dt)
 
             # Clear input and emit signal
             self.title_input.clear()

@@ -10,7 +10,6 @@ from typing import Optional
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from core.reminder.reminder import Reminder
 from core.reminder.context import ContextEvaluator
 from core.reminder.actions import ActionHandler
 from core.reminder.service import ReminderService
@@ -27,8 +26,8 @@ class ReminderManager(QThread):
     and fires appropriate reminders based on type.
     """
 
-    reminder_fired = pyqtSignal(int, str)  # reminder_id, message
-    notification_requested = pyqtSignal(int, str, str)  # reminder_id, message, urgency
+    reminder_fired = pyqtSignal(object, str)  # reminder_id, message
+    notification_requested = pyqtSignal(object, str, str)  # reminder_id, message, urgency
 
     CHECK_INTERVAL_MS = 30_000  # 30 seconds
     ANTI_SPAM_GAP_MINUTES = 10  # Minimum gap between any notifications
@@ -99,27 +98,11 @@ class ReminderManager(QThread):
         """Check for overdue reminders when app starts."""
         now = datetime.now()
 
-        # SR reminders: Fire with urgency
-        sr_reminders = Reminder.select().where(
-            (Reminder.is_enabled == True) &
-            (Reminder.reminder_type == 'sr') &
-            (Reminder.next_fire_at.is_null(False)) &
-            (Reminder.next_fire_at < now)
-        )
-
-        for reminder in sr_reminders:
+        for reminder in ReminderService.get_overdue_sr(now):
             logger.info(f"Overdue SR reminder on startup: {reminder.name}")
             self._fire_reminder(reminder, is_overdue=True)
 
-        # Stochastic reminders: Just reschedule, don't fire
-        stochastic_reminders = Reminder.select().where(
-            (Reminder.is_enabled == True) &
-            (Reminder.reminder_type == 'stochastic') &
-            (Reminder.next_fire_at.is_null(False)) &
-            (Reminder.next_fire_at < now)
-        )
-
-        for reminder in stochastic_reminders:
+        for reminder in ReminderService.get_overdue_stochastic(now):
             logger.info(f"Rescheduling overdue stochastic reminder: {reminder.name}")
             ReminderService.reschedule(reminder)
 
@@ -130,8 +113,7 @@ class ReminderManager(QThread):
         # Update context evaluator idle status
         self.context_evaluator.update_idle_status()
 
-        # Get all enabled reminders
-        reminders = Reminder.select().where(Reminder.is_enabled == True)
+        reminders = ReminderService.get_all_enabled()
 
         sr_due = []
         stochastic_due = []

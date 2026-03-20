@@ -1,6 +1,10 @@
+from pathlib import Path
 from peewee import *
 
-db = SqliteDatabase('habits.db')
+_db_path = Path.home() / '.pianist' / 'habits.db'
+_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+db = SqliteDatabase(str(_db_path), pragmas={'journal_mode': 'WAL'})
 
 class BaseModel(Model):
     """
@@ -14,26 +18,19 @@ class BaseModel(Model):
 
 def initialize_database():
     """
-    Initialize the SQLite database with all required tables.
+    Initialize the SQLite database.
 
-    Create the database schema for habits, logs, and a junction table for habit trackers.
-    Also runs any pending migrations for schema changes.
+    Connects to the database and runs all pending migrations.
+    Migrations own the schema entirely: table creation, column additions,
+    and seed data are all handled by migration files in core/migrations/.
     """
-    from core.habit.habit import Habit
-    from core.habit.log import Log
-    from core.habit.habit_tracker import HabitTracker
-    from core.mood.mood import Mood
-    from core.mood.mood_log import MoodLog
-    from core.reminder.reminder import Reminder
-    from core.reminder.reminder_log import ReminderLog
-    from core.notes.note import Note
     from core.migrations.runner import run_migrations
 
     db.connect()
-    db.create_tables([Habit, Log, HabitTracker, Mood, MoodLog, Reminder, ReminderLog, Note])
-
-    # Run any pending migrations
     run_migrations()
+
+    from core.sync.service import SyncService
+    SyncService.get_instance().start()
 
     # Start WindowMonitor if any habit uses it
     _initialize_window_monitor()
@@ -47,7 +44,8 @@ def _initialize_window_monitor():
 
     has_window_tracker = HabitTracker.select().where(
         (HabitTracker.tracker == 'window') &
-        (HabitTracker.is_enabled == True)
+        (HabitTracker.is_enabled == True) &
+        HabitTracker.deleted_at.is_null()
     ).exists()
 
     if has_window_tracker:

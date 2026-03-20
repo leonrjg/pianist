@@ -13,7 +13,7 @@ from PyQt6.QtCore import pyqtSignal, Qt, QPointF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPolygonF
 
 from .page_turn_animation import PageTurnAnimation
-from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, SettingsPage, MoodPage, CalendarPage, ReminderPage, ReminderDetailPage
+from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, SettingsPage, MoodPage, CalendarPage, ReminderPage, ReminderDetailPage, SyncPage
 from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
@@ -69,6 +69,7 @@ class PageType(Enum):
     CALENDAR = "calendar"
     REMINDERS = "reminders"
     REMINDER_DETAIL = "reminder_detail"
+    SYNC = "sync"
 
 
 class MusicSheetWidget(QWidget):
@@ -326,6 +327,8 @@ class MusicSheetWidget(QWidget):
                 return ReminderPage(self)
             elif page_type == PageType.REMINDER_DETAIL.value:
                 return ReminderDetailPage(reminder_id=data, parent=self)
+            elif page_type == PageType.SYNC.value:
+                return SyncPage(self)
             else:
                 print(f"Unknown page type: {page_type}")
                 return None
@@ -350,6 +353,10 @@ class MusicSheetWidget(QWidget):
     def navigate_to_mood_page(self):
         """Navigate to the mood management page"""
         self._navigate_to(PageType.MOOD.value, None)
+
+    def navigate_to_sync_page(self):
+        """Navigate to the sync status page"""
+        self._navigate_to(PageType.SYNC.value, None)
 
     def resizeEvent(self, event):
         """Update overlay geometry when widget is resized"""

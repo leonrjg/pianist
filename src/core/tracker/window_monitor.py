@@ -19,6 +19,7 @@ class WindowMonitor:
 
     # Callbacks for window changes
     _callbacks = []
+    _callbacks_lock = threading.Lock()
 
     # Background thread
     _thread = None
@@ -37,7 +38,14 @@ class WindowMonitor:
     @classmethod
     def register_callback(cls, callback):
         """Register a callback to be called when window title changes."""
-        cls._callbacks.append(callback)
+        with cls._callbacks_lock:
+            cls._callbacks.append(callback)
+
+    @classmethod
+    def unregister_callback(cls, callback):
+        """Remove a previously registered callback."""
+        with cls._callbacks_lock:
+            cls._callbacks = [cb for cb in cls._callbacks if cb != callback]
 
     @classmethod
     def _start_monitoring(cls):
@@ -58,8 +66,10 @@ class WindowMonitor:
                     cls._cached_title = new_title
                     cls._last_update = time.time()
 
-                    # Notify all registered callbacks
-                    for callback in cls._callbacks:
+                    # Snapshot callbacks under lock, then iterate without holding it
+                    with cls._callbacks_lock:
+                        callbacks = list(cls._callbacks)
+                    for callback in callbacks:
                         try:
                             callback(new_title)
                         except Exception as e:

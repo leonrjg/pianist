@@ -16,14 +16,11 @@ from .base_page import SheetPage
 from .vintage_styles import VINTAGE_MENU_STYLE
 from ..task_calendar_widget import TaskCalendarWidget
 
-# Import database models
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.habit.habit import Habit
-from core.habit.manual_task import ManualTask
 from core.analytics import get_tasks_in_range
-from core.db import db
+from core.task.service import TaskService
 
 
 class TaskPopup(QWidget):
@@ -221,14 +218,7 @@ class TaskPopup(QWidget):
                 0, 0, 0
             )
 
-            # Create standalone manual task
-            with db.atomic():
-                ManualTask.create(
-                    habit=None,  # Standalone task
-                    title=title,
-                    scheduled_at=scheduled_dt,
-                    completed_at=None  # Not completed yet
-                )
+            TaskService.create_standalone_task(title, scheduled_dt)
 
             # Clear input
             self._task_input.clear()
@@ -407,7 +397,8 @@ class CalendarPage(SheetPage):
     def _load_tasks(self):
         """Load tasks for currently visible month with buffer"""
         try:
-            habits = list(Habit.select())
+            _service = getattr(self.window(), 'service', None)
+            habits = _service.get_all_habits() if _service else []
             now = datetime.now()
 
             # Get visible month center date
@@ -428,6 +419,7 @@ class CalendarPage(SheetPage):
             all_tasks = []
             for habit in habits:
                 schedule = habit.get_schedule()
+                is_completed = habit.build_completion_checker(start_date, end_date)
 
                 # Get previous tasks (if start_date is in the past)
                 if prev_timespan > 0:
@@ -436,7 +428,7 @@ class CalendarPage(SheetPage):
                             all_tasks.append({
                                 'habit': habit,
                                 'datetime': task,
-                                'completed': habit.is_task_completed(task)
+                                'completed': is_completed(task)
                             })
 
                 # Get next tasks (if end_date is in the future)
@@ -446,14 +438,11 @@ class CalendarPage(SheetPage):
                             all_tasks.append({
                                 'habit': habit,
                                 'datetime': task,
-                                'completed': habit.is_task_completed(task)
+                                'completed': is_completed(task)
                             })
 
             # Add manual tasks in the date range
-            manual_tasks = ManualTask.select().where(
-                (ManualTask.scheduled_at >= start_date) &
-                (ManualTask.scheduled_at <= end_date)
-            )
+            manual_tasks = TaskService.get_manual_tasks_in_range(start_date, end_date)
 
             for manual_task in manual_tasks:
                 # Create a pseudo-habit object for display

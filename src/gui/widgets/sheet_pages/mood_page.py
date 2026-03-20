@@ -5,8 +5,8 @@ Mood Page - Manage moods and view mood logs.
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget, QPushButton, QLineEdit, QMessageBox, QVBoxLayout
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
-from datetime import datetime
 
+from core.mood.service import MoodService
 from core.mood.mood import Mood
 from core.mood.mood_log import MoodLog
 from core.util.time import get_friendly_datetime
@@ -56,7 +56,7 @@ class MoodPage(SheetPage):
         header = self._create_subsection_header("Current Mood")
         layout.addWidget(header)
 
-        current_log = Mood.get_current_mood_log()
+        current_log = MoodService.get_current_log()
         if current_log:
             # Container for current mood
             container = QWidget()
@@ -115,7 +115,7 @@ class MoodPage(SheetPage):
         header = self._create_subsection_header("Available Moods")
         layout.addWidget(header)
 
-        moods = Mood.get_all_ordered()
+        moods = MoodService.get_all()
         for mood in moods:
             mood_row = self._create_mood_row(mood)
             layout.addWidget(mood_row)
@@ -235,7 +235,7 @@ class MoodPage(SheetPage):
         header = self._create_subsection_header("Recent Logs")
         layout.addWidget(header)
 
-        logs = MoodLog.get_recent_logs(limit=15)
+        logs = MoodService.get_recent_logs(limit=15)
         if logs:
             for log in logs:
                 log_row = self._create_log_row(log)
@@ -303,20 +303,19 @@ class MoodPage(SheetPage):
         label.setStyleSheet("color: rgb(70, 50, 35); padding: 4px 0px 2px 0px;")
         return label
 
-    def _end_current_mood(self, log: MoodLog):
+    def _end_current_mood(self, log):
         """End the current mood"""
-        log.end_now('manual')
+        MoodService.end_mood_log(log)
         self.refresh()
         self.content_updated.emit()
 
-    def _delete_mood(self, mood: Mood):
+    def _delete_mood(self, mood):
         """Delete a mood"""
-        # Check if mood has logs for warning message
         has_logs = not mood.can_delete()
         warning_text = f"Delete mood '{mood.description}'?"
         if has_logs:
             warning_text += "\n\nThis will also delete all associated logs."
-        
+
         reply = QMessageBox.question(
             self,
             "Confirm Delete",
@@ -325,7 +324,7 @@ class MoodPage(SheetPage):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            mood.delete_instance()
+            MoodService.delete_mood(mood)
             self.refresh()
             self.content_updated.emit()
 
@@ -335,80 +334,43 @@ class MoodPage(SheetPage):
         description = self.description_input.text().strip()
 
         if not symbol or not description:
-            QMessageBox.warning(
-                self,
-                "Invalid Input",
-                "Both emoji and description are required."
-            )
+            QMessageBox.warning(self, "Invalid Input", "Both emoji and description are required.")
             return
 
-        # Get max display_order
-        max_order = 0
-        moods = Mood.select()
-        if moods.count() > 0:
-            max_order = max(m.display_order for m in moods)
-
-        Mood.create(
-            symbol=symbol,
-            description=description,
-            display_order=max_order + 1
-        )
-
+        MoodService.create_mood(symbol, description)
         self.emoji_input.clear()
         self.description_input.clear()
         self.refresh()
         self.content_updated.emit()
 
-    def _update_mood_symbol(self, mood: Mood, new_symbol: str):
+    def _update_mood_symbol(self, mood, new_symbol: str):
         """Update mood symbol"""
         new_symbol = new_symbol.strip()
         if new_symbol and new_symbol != mood.symbol:
-            mood.symbol = new_symbol
-            mood.save()
+            MoodService.update_mood_symbol(mood, new_symbol)
             self.content_updated.emit()
 
-    def _update_mood_description(self, mood: Mood, new_description: str):
+    def _update_mood_description(self, mood, new_description: str):
         """Update mood description"""
         new_description = new_description.strip()
         if new_description and new_description != mood.description:
-            mood.description = new_description
-            mood.save()
+            MoodService.update_mood_description(mood, new_description)
             self.content_updated.emit()
 
-    def _move_mood_up(self, mood: Mood):
+    def _move_mood_up(self, mood):
         """Move mood up in display order"""
-        moods = Mood.get_all_ordered()
-        idx = next((i for i, m in enumerate(moods) if m.id == mood.id), None)
-        
-        if idx is None or idx == 0:
-            return
-        
-        # Swap display_order with previous mood
-        moods[idx].display_order, moods[idx - 1].display_order = moods[idx - 1].display_order, moods[idx].display_order
-        moods[idx].save()
-        moods[idx - 1].save()
-        
+        MoodService.move_mood_up(mood)
         self.refresh()
         self.content_updated.emit()
 
-    def _move_mood_down(self, mood: Mood):
+    def _move_mood_down(self, mood):
         """Move mood down in display order"""
-        moods = Mood.get_all_ordered()
-        idx = next((i for i, m in enumerate(moods) if m.id == mood.id), None)
-        
-        if idx is None or idx == len(moods) - 1:
-            return
-        
-        # Swap display_order with next mood
-        moods[idx].display_order, moods[idx + 1].display_order = moods[idx + 1].display_order, moods[idx].display_order
-        moods[idx].save()
-        moods[idx + 1].save()
-        
+        MoodService.move_mood_down(mood)
         self.refresh()
         self.content_updated.emit()
 
-    def _delete_log(self, log: MoodLog):
+    def _delete_log(self, log):
         """Delete a mood log"""
-        log.delete_instance()
+        MoodService.delete_log(log)
         self.refresh()
         self.content_updated.emit()

@@ -8,8 +8,7 @@ from PyQt6.QtWidgets import QWidget, QTextEdit, QPushButton, QLabel, QVBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QIcon, QKeyEvent, QTextBlockFormat, QTextCursor
 
-from core.notes.note import Note
-from core.habit.habit import Habit
+from core.notes.service import NoteService
 from ..constants import PianoColors
 
 
@@ -233,8 +232,9 @@ class NotesWidget(QWidget):
         # Add "Default note" option (global note with habit = None)
         self.habit_selector.addItem("Default note", userData=None)
 
-        # Add all non-archived habits
-        habits = Habit.select().where(Habit.archived == False).order_by(Habit.name)
+        # Add all non-archived habits via service
+        _service = getattr(self.parent(), 'service', None)
+        habits = sorted(_service.get_all_habits(), key=lambda h: h.name) if _service else []
         for habit in habits:
             self.habit_selector.addItem(habit.name, userData=habit.id)
 
@@ -248,12 +248,11 @@ class NotesWidget(QWidget):
 
         # Load the appropriate note
         if habit_id is None:
-            # Load global note
-            self._note = Note.get_global_note()
+            self._note = NoteService.get_global_note()
         else:
-            # Load habit-specific note
-            habit = Habit.get_by_id(habit_id)
-            self._note = Note.get_habit_note(habit)
+            _service = getattr(self.parent(), 'service', None)
+            habit = _service.get_habit_by_id(habit_id) if _service else None
+            self._note = NoteService.get_habit_note(habit) if habit else NoteService.get_global_note()
 
         # Update text editor without triggering save
         self.text_edit.blockSignals(True)
@@ -298,7 +297,7 @@ class NotesWidget(QWidget):
 
         # Auto-select habit if exactly one session is running
         if self.parent() and hasattr(self.parent(), 'session_manager'):
-            active_habit_ids = list(self.parent().session_manager.processes.keys())
+            active_habit_ids = list(self.parent().session_manager._processes.keys())
             if len(active_habit_ids) == 1:
                 active_habit_id = active_habit_ids[0]
                 # Find and select this habit in the dropdown

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from datetime import timedelta
 from typing import Optional
@@ -34,8 +35,8 @@ class Habit(BaseModel):
         archived: Whether the habit is archived (retired but historical data preserved).
         note: Markdown notes for the habit.
     """
-    id = AutoField()
-    name = CharField(unique=True)
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
+    name = CharField()
     schedule: str = CharField(index=True)
     schedule_step = IntegerField(default=1)
     created_at = DateTimeField(default=datetime.now().date())
@@ -48,6 +49,8 @@ class Habit(BaseModel):
     visible = BooleanField(default=True)
     archived = BooleanField(default=False)
     note = TextField(null=True)
+    device_id = CharField(default='')
+    deleted_at = DateTimeField(null=True)
     
     def __init__(self, *args, **kwargs):
         """Initialize habit with schedule instance."""
@@ -103,7 +106,7 @@ class Habit(BaseModel):
             fn.SUM(duration).alias('net_duration'),
             fn.COUNT().alias('row_count'))
             .group_by(bucket)
-            .where((Log.habit == self) & (Log.end.is_null(False)))
+            .where((Log.habit == self) & (Log.end.is_null(False)) & Log.deleted_at.is_null())
             .limit(limit)
             .order_by(fn.MIN(Log.start).desc()))
 
@@ -160,6 +163,34 @@ class Habit(BaseModel):
 
         return max(current_streak, longest_streak)
 
+    def build_completion_checker(self, start: datetime, end: datetime):
+        """
+        Return a callable that checks completion for any task datetime in [start, end].
+
+        Fetches activity buckets and manual completions once, so callers checking
+        many tasks avoid N DB queries.
+        """
+        from core.habit.manual_task import ManualTask
+        buckets = self.get_activity_buckets()
+        manual_completions = set(
+            mt.scheduled_at.replace(microsecond=0)
+            for mt in ManualTask.select(ManualTask.scheduled_at).where(
+                (ManualTask.habit == self) &
+                (ManualTask.scheduled_at >= start) &
+                (ManualTask.scheduled_at <= end) &
+                (ManualTask.completed_at.is_null(False)) &
+                ManualTask.deleted_at.is_null()
+            )
+        )
+
+        def checker(task: datetime) -> bool:
+            bucket = self._find_bucket_for_task(buckets, task)
+            if bucket and self._qualifies_for_streak(bucket):
+                return True
+            return task.replace(microsecond=0) in manual_completions
+
+        return checker
+
     def is_task_completed(self, task: datetime) -> bool:
         """
         Check if the habit's task for the given datetime has been completed.
@@ -185,7 +216,8 @@ class Habit(BaseModel):
         return ManualTask.select().where(
             (ManualTask.habit == self) &
             (ManualTask.scheduled_at == normalized_task) &
-            (ManualTask.completed_at.is_null(False))
+            (ManualTask.completed_at.is_null(False)) &
+            ManualTask.deleted_at.is_null()
         ).exists()
 
     def _find_bucket_for_task(self, buckets: list[Bucket], task: datetime) -> Optional[Bucket]:

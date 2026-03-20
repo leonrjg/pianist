@@ -3,6 +3,8 @@ Habit Detail Page - View and edit individual habit details.
 """
 
 
+from datetime import datetime
+
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QMessageBox, QWidget)
 from PyQt6.QtCore import Qt, QDate
 
@@ -20,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.db import db
 from core.habit.habit import Habit
-from core.habit.habit_tracker import HabitTracker
+from core.habit.service import HabitService
 
 
 class HabitDetailPage(SheetPage):
@@ -64,7 +66,9 @@ class HabitDetailPage(SheetPage):
         # Load habit if editing
         if self.habit_id:
             try:
-                self.habit = Habit.get_by_id(self.habit_id)
+                self.habit = HabitService.get_non_deleted_by_id(self.habit_id)
+                if self.habit is None:
+                    raise ValueError("not found")
             except:
                 error_label = self._create_text_label("Habit not found", secondary=True)
                 layout.addWidget(error_label)
@@ -204,7 +208,9 @@ class HabitDetailPage(SheetPage):
         # Get enabled trackers for this habit
         enabled_trackers = {}
         if self.habit:
-            for ht in self.habit.trackers.where(HabitTracker.is_enabled == True):
+            _service = getattr(self.window(), 'service', None)
+            trackers = _service.get_enabled_trackers(self.habit) if _service else []
+            for ht in trackers:
                 enabled_trackers[ht.tracker] = ht.get_config()
                 self._initially_enabled_trackers.add(ht.tracker)
 
@@ -420,26 +426,22 @@ class HabitDetailPage(SheetPage):
 
                 self.habit.save()
 
-                # Update trackers - delete all and recreate from checkboxes
-                HabitTracker.delete().where(HabitTracker.habit == self.habit).execute()
-
-                # Create HabitTracker records for each checked tracker
+                # Update trackers via service
+                import json
+                tracker_configs = []
                 for tracker_name, checkbox in self._tracker_checkboxes.items():
                     if checkbox.isChecked():
                         config_edit = self._tracker_config_edits.get(tracker_name)
                         config_str = config_edit.text().strip() if config_edit else ""
                         config_dict = self._parse_config_string(config_str)
+                        tracker_configs.append({
+                            'tracker': tracker_name,
+                            'config_json': json.dumps(config_dict)
+                        })
 
-                        # Convert dict to JSON
-                        import json
-                        config_json = json.dumps(config_dict)
-
-                        HabitTracker.insert(
-                            habit=self.habit,
-                            tracker=tracker_name,
-                            config=config_json,
-                            is_enabled=True
-                        ).on_conflict_replace().execute()
+                _service = getattr(self.window(), 'service', None)
+                if _service:
+                    _service.save_trackers(self.habit, tracker_configs)
 
             # Stop all help widget updates before leaving
             for help_widget in self._tracker_help_widgets.values():
@@ -475,7 +477,9 @@ class HabitDetailPage(SheetPage):
                 for help_widget in self._tracker_help_widgets.values():
                     help_widget.stop_updates()
 
-                self.habit.delete_instance()
+                self.habit.deleted_at = datetime.now()
+                self.habit.updated_at = datetime.now()
+                self.habit.save()
                 self.content_updated.emit()
                 self.navigate_to.emit("index", None)
             except Exception as e:

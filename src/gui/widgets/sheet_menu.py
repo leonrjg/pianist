@@ -119,6 +119,7 @@ class SheetMenu(QWidget):
         MenuItem('habit_detail', 'New Habit', 'gui/icons/new.svg'),
         MenuItem('stats', 'Stats', 'gui/icons/stats.svg'),
         MenuItem('settings', 'Settings', 'gui/icons/settings.svg'),
+        MenuItem('sync', 'Sync', 'gui/icons/sync.svg'),
     ]
 
     def __init__(self, parent=None, current_page_type: Optional[str] = None):

@@ -10,11 +10,10 @@ from .base_page import SheetPage
 from .habit_card import HabitCard
 from .vintage_form_widgets import VintageButton
 
-# Import database models
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.habit.habit import Habit
+from core.habit.service import HabitService
 from core.util.time import get_friendly_datetime
 
 
@@ -46,17 +45,15 @@ class RepertoirePage(SheetPage):
         self._archived_button.clicked.connect(self._toggle_archived_view)
         layout.addWidget(self._archived_button)
 
-        # Load habits from database
+        # Load habits via service
         try:
-            query = Habit.select().order_by(Habit.display_order, Habit.name)
+            all_habits = HabitService.get_all_non_deleted()
 
             # Filter based on archived view mode
             if self._show_archived_only:
-                # Show only archived habits
-                habits = [h for h in query if h.archived]
+                habits = [h for h in all_habits if h.archived]
             else:
-                # Show only non-archived habits
-                habits = [h for h in query if not h.archived]
+                habits = [h for h in all_habits if not h.archived]
 
             if habits:
                 for habit in habits:

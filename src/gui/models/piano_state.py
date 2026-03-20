@@ -52,7 +52,7 @@ class PianoState(QObject):
 
         # ===== Session State =====
         # Maps habit_id -> time display string (e.g., "5m 23s")
-        self._time_displays: Dict[int, str] = {}
+        self._time_displays: Dict = {}
 
         # ===== Habit Data =====
         self._num_habits = 0  # Total number of habits loaded
@@ -256,20 +256,20 @@ class PianoState(QObject):
 
     # ===== Session Properties =====
 
-    def set_time_display(self, habit_id: int, time_text: str):
+    def set_time_display(self, habit_id, time_text: str):
         """Set time display for a habit"""
         self._time_displays[habit_id] = time_text
 
-    def get_time_display(self, habit_id: int) -> Optional[str]:
+    def get_time_display(self, habit_id) -> Optional[str]:
         """Get time display for a habit"""
         return self._time_displays.get(habit_id)
 
-    def clear_time_display(self, habit_id: int):
+    def clear_time_display(self, habit_id):
         """Clear time display for a habit"""
         if habit_id in self._time_displays:
             del self._time_displays[habit_id]
 
-    def has_active_session(self, habit_id: int) -> bool:
+    def has_active_session(self, habit_id) -> bool:
         """Check if habit has an active session"""
         return habit_id in self._time_displays
 

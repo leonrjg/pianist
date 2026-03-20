@@ -90,7 +90,9 @@ def delete(name):
         python cli.py delete "old_habit"
     """
     habit = _get_habit(name)
-    habit.delete_instance()
+    habit.deleted_at = datetime.now()
+    habit.updated_at = datetime.now()
+    habit.save()
     click.echo(f"Successfully deleted habit '{name}'")
 
 @cli.command()
@@ -190,7 +192,7 @@ def stats(name):
         habit = _get_habit(name)
         _display_habit_stats(habit)
     else:
-        habits = list(Habit.select())
+        habits = list(Habit.select().where(Habit.deleted_at.is_null()))
         if not habits:
             click.echo("No habits found")
             return
@@ -272,7 +274,7 @@ def _display_all_habits_stats(habits):
 def _get_habit(name) -> Habit:
     """Retrieve a habit by name or exit if not found."""
     try:
-        return Habit.get(Habit.name == name)
+        return Habit.get(Habit.name == name, Habit.deleted_at.is_null())
     except DoesNotExist:
         click.echo(f"Habit '{name}' does not exist")
         exit(1)

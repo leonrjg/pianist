@@ -10,11 +10,10 @@ from typing import Optional, Callable
 from .session_item import SessionItem
 from .productivity_progress_bar import ProductivityProgressBar
 
-# Import database models
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.habit.log import Log
+from core.habit.service import HabitService
 from core.util.time import get_friendly_elapsed, get_friendly_datetime, HOUR
 
 
@@ -154,11 +153,7 @@ class ActivityCard(QFrame):
         self.sessions_widget.setLayout(sessions_layout)
 
         # Query individual sessions (Logs) for this bucket
-        logs = Log.select().where(
-            (Log.habit == self.habit) &
-            (Log.start >= self.bucket.start) &
-            (Log.start < self.bucket.end)
-        ).order_by(Log.start)
+        logs = HabitService.get_logs_for_bucket(self.habit, self.bucket)
 
         if logs:
             for log in logs:
@@ -195,9 +190,9 @@ class ActivityCard(QFrame):
         if self.expand_stripe and self.expand_stripe.geometry().contains(event.pos()):
             self.toggle_expand()
 
-    def _delete_log(self, log: Log):
+    def _delete_log(self, log):
         """Delete a log entry and refresh the card"""
-        log.delete_instance()
+        HabitService.delete_log(log)
         self._refresh_sessions()
 
     def _refresh_sessions(self):
@@ -213,11 +208,7 @@ class ActivityCard(QFrame):
                 item.widget().deleteLater()
 
         # Re-query logs for this bucket
-        logs = Log.select().where(
-            (Log.habit == self.habit) &
-            (Log.start >= self.bucket.start) &
-            (Log.start < self.bucket.end)
-        ).order_by(Log.start)
+        logs = HabitService.get_logs_for_bucket(self.habit, self.bucket)
 
         if logs:
             for log in logs:

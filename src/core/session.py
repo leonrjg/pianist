@@ -24,25 +24,31 @@ class Session:
     Thread-safe shared state for a habit tracking session.
 
     It manages real-time activity tracking,
-    automatic pause/resume based on inactivity, and persists session data
-    to the database for streak and analytics calculations.
+    automatic pause/resume based on inactivity, and optionally persists session
+    data to the database for streak and analytics calculations.
+
+    When persist=True (default, CLI usage), the session writes Log records itself.
+    When persist=False (GUI usage via SessionManager), all DB operations are delegated
+    to the SessionManager, which handles them on the main thread.
 
     The session coordinates multiple tracking threads (I/O, window monitoring)
     and maintains timing data including active time, idle time, and pause states.
     """
 
-    def __init__(self, habit: Habit):
+    def __init__(self, habit: Habit, persist: bool = True):
         self.habit = habit
+        self.persist = persist
         self.start_time = time.time()
         self.shutdown_event = threading.Event()
-        self.elapsed_lock = threading.Lock()
         self.updating_thread = None
         self.tracking_thread = None
         self.log = None
         self.trackers = self._load_trackers() or []
 
-        self.state = SessionStatus.ACTIVE
+        # state_lock guards: state, pause_start_time, total_paused_time,
+        # transition_reason, time_adjustment_offset
         self.state_lock = threading.Lock()
+        self.state = SessionStatus.ACTIVE
         self.pause_start_time = None
         self.total_paused_time = 0
         self.transition_reason = None
@@ -51,8 +57,7 @@ class Session:
     def _load_trackers(self):
         """Load all enabled trackers for this habit."""
         def get_habit_trackers(habit):
-            """Get all enabled trackers for a habit."""
-            return HabitTracker.select().where((HabitTracker.habit == habit) & (HabitTracker.is_enabled == True))
+            return HabitTracker.select().where((HabitTracker.habit == habit) & (HabitTracker.is_enabled == True) & HabitTracker.deleted_at.is_null())
 
         trackers = []
         for habit_tracker in get_habit_trackers(self.habit):
@@ -66,25 +71,31 @@ class Session:
 
     def is_paused(self):
         """Check if the session is currently paused."""
-        return self.state == SessionStatus.PAUSED
+        with self.state_lock:
+            return self.state == SessionStatus.PAUSED
 
     def is_ended(self):
         """Check if the session has ended."""
-        return self.state == SessionStatus.ENDED
+        with self.state_lock:
+            return self.state == SessionStatus.ENDED
 
     def start(self):
-        """Start background threads for logging and tracking."""
-        self.updating_thread = threading.Thread(target=self.update_progress, daemon=True)
+        """Start background threads for tracking (and logging if persist=True)."""
+        if self.persist:
+            self.updating_thread = threading.Thread(target=self.update_progress, daemon=True)
+            self.updating_thread.start()
         self.tracking_thread = threading.Thread(target=self.track, daemon=False)
-        self.updating_thread.start()
         self.tracking_thread.start()
 
     def update_progress(self):
-        """Background thread that manages database logging."""
+        """Background thread that manages database logging (only used when persist=True)."""
         def update_record():
+            with self.state_lock:
+                idle_time = self.total_paused_time
+                offset = self.time_adjustment_offset
             self.log.end = datetime.now()
-            self.log.idle_time = self.total_paused_time
-            self.log.offset = self.time_adjustment_offset
+            self.log.idle_time = idle_time
+            self.log.offset = offset
             self.log.save()
 
         # Insert initial log record
@@ -110,29 +121,29 @@ class Session:
         while not self.shutdown_event.wait(timeout=3):
             if not self.is_active() or not self.trackers:
                 break
-                
+
             # Check tracker activity status
             all_trackers_active = all(tracker.is_active() for tracker in self.trackers)
 
-            if all_trackers_active and self.is_paused():
+            with self.state_lock:
+                current_state = self.state
+
+            if all_trackers_active and current_state == SessionStatus.PAUSED:
                 self._resume()
-            elif not all_trackers_active and not self.is_paused():
-                # Check if we should pause due to inactivity
+            elif not all_trackers_active and current_state == SessionStatus.ACTIVE:
                 for tracker in self.trackers:
                     if not tracker.is_active():
                         if time.time() - tracker.get_last_active() >= inactivity_threshold:
                             self._pause(tracker.__class__.__name__)
-            #elif self.is_paused() and time.time() - self.pause_start_time > MAX_IDLE_FACTOR * inactivity_threshold:
-                #self.end()
 
     def get_elapsed_time(self) -> int:
         """Get the elapsed time in seconds since the session started, excluding paused time."""
-        with self.elapsed_lock:
+        with self.state_lock:
             total_time = time.time() - self.start_time
             paused_time = self.total_paused_time
 
             # If currently paused, add the current pause duration
-            if self.is_paused() and self.pause_start_time:
+            if self.state == SessionStatus.PAUSED and self.pause_start_time:
                 paused_time += time.time() - self.pause_start_time
 
             base_elapsed = int(total_time - paused_time)
@@ -142,29 +153,29 @@ class Session:
         """Signal all threads to end and update the log."""
         with self.state_lock:
             # If we're ending while paused, add current pause time to total
-            if self.is_paused() and self.pause_start_time:
+            if self.state == SessionStatus.PAUSED and self.pause_start_time:
                 self.total_paused_time += time.time() - self.pause_start_time
                 self.pause_start_time = None
             self.state = SessionStatus.ENDED
             self.transition_reason = ended_by
-        
+
         if self.log:
             self.log.ended_by = ended_by
             self.log.idle_time = int(self.total_paused_time)
 
         self.shutdown_event.set()
 
-    def join(self):
+    def join(self, timeout: float = None):
         """Wait for background threads to finish."""
         if self.updating_thread:
-            self.updating_thread.join()
+            self.updating_thread.join(timeout=timeout)
         if self.tracking_thread:
-            self.tracking_thread.join()
+            self.tracking_thread.join(timeout=timeout)
 
     def is_active(self) -> bool:
-        """Check if the session is still active."""
+        """Check if the session is still active (not shut down)."""
         return not self.shutdown_event.is_set()
-    
+
     def _pause(self, reason=None):
         """Transition session to paused state."""
         with self.state_lock:
@@ -172,11 +183,11 @@ class Session:
                 self.state = SessionStatus.PAUSED
                 self.pause_start_time = time.time()
                 self.transition_reason = reason
-    
+
     def _resume(self, reason=None):
         """Transition session from paused to active state."""
         with self.state_lock:
-            if self.is_paused():
+            if self.state == SessionStatus.PAUSED:
                 if self.pause_start_time:
                     self.total_paused_time += time.time() - self.pause_start_time
                     self.pause_start_time = None
@@ -197,24 +208,15 @@ class Session:
         """
         Adjust the session time by a delta (positive or negative).
         The adjustment is clamped so that total elapsed time never goes below 0.
-
-        Args:
-            delta_seconds: Number of seconds to add (positive) or subtract (negative)
         """
-        with self.elapsed_lock:
-            # Calculate current base elapsed time (without adjustment)
+        with self.state_lock:
             total_time = time.time() - self.start_time
             paused_time = self.total_paused_time
-            if self.is_paused() and self.pause_start_time:
+            if self.state == SessionStatus.PAUSED and self.pause_start_time:
                 paused_time += time.time() - self.pause_start_time
             base_elapsed = int(total_time - paused_time)
 
-            # Calculate what the new offset would be
             new_offset = self.time_adjustment_offset + delta_seconds
-
-            # Clamp offset so that base_elapsed + new_offset >= 0
-            # This prevents accumulating negative time beyond zero
             new_offset = max(new_offset, -base_elapsed)
-
             self.time_adjustment_offset = new_offset
             logging.info(f"Session time adjusted by {delta_seconds}s, total offset: {self.time_adjustment_offset}s")

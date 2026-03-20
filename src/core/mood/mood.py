@@ -1,3 +1,5 @@
+import uuid
+from datetime import datetime
 from peewee import *
 from core.db import BaseModel
 from typing import Optional, List
@@ -6,22 +8,25 @@ from typing import Optional, List
 class Mood(BaseModel):
     """
     Represents a mood type with symbol and description.
-    
+
     Args:
         id: Unique identifier for the mood.
         symbol: Emoji/symbol representing the mood (e.g., '🟢', '🟣').
         description: Human-readable description of the mood.
         display_order: Order for displaying in UI.
     """
-    id = AutoField()
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
     symbol = CharField()
     description = CharField()
     display_order = IntegerField(default=0)
+    device_id = CharField(default='')
+    updated_at = DateTimeField(default=datetime.now)
+    deleted_at = DateTimeField(null=True)
     
     @staticmethod
     def get_all_ordered() -> List['Mood']:
         """Get all moods ordered by display_order."""
-        return list(Mood.select().order_by(Mood.display_order))
+        return list(Mood.select().where(Mood.deleted_at.is_null()).order_by(Mood.display_order))
     
     @staticmethod
     def get_current_mood_log() -> Optional['MoodLog']:
@@ -39,7 +44,7 @@ class Mood(BaseModel):
         try:
             return (MoodLog
                    .select()
-                   .where(MoodLog.end > now)
+                   .where((MoodLog.end > now) & MoodLog.deleted_at.is_null())
                    .order_by(MoodLog.start.desc())
                    .get())
         except MoodLog.DoesNotExist:

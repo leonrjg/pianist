@@ -13,7 +13,7 @@ from .vintage_form_widgets import VintageButton
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.reminder.reminder import Reminder
+from core.reminder.service import ReminderService as _ReminderService
 
 
 class ReminderPage(SheetPage):
@@ -50,7 +50,7 @@ class ReminderPage(SheetPage):
         self._build_mute_section(layout)
 
         # Reminders list
-        reminders = Reminder.select().order_by(Reminder.created_at.desc())
+        reminders = _ReminderService.get_all()
 
         if not reminders:
             no_reminders_label = QLabel("No reminders yet. Create one to get started!")
@@ -114,8 +114,8 @@ class ReminderPage(SheetPage):
 
     def _toggle_reminder(self, reminder):
         """Toggle reminder enabled state."""
-        reminder.is_enabled = not reminder.is_enabled
-        reminder.save()
+        from core.reminder.service import ReminderService
+        ReminderService.toggle_enabled(reminder)
         self.navigate_to.emit('reminders', None)
 
     def _edit_reminder(self, reminder):
@@ -126,7 +126,7 @@ class ReminderPage(SheetPage):
         """Manually trigger a reminder now."""
         from core.reminder.service import ReminderService
 
-        fresh_reminder = Reminder.get_by_id(reminder.id)
+        fresh_reminder = ReminderService.get_by_id(reminder.id)
         ReminderService.fire_reminder(fresh_reminder, record_fire=False)
 
         # Refresh the page

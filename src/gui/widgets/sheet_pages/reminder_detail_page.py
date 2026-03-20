@@ -16,12 +16,10 @@ from .vintage_form_widgets import (
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.db import db
-from core.reminder.reminder import Reminder
+from core.reminder.service import ReminderService
 from core.schedule.sm2 import SM2Scheduler
 from core.schedule.stochastic import StochasticScheduler
 from core.schedule.active_window import ActiveWindow
-from core.habit.habit import Habit
 
 
 class ReminderDetailPage(SheetPage):
@@ -74,7 +72,7 @@ class ReminderDetailPage(SheetPage):
         # Load reminder if editing
         if self.reminder_id:
             try:
-                self.reminder = Reminder.get_by_id(self.reminder_id)
+                self.reminder = ReminderService.get_by_id(self.reminder_id)
             except:
                 error_label = self._create_text_label("Reminder not found", secondary=True)
                 layout.addWidget(error_label)
@@ -193,16 +191,15 @@ class ReminderDetailPage(SheetPage):
         # Habit Link Section
         habit_section = FormSection("Habit Link (Optional)")
 
-        # Get all habits
-        habits = list(Habit.select())
+        # Get all habits via service
+        _habit_service = getattr(self.window(), 'service', None)
+        habits = _habit_service.get_all_habits() if _habit_service else []
         habit_names = ['None'] + [h.name for h in habits]
         default_habit = None
         if self.reminder and self.reminder.habit_id:
-            try:
-                habit = Habit.get_by_id(self.reminder.habit_id)
-                default_habit = habit.name
-            except:
-                pass
+            linked = next((h for h in habits if h.id == self.reminder.habit_id), None)
+            if linked:
+                default_habit = linked.name
 
         self._habit_dropdown = VintageDropdown(habit_names, default_habit)
         habit_section.add_field("Linked Habit:", self._habit_dropdown)
@@ -276,11 +273,11 @@ class ReminderDetailPage(SheetPage):
         habit_id = None
         habit_name = self._habit_dropdown.get_selected()
         if habit_name != 'None':
-            try:
-                habit = Habit.get(Habit.name == habit_name)
-                habit_id = habit.id
-            except:
-                pass
+            _habit_service = getattr(self.window(), 'service', None)
+            if _habit_service:
+                matched = next((h for h in _habit_service.get_all_habits() if h.name == habit_name), None)
+                if matched:
+                    habit_id = matched.id
 
         now = datetime.now()
         window = ActiveWindow(active_start, active_end)
@@ -299,7 +296,6 @@ class ReminderDetailPage(SheetPage):
             self.reminder.weight = weight
             self.reminder.active_start_minute = active_start
             self.reminder.active_end_minute = active_end
-            self.reminder.updated_at = now
 
             # Recalculate next_fire_at
             last_fire = self.reminder.last_fired_at or self.reminder.created_at
@@ -314,10 +310,10 @@ class ReminderDetailPage(SheetPage):
                     active_end
                 )
 
-            self.reminder.save()
+            ReminderService.save(self.reminder)
         else:
             # Create new
-            reminder = Reminder.create(
+            reminder = ReminderService.create(
                 name=name,
                 reminder_type=reminder_type,
                 habit_id=habit_id,
@@ -346,17 +342,14 @@ class ReminderDetailPage(SheetPage):
                     active_end
                 )
 
-            reminder.save()
+            ReminderService.save(reminder)
 
         self.content_updated.emit()
         self.navigate_to.emit('reminders', None)
 
     def _trigger_reminder(self):
         """Manually trigger the reminder now."""
-        from core.reminder.service import ReminderService
-
-        # Reload from database to get latest data
-        reminder = Reminder.get_by_id(self.reminder.id)
+        reminder = ReminderService.get_by_id(self.reminder.id)
         result = ReminderService.fire_reminder(reminder, record_fire=False)
 
         if not result.success:
@@ -372,7 +365,7 @@ class ReminderDetailPage(SheetPage):
         )
 
         if reply == QMessageBox.StandardButton.Yes:
-            self.reminder.delete_instance()
+            ReminderService.delete(self.reminder)
             self.content_updated.emit()
             self.navigate_to.emit('reminders', None)
 

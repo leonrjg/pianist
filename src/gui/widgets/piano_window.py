@@ -9,7 +9,7 @@ Responsibilities:
 
 Heavy lifting is delegated to:
 - Models: PianoGeometry, PianoState
-- Managers: SessionProcessManager, AnimationManager, SoundManager
+- Managers: SessionManager, AnimationManager, SoundManager
 - Painters: FramePainter, KeyPainter, BrassPainter
 """
 
@@ -20,15 +20,13 @@ from PyQt6.QtWidgets import QWidget, QApplication, QPushButton, QVBoxLayout
 from PyQt6.QtCore import Qt, QTimer, QPoint, QRectF, QSize, pyqtSignal
 from PyQt6.QtGui import QPainter, QIcon, QPainterPath
 
-from core.db import initialize_database, db
-from core.habit.habit import Habit
-from core.habit.manual_task import ManualTask
 from core.util.time import get_friendly_elapsed
 from datetime import datetime
 
+from ..services import HabitService
 from ..constants import PianoLayout, PianoColors, Animations, Interactions
 from ..models import PianoGeometry, PianoState
-from ..managers import SessionProcessManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager, ReminderManager
+from ..managers import SessionManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager, ReminderManager
 from ..painters import FramePainter, KeyPainter
 from .music_sheet_widget import MusicSheetWidget
 from .marquee import Marquee
@@ -43,11 +41,12 @@ class PianoFloatingWindow(QWidget):
     session_start_requested = pyqtSignal(object)  # Emits Habit object
     session_stop_requested = pyqtSignal(object)   # Emits Habit object
 
-    def __init__(self):
+    def __init__(self, service: HabitService):
         super().__init__()
 
-        # ===== Initialize Database =====
-        initialize_database()
+        # ===== Data Service =====
+        self.service = service
+        service.subscribe(self._on_habits_changed)
 
         # ===== Window Setup =====
         self.setWindowTitle("Pianist")
@@ -73,23 +72,19 @@ class PianoFloatingWindow(QWidget):
             toggleable_drawer_visible=False
         )
 
-        # ===== Load Habits =====
-        # Load all habits for AutoSessionManager (includes non-visible, excludes archived)
-        all_habits = [h for h in Habit.select().order_by(Habit.display_order, Habit.id) if not h.archived]
-        # Load only visible habits for piano keys
-        self.habits = [h for h in all_habits if h.visible]
-        self.state.num_habits = len(self.habits)
+        # ===== Initialize Keys Placeholder =====
+        self.state.num_habits = len(service.get_visible_habits())
         self.keys = []  # Will be populated by update_keys_for_window_size()
 
         # ===== Initialize Managers =====
-        self.session_manager = SessionProcessManager()
+        self.session_manager = SessionManager()
         self.session_manager.elapsed_updated.connect(self.on_elapsed_updated)
         self.session_manager.session_ended.connect(self.on_session_ended)
         self.session_manager.error_occurred.connect(self.on_session_error)
         self.session_manager.start()
 
         # Auto-session manager for window-based session triggering
-        self.auto_session_manager = AutoSessionManager(habits=all_habits)
+        self.auto_session_manager = AutoSessionManager(service=service)
         self.auto_session_manager.session_start_requested.connect(self.on_session_start_requested)
 
         # Connect session management signals
@@ -303,13 +298,45 @@ class PianoFloatingWindow(QWidget):
         """)
         self.notes_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
+        # Sync button
+        self.sync_button = QPushButton()
+        self.sync_button.setIcon(QIcon('gui/icons/sync.svg'))
+        self.sync_button.setIconSize(QSize(14, 14))
+        self.sync_button.setFixedSize(20, 20)
+        self.sync_button.setToolTip('Sync')
+        self.sync_button.clicked.connect(self.on_sync_button_clicked)
+        self.sync_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.sync_button.hide()  # Hidden until a peer device is known
+        self._sync_rotation = 0
+        # Cache the base pixmap so _on_sync_spin_tick doesn't reload from disk each frame
+        from PyQt6.QtGui import QPixmap
+        self._sync_icon_pixmap = QPixmap('gui/icons/sync.svg').scaled(
+            14, 14,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
+        self._apply_sync_button_style(active=False)
+
         control_layout.addWidget(self.close_button)
         control_layout.addWidget(self.maximize_button)
         control_layout.addWidget(self.reorder_button)
         control_layout.addWidget(self.mood_button)
         control_layout.addWidget(self.add_task_button)
         control_layout.addWidget(self.notes_button)
+        control_layout.addWidget(self.sync_button)
         control_layout.addStretch()
+
+        # Spin timer: rotate icon while a sync is in-flight
+        self._sync_spin_timer = QTimer()
+        self._sync_spin_timer.setInterval(50)
+        self._sync_spin_timer.timeout.connect(self._on_sync_spin_tick)
+
+        # Poll timer: update sync button visibility/color every 5 s
+        self._sync_poll_timer = QTimer()
+        self._sync_poll_timer.timeout.connect(self._update_sync_button_state)
+        self._sync_poll_timer.start(5000)
+        self._update_sync_button_state()  # Apply immediately
 
         self._position_control_buttons_container()
 
@@ -404,65 +431,57 @@ class PianoFloatingWindow(QWidget):
     # ===== Keys Management =====
 
     def update_keys_for_window_size(self):
-        """Update the keys array based on current window size and scroll position"""
+        """Update the keys array based on current window size and scroll position.
+
+        Reads only from the in-memory service cache — no database access.
+        Safe to call on every resize and scroll event.
+        """
+        all_habits = self.service.get_visible_habits()
+        self.state.num_habits = len(all_habits)
+        num_actual_habits = len(all_habits)
+
         available_height = self.height() - PianoLayout.FRAME_PADDING_VERTICAL
         num_keys_that_fit = max(1, int(available_height // PianoLayout.KEY_HEIGHT)) + 2
 
-        all_habits = list(self.habits)
-        num_actual_habits = len(all_habits)
-
-        # Determine if scrolling is needed
         self.state.scrolling_enabled = num_actual_habits > num_keys_that_fit
 
         if self.state.scrolling_enabled:
-            # Calculate maximum scroll offset
             self.state.max_scroll_offset = max(0, num_actual_habits - num_keys_that_fit)
 
-            # Create keys array with scroll offset applied
             new_keys = []
             for i in range(num_keys_that_fit):
                 habit_index = i + self.state.scroll_offset
                 if habit_index < num_actual_habits:
                     habit = all_habits[habit_index]
-                    # Use get_next_tasks() to match Index page behavior (shows all upcoming including overdue)
-                    schedule = habit.get_schedule()
-                    next_tasks = sorted(schedule.get_next_tasks(30 * 24 * 60 * 60))  # 30 days like Index
-                    task_dt = next_tasks[0] if next_tasks else None
+                    info = self.service.get_next_task_info(habit.id)
                     new_keys.append({
                         'label': habit.name,
                         'habit': habit,
                         'time': None,
-                        'task_datetime': task_dt,
-                        'is_completed': habit.is_task_completed(task_dt) if task_dt else False
+                        'task_datetime': info['task_dt'],
+                        'is_completed': info['is_completed'],
                     })
                 else:
                     new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
         else:
-            # No scrolling needed
             self.state.scroll_offset = 0
             self.state.max_scroll_offset = 0
 
             new_keys = []
             for habit in all_habits[:num_keys_that_fit]:
-                # Use get_next_tasks() to match Index page behavior (shows all upcoming including overdue)
-                schedule = habit.get_schedule()
-                next_tasks = sorted(schedule.get_next_tasks(30 * 24 * 60 * 60))  # 30 days like Index
-                task_dt = next_tasks[0] if next_tasks else None
+                info = self.service.get_next_task_info(habit.id)
                 new_keys.append({
                     'label': habit.name,
                     'habit': habit,
                     'time': None,
-                    'task_datetime': task_dt,
-                    'is_completed': habit.is_task_completed(task_dt) if task_dt else False
+                    'task_datetime': info['task_dt'],
+                    'is_completed': info['is_completed'],
                 })
 
-            # Fill remaining slots with empty keys
             while len(new_keys) < num_keys_that_fit:
                 new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
 
         self.keys = new_keys
-
-        # Update reorder manager with new key count
         self.reorder_mode_manager.set_num_keys(len(new_keys))
 
     # ===== Painting =====
@@ -552,36 +571,10 @@ class PianoFloatingWindow(QWidget):
     def _toggle_task_completion(self, habit, task_datetime):
         """Toggle task completion state"""
         try:
-            normalized_dt = task_datetime.replace(microsecond=0)
-
-            with db.atomic():
-                # Check if already completed
-                existing = ManualTask.select().where(
-                    (ManualTask.habit == habit) &
-                    (ManualTask.scheduled_at == normalized_dt)
-                ).first()
-
-                if existing:
-                    # Unmark
-                    existing.delete_instance()
-                else:
-                    # Mark complete
-                    ManualTask.create(
-                        habit=habit,
-                        title=None,
-                        scheduled_at=normalized_dt,
-                        completed_at=normalized_dt
-                    )
-
-            # CRITICAL: Refresh keys immediately to recalculate next tasks
-            self.update_keys_for_window_size()
-
-            self.update()
-
-            # Emit signal to update music sheet pages
+            self.service.toggle_task_completion(habit, task_datetime)
+            # Notify music sheet to refresh its pages
             if hasattr(self, 'music_sheet_widget'):
                 self.music_sheet_widget.habit_updated.emit()
-
         except Exception as e:
             print(f"Error toggling task completion: {e}")
 
@@ -900,10 +893,10 @@ class PianoFloatingWindow(QWidget):
             self.session_start_requested.emit(habit)
 
     def start_session(self, habit):
-        """Start a session in separate process"""
+        """Start a session thread"""
         try:
             self.session_manager.start_session(habit)
-            print(f"Starting session process for {habit.name}")
+            print(f"Starting session for {habit.name}")
         except Exception as e:
             print(f"Error starting session: {e}")
 
@@ -1005,21 +998,15 @@ class PianoFloatingWindow(QWidget):
         if not dragged_habit:
             return
 
-        # Reorder the habits list
-        reordered_habits = list(self.habits)
+        # Reorder the visible habits list
+        reordered_habits = list(self.service.get_visible_habits())
         dragged = reordered_habits.pop(from_index)
         # Adjust target index if dragging downward (after pop, indices shift)
         adjusted_to_index = to_index if to_index <= from_index else to_index - 1
         reordered_habits.insert(adjusted_to_index, dragged)
 
-        # Update display_order in database
-        for i, habit in enumerate(reordered_habits):
-            habit.display_order = i
-            habit.save()
-
-        # Update local state
-        self.habits = reordered_habits
-        self.update_keys_for_window_size()
+        # Persist via service (atomic transaction, updates in-memory list, notifies)
+        self.service.reorder_visible_habits(reordered_habits)
 
         # Play sound
         self.sound_manager.play_sound('thunk')
@@ -1099,14 +1086,7 @@ class PianoFloatingWindow(QWidget):
 
     def on_habit_updated_from_sheet(self):
         """Handle habit updates from the music sheet widget"""
-        # Reload all habits and filter visible ones for piano keys (exclude archived)
-        all_habits = [h for h in Habit.select().order_by(Habit.display_order, Habit.id) if not h.archived]
-        self.habits = [h for h in all_habits if h.visible]
-        self.state.num_habits = len(self.habits)
-
-        # Refresh keys
-        self.update_keys_for_window_size()
-        self.update()
+        self.service.refresh()
 
     # ===== Window Hiding =====
 
@@ -1129,13 +1109,62 @@ class PianoFloatingWindow(QWidget):
 
     def refresh_habits(self):
         """Refresh habits list when management window updates them"""
-        # Reload all habits and filter visible ones for piano keys (exclude archived)
-        all_habits = [h for h in Habit.select().order_by(Habit.display_order, Habit.id) if not h.archived]
-        self.habits = [h for h in all_habits if h.visible]
-        self.state.num_habits = len(self.habits)
+        self.service.refresh()
 
-        self.update_keys_for_window_size()
-        self.update()
+    # ===== Sync Button =====
+
+    def _apply_sync_button_style(self, active: bool):
+        """Apply green (peers in range) or muted (no peers) style to the sync button."""
+        border_color = 'rgb(80, 160, 80)' if active else 'rgb(100, 90, 75)'
+        self.sync_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgb(61, 40, 23);
+                border: 1px solid {border_color};
+                border-radius: 10px;
+            }}
+            QPushButton:hover {{
+                border-color: {'rgb(110, 200, 110)' if active else 'rgb(140, 125, 105)'};
+            }}
+        """)
+
+    def _update_sync_button_state(self):
+        """Poll sync state and update button visibility, color, and spin animation."""
+        try:
+            from core.sync.models import Device
+            from core.sync.service import SyncService
+            client = SyncService.get_instance().client
+            known = Device.select().where(Device.is_self == False).count()
+            peers_in_range = client.peer_count > 0
+            is_syncing = client.is_syncing
+        except Exception:
+            known = 0
+            peers_in_range = False
+            is_syncing = False
+
+        self.sync_button.setVisible(known > 0)
+        self._apply_sync_button_style(active=peers_in_range)
+
+        if is_syncing and not self._sync_spin_timer.isActive():
+            self._sync_spin_timer.start()
+        elif not is_syncing and self._sync_spin_timer.isActive():
+            self._sync_spin_timer.stop()
+            self._sync_rotation = 0
+            self.sync_button.setIcon(QIcon('gui/icons/sync.svg'))
+            self.sync_button.setIconSize(QSize(14, 14))
+
+    def _on_sync_spin_tick(self):
+        """Advance sync icon rotation by one frame."""
+        from PyQt6.QtGui import QTransform
+        self._sync_rotation = (self._sync_rotation + 12) % 360
+        transform = QTransform().rotate(self._sync_rotation)
+        rotated = self._sync_icon_pixmap.transformed(transform, Qt.TransformationMode.SmoothTransformation)
+        self.sync_button.setIcon(QIcon(rotated))
+
+    def on_sync_button_clicked(self):
+        """Open the drawer and navigate to the sync page."""
+        if not self.state.toggleable_drawer_visible:
+            self.toggle_toggleable_drawer()
+        self.music_sheet_widget.navigate_to_sync_page()
 
     # ===== Mood Management =====
 
@@ -1184,9 +1213,9 @@ class PianoFloatingWindow(QWidget):
 
     def update_mood_button_icon(self):
         """Update mood button icon to show current mood or default"""
-        from core.mood.mood import Mood
-        
-        current_log = Mood.get_current_mood_log()
+        from core.mood.service import MoodService
+
+        current_log = MoodService.get_current_log()
         if current_log:
             # Show current mood emoji
             self.mood_button.setText(current_log.mood.symbol)
@@ -1368,29 +1397,34 @@ class PianoFloatingWindow(QWidget):
 
     # ===== Cleanup =====
 
-    def _on_reminder_notification(self, reminder_id: int, message: str, urgency: str):
+    def _on_habits_changed(self, change_type: str, **kwargs):
+        """Handle service change notifications — rebuild keys and repaint."""
+        self.update_keys_for_window_size()
+        self.update()
+
+    def _on_reminder_notification(self, reminder_id, message: str, urgency: str):
         """Handle reminder notification using ActionHandler (supports all action types)."""
-        from core.reminder.reminder import Reminder
+        from core.reminder.service import ReminderService
         from core.reminder.actions import ActionHandler
 
-        reminder = Reminder.get_by_id(reminder_id)
+        reminder = ReminderService.get_by_id(reminder_id)
         ActionHandler.show_notification_for_action(reminder, message, urgency)
 
     def closeEvent(self, event):
         """Clean up when window closes"""
-        # Stop all threads first (don't wait yet)
+        # Stop all sessions first (don't wait yet)
         if hasattr(self, 'session_manager'):
             self.session_manager.cleanup()
 
         if hasattr(self, 'reminder_manager'):
             self.reminder_manager.stop()
 
-        # Now wait for threads with short timeouts (parallel)
+        # Wait for monitor threads
         if hasattr(self, 'session_manager'):
-            self.session_manager.wait(500)  # Reduced from 3000ms
+            self.session_manager.wait(500)
 
         if hasattr(self, 'reminder_manager'):
-            self.reminder_manager.wait(500)  # Reduced from 2000ms
+            self.reminder_manager.wait(500)
 
         # Clean up other managers
         if hasattr(self, 'drawer_animation_manager'):

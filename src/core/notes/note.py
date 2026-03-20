@@ -4,6 +4,7 @@ Note model for storing user notes.
 Notes can be either global (habit_id=null) or associated with specific habits.
 """
 
+import uuid
 from datetime import datetime
 from typing import Optional
 from peewee import *
@@ -22,11 +23,13 @@ class Note(BaseModel):
         created_at: Timestamp when the note was created.
         updated_at: Timestamp when the note was last updated.
     """
-    id = AutoField()
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
     habit = ForeignKeyField(Habit, null=True, backref='notes', on_delete='CASCADE')
     content = TextField(default='')
     created_at = DateTimeField(default=datetime.now)
     updated_at = DateTimeField(default=datetime.now)
+    device_id = CharField(default='')
+    deleted_at = DateTimeField(null=True)
 
     @classmethod
     def get_global_note(cls) -> 'Note':
@@ -36,7 +39,7 @@ class Note(BaseModel):
         Returns:
             The global Note instance.
         """
-        note = cls.select().where(cls.habit.is_null()).first()
+        note = cls.select().where(cls.habit.is_null() & cls.deleted_at.is_null()).first()
         if note is None:
             note = cls.create(habit=None, content='')
         return note
@@ -52,7 +55,7 @@ class Note(BaseModel):
         Returns:
             The Note instance for the habit.
         """
-        note = cls.select().where(cls.habit == habit).first()
+        note = cls.select().where((cls.habit == habit) & cls.deleted_at.is_null()).first()
         if note is None:
             note = cls.create(habit=habit, content='')
         return note

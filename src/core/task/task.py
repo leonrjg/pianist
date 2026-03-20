@@ -57,23 +57,27 @@ class Task:
         return self.type == TaskType.MANUAL
 
     @classmethod
-    def from_habit(cls, habit: 'Habit', scheduled_at: datetime) -> 'Task':
+    def from_habit(cls, habit: 'Habit', scheduled_at: datetime, checker=None) -> 'Task':
         """
         Create a Task from a habit and scheduled datetime.
 
         Args:
             habit: The habit this task belongs to
             scheduled_at: When the task is scheduled
+            checker: Optional pre-built completion checker from habit.build_completion_checker().
+                     Pass this when creating many tasks for the same habit to avoid
+                     repeated DB queries. Falls back to habit.is_task_completed() if omitted.
 
         Returns:
             Task instance representing this scheduled habit task
         """
+        completed = checker(scheduled_at) if checker is not None else habit.is_task_completed(scheduled_at)
         return cls(
             type=TaskType.HABIT,
             scheduled_at=scheduled_at,
             title=habit.name,
             habit=habit,
-            completed=habit.is_task_completed(scheduled_at),
+            completed=completed,
             completed_at=None,  # Habit tasks don't track exact completion time
             created_at=habit.created_at,
             source_id=habit.id

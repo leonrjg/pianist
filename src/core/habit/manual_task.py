@@ -2,6 +2,7 @@
 ManualTask model - Represents manually created tasks and manual completions.
 """
 
+import uuid
 from datetime import datetime
 from peewee import *
 from core.db import BaseModel
@@ -23,12 +24,15 @@ class ManualTask(BaseModel):
         completed_at: When the task was marked complete (None if not yet completed).
         created_at: When this task record was created.
     """
-    id = AutoField()
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
     habit = ForeignKeyField(Habit, backref='manual_tasks', on_delete='CASCADE', null=True)
     title = TextField(null=True)
     scheduled_at = DateTimeField(index=True)
     completed_at = DateTimeField(null=True)
     created_at = DateTimeField(default=datetime.now)
+    device_id = CharField(default='')
+    updated_at = DateTimeField(default=datetime.now)
+    deleted_at = DateTimeField(null=True)
 
     class Meta:
         table_name = 'manual_task'

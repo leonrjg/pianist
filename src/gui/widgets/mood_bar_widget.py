@@ -8,8 +8,8 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint
 from PyQt6.QtGui import QPainter, QColor, QPainterPath
 
+from core.mood.service import MoodService
 from core.mood.mood import Mood
-from core.mood.mood_log import MoodLog
 from ..constants import PianoColors
 
 
@@ -45,7 +45,7 @@ class MoodBarWidget(QWidget):
                 item.widget().deleteLater()
 
         # Create button for each mood
-        moods = Mood.get_all_ordered()
+        moods = MoodService.get_all()
         for mood in moods:
             btn = QPushButton(mood.symbol)
             btn.setFixedSize(32, 32)
@@ -72,7 +72,7 @@ class MoodBarWidget(QWidget):
 
     def _on_mood_clicked(self, mood: Mood):
         """Handle mood button click"""
-        MoodLog.log_new_mood(mood)
+        MoodService.log_mood(mood)
         self.mood_selected.emit(mood.id)
         self.close()
 

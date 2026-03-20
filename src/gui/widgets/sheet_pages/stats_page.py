@@ -13,11 +13,10 @@ from .calendar_graph import CalendarGraph
 from .vintage_dropdown import VintageDropdown
 from .activity_card import ActivityCard
 
-# Import database models and analytics
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.habit.habit import Habit
+from core.habit.service import HabitService
 from core.util.time import get_friendly_elapsed, get_friendly_datetime
 from core import analytics
 
@@ -47,7 +46,7 @@ class StatsPage(SheetPage):
         layout.addWidget(title)
 
         try:
-            habits = list(Habit.select())
+            habits = HabitService.get_all_non_deleted()
             self._all_habits = habits
             
             if not habits:

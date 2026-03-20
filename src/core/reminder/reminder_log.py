@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from peewee import *
 from core.db import BaseModel
@@ -11,7 +12,7 @@ class ReminderLog(BaseModel):
     Tracks when reminders fired, what action was executed,
     and optional user feedback for future scheduling adjustments.
     """
-    id = AutoField()
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
     reminder = ForeignKeyField(Reminder, backref='logs', on_delete='CASCADE')
     fired_at = DateTimeField(default=datetime.now, index=True)
     action_executed = CharField()
@@ -19,3 +20,9 @@ class ReminderLog(BaseModel):
     feedback_rating = IntegerField(null=True)  # Future: 0-3 for again/hard/good/easy
     context_modifier = FloatField(default=1.0)
     was_overdue = BooleanField(default=False)
+    device_id = CharField(default='')
+    updated_at = DateTimeField(default=datetime.now)
+    deleted_at = DateTimeField(null=True)
+
+    class Meta:
+        table_name = 'reminder_log'

@@ -10,14 +10,11 @@ from core.util.time import get_friendly_datetime
 from .base_page import SheetPage
 from .habit_card import HabitCard
 
-# Import database models
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.habit.habit import Habit
-from core.habit.manual_task import ManualTask
 from core.task import get_upcoming_tasks, Task
-from core.db import db
+from core.task.service import TaskService
 
 
 class IndexPage(SheetPage):
@@ -34,7 +31,8 @@ class IndexPage(SheetPage):
         layout = self.layout()
 
         # Load only non-archived habits
-        habits = [h for h in Habit.select().order_by(Habit.display_order, Habit.name) if not h.archived]
+        _service = getattr(self.window(), 'service', None)
+        habits = sorted(_service.get_all_habits(), key=lambda h: h.name) if _service else []
 
         # Page title
         title = self._create_section_header(self.get_page_title())
@@ -152,48 +150,16 @@ class IndexPage(SheetPage):
     def _on_task_completion_toggled(self, habit, task_datetime, new_state):
         """Handle task completion toggle - create/update/delete ManualTask"""
         try:
-            # Normalize datetime to remove microseconds for consistent storage/comparison
             normalized_dt = task_datetime.replace(microsecond=0)
 
-            with db.atomic():
-                if habit is not None:
-                    # Habit task completion toggle
-                    if new_state:
-                        # Mark as complete - create ManualTask record
-                        ManualTask.create(
-                            habit=habit,
-                            title=None,
-                            scheduled_at=normalized_dt,
-                            completed_at=normalized_dt
-                        )
-                    else:
-                        # Unmark - delete ManualTask record
-                        ManualTask.delete().where(
-                            (ManualTask.habit == habit) &
-                            (ManualTask.scheduled_at == normalized_dt)
-                        ).execute()
-                else:
-                    # Standalone manual task completion toggle
-                    # Find the existing manual task
-                    manual_task = ManualTask.select().where(
-                        (ManualTask.scheduled_at == normalized_dt) &
-                        (ManualTask.habit.is_null())
-                    ).first()
+            if habit is not None:
+                _service = getattr(self.window(), 'service', None)
+                if _service:
+                    _service.toggle_task_completion(habit, normalized_dt)
+            else:
+                TaskService.toggle_standalone_task_completion(normalized_dt, new_state)
 
-                    if manual_task:
-                        if new_state:
-                            # Mark as complete
-                            manual_task.completed_at = datetime.now()
-                            manual_task.save()
-                        else:
-                            # Mark as incomplete
-                            manual_task.completed_at = None
-                            manual_task.save()
-
-            # Refresh the page to update UI
             self.refresh()
-
-            # Emit signal to update piano window
             self.content_updated.emit()
 
         except Exception as e:

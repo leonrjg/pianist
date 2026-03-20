@@ -6,7 +6,7 @@ Shared between ReminderManager (automatic) and manual triggers.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from .reminder import Reminder
 from .reminder_log import ReminderLog
@@ -123,13 +123,86 @@ class ReminderService:
 
         # Update the last log entry with feedback
         last_log = ReminderLog.select().where(
-            ReminderLog.reminder == reminder
+            (ReminderLog.reminder == reminder) &
+            ReminderLog.deleted_at.is_null()
         ).order_by(ReminderLog.fired_at.desc()).first()
 
         if last_log:
             last_log.feedback_rating = quality
             last_log.save()
 
+        reminder.save()
+
+    # ------------------------------------------------------------------
+    # Query API
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def get_all(cls) -> List[Reminder]:
+        """All non-deleted reminders, newest first."""
+        return list(Reminder.select().where(Reminder.deleted_at.is_null()).order_by(Reminder.created_at.desc()))
+
+    @classmethod
+    def get_all_enabled(cls) -> List[Reminder]:
+        """All enabled, non-deleted reminders."""
+        return list(Reminder.select().where(
+            (Reminder.is_enabled == True) & Reminder.deleted_at.is_null()
+        ))
+
+    @classmethod
+    def get_by_id(cls, reminder_id) -> Reminder:
+        """Get a non-deleted reminder by id, raising DoesNotExist if not found."""
+        return Reminder.get(Reminder.id == reminder_id, Reminder.deleted_at.is_null())
+
+    @classmethod
+    def get_overdue_sr(cls, now: datetime) -> List[Reminder]:
+        """Enabled SR reminders with next_fire_at in the past."""
+        return list(Reminder.select().where(
+            (Reminder.is_enabled == True) &
+            (Reminder.reminder_type == 'sr') &
+            (Reminder.next_fire_at.is_null(False)) &
+            (Reminder.next_fire_at < now) &
+            Reminder.deleted_at.is_null()
+        ))
+
+    @classmethod
+    def get_overdue_stochastic(cls, now: datetime) -> List[Reminder]:
+        """Enabled stochastic reminders with next_fire_at in the past."""
+        return list(Reminder.select().where(
+            (Reminder.is_enabled == True) &
+            (Reminder.reminder_type == 'stochastic') &
+            (Reminder.next_fire_at.is_null(False)) &
+            (Reminder.next_fire_at < now) &
+            Reminder.deleted_at.is_null()
+        ))
+
+    # ------------------------------------------------------------------
+    # Mutation API
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def save(cls, reminder: Reminder) -> None:
+        """Persist changes to a reminder, updating updated_at."""
+        reminder.updated_at = datetime.now()
+        reminder.save()
+
+    @classmethod
+    def create(cls, **kwargs) -> Reminder:
+        """Create and persist a new reminder."""
+        return Reminder.create(**kwargs)
+
+    @classmethod
+    def toggle_enabled(cls, reminder: Reminder) -> None:
+        """Toggle is_enabled and save."""
+        reminder.is_enabled = not reminder.is_enabled
+        reminder.updated_at = datetime.now()
+        reminder.save()
+
+    @classmethod
+    def delete(cls, reminder: Reminder) -> None:
+        """Soft-delete a reminder."""
+        reminder.deleted_at = datetime.now()
+        reminder.updated_at = datetime.now()
         reminder.save()
 
     @classmethod

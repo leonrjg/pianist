@@ -16,7 +16,7 @@ from .activity_card import ActivityCard
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.habit.habit import Habit
+from core.habit.service import HabitService
 from core.util.time import get_friendly_elapsed
 from core import analytics
 
@@ -51,7 +51,9 @@ class HabitStatsPage(SheetPage):
         # Load habit
         if self.habit_id:
             try:
-                self.habit = Habit.get_by_id(self.habit_id)
+                self.habit = HabitService.get_non_deleted_by_id(self.habit_id)
+                if self.habit is None:
+                    raise ValueError("not found")
             except:
                 error_label = self._create_text_label("Habit not found", secondary=True)
                 layout.addWidget(error_label)

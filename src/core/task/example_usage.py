@@ -15,7 +15,7 @@ def example_basic_usage():
     """Basic usage of Task abstraction."""
 
     # Get all active habits
-    active_habits = list(Habit.select().where(Habit.archived == False))
+    active_habits = list(Habit.select().where((Habit.archived == False) & Habit.deleted_at.is_null()))
 
     # Get all upcoming tasks for the next 7 days
     tasks = get_upcoming_tasks(
@@ -75,7 +75,7 @@ def example_completing_manual_task():
 
     # Find an incomplete manual task
     incomplete_task = ManualTask.select().where(
-        ManualTask.completed_at.is_null()
+        ManualTask.completed_at.is_null() & ManualTask.deleted_at.is_null()
     ).first()
 
     if incomplete_task:
@@ -90,7 +90,7 @@ def example_completing_manual_task():
 def example_filtering_tasks():
     """Example of filtering tasks by various criteria."""
 
-    active_habits = list(Habit.select().where(Habit.archived == False))
+    active_habits = list(Habit.select().where((Habit.archived == False) & Habit.deleted_at.is_null()))
 
     # Get only incomplete tasks
     incomplete_tasks = get_upcoming_tasks(
@@ -123,7 +123,7 @@ def example_habit_task_completion():
     """Example of manually completing a habit-scheduled task."""
 
     # Get a habit
-    habit = Habit.select().first()
+    habit = Habit.select().where(Habit.deleted_at.is_null()).first()
 
     if habit:
         # Get the next scheduled task

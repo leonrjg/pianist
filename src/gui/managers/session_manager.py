@@ -1,191 +1,207 @@
 """
-Session Process Manager - Handles session tracking in separate processes.
+Session Manager - Manages session tracking in isolated subprocesses.
 
-Extracted from the main GUI file to separate concerns.
+The worker process runs the Session (including native trackers like pynput/CGEventTap)
+in isolation from the Qt event loop. It never writes to the database.
+
+All SQLite writes happen in the monitor thread (this process) via the result queue,
+eliminating the concurrent-write problem from the old design where the worker process
+also wrote Log records.
 """
 
-import os
 import multiprocessing
+from datetime import datetime
+
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from core.habit.log import Log
 from ..constants import Session as SessionConstants
 
 
 def session_worker_process(habit_id, habit_name, command_queue, result_queue):
-    """Worker process function that runs Session completely isolated"""
+    """
+    Worker process: runs Session tracking in isolation from Qt.
+
+    Never writes to the database. Sends session stats in the 'ended' message
+    so the monitor thread can do the final Log write.
+    """
     try:
-        # Import inside process to avoid Qt conflicts
         import time
         from core.session import Session
         from core.habit.habit import Habit
 
-        # Reconstruct habit object in this process
-        habit = Habit.get_by_id(habit_id)
-        session = Session(habit)
+        habit = Habit.get(Habit.id == habit_id, Habit.deleted_at.is_null())
+        session = Session(habit, persist=False)  # No DB writes in subprocess
         session.start()
 
-        print(f"Session started for {habit_name} in process {os.getpid()}")
-
-        # Main loop: handle commands and send updates
         while True:
             try:
-                # Check for commands (non-blocking)
                 if not command_queue.empty():
                     command = command_queue.get_nowait()
                     if command == 'stop':
                         break
-                    elif command == 'get_elapsed':
-                        elapsed = session.get_elapsed_time()
-                        result_queue.put(('elapsed', habit_id, elapsed))
                     elif isinstance(command, tuple) and command[0] == 'adjust_time':
-                        delta_seconds = command[1]
-                        session.adjust_time(delta_seconds)
-                        # Immediately send updated elapsed time for responsive UI
-                        elapsed = session.get_elapsed_time()
-                        result_queue.put(('elapsed', habit_id, elapsed))
+                        session.adjust_time(command[1])
+                        result_queue.put(('elapsed', habit_id, session.get_elapsed_time()))
 
-                # Send periodic elapsed time updates
-                elapsed = session.get_elapsed_time()
-                result_queue.put(('elapsed', habit_id, elapsed))
-
-                time.sleep(1)  # Update every second
+                result_queue.put(('elapsed', habit_id, session.get_elapsed_time()))
+                time.sleep(1)
 
             except Exception as e:
                 result_queue.put(('error', habit_id, str(e)))
                 break
 
-        # Clean shutdown
-        session.end(ended_by="process_stop")
-        result_queue.put(('ended', habit_id))
-        print(f"Session ended for {habit_name}")
+        session.end(ended_by="stopped")
+        result_queue.put(('ended', habit_id, {
+            'idle_time': int(session.total_paused_time),
+            'ended_by': session.transition_reason,
+            'offset': session.time_adjustment_offset,
+        }))
 
     except Exception as e:
         try:
             result_queue.put(('error', habit_id, str(e)))
+            result_queue.put(('ended', habit_id, {}))
         except Exception:
-            pass  # Queue might be closed
+            pass
 
 
-class SessionProcessManager(QThread):
-    """Manages communication with session processes"""
+class SessionManager(QThread):
+    """
+    Manages session subprocesses and handles all database persistence.
 
-    elapsed_updated = pyqtSignal(int, int)  # habit_id, elapsed_seconds
-    session_ended = pyqtSignal(int)  # habit_id
-    error_occurred = pyqtSignal(str)  # error message
+    The worker subprocess never writes to SQLite. This thread receives session
+    events via a result queue and performs all Log writes itself, so there are
+    no concurrent writers across processes.
+    """
+
+    elapsed_updated = pyqtSignal(object, int)  # habit_id, elapsed_seconds
+    session_ended = pyqtSignal(object)          # habit_id
+    error_occurred = pyqtSignal(str)            # error message
 
     def __init__(self):
         super().__init__()
-        self.processes = {}  # habit_id -> (process, command_queue, result_queue)
+        self._processes: dict = {}  # habit_id -> (process, command_queue, result_queue)
+        self._logs: dict = {}       # habit_id -> Log
         self.running = True
 
-    def start_session(self, habit):
-        """Start a session in a separate process"""
+    # ------------------------------------------------------------------
+    # Public API (called from main thread)
+    # ------------------------------------------------------------------
+
+    def start_session(self, habit) -> None:
+        """Start a session subprocess and create the initial Log record."""
         try:
-            # Create communication queues
+            log = Log.create(habit=habit, start=datetime.now())
+
             command_queue = multiprocessing.Queue()
             result_queue = multiprocessing.Queue()
 
-            # Start worker process
             process = multiprocessing.Process(
                 target=session_worker_process,
                 args=(habit.id, habit.name, command_queue, result_queue)
             )
             process.start()
 
-            # Store process info
-            self.processes[habit.id] = (process, command_queue, result_queue)
-            print(f"Started session process for {habit.name}")
+            self._processes[habit.id] = (process, command_queue, result_queue)
+            self._logs[habit.id] = log
 
         except Exception as e:
-            self.error_occurred.emit(f"Failed to start session process: {str(e)}")
+            self.error_occurred.emit(f"Failed to start session: {e}")
 
-    def stop_session(self, habit_id):
-        """Stop a session process - non-blocking"""
-        if habit_id in self.processes:
-            process, command_queue, result_queue = self.processes[habit_id]
+    def stop_session(self, habit_id: int) -> None:
+        """Send stop command to a running session subprocess."""
+        if habit_id in self._processes:
+            _, command_queue, _ = self._processes[habit_id]
             try:
-                # Send stop command
                 command_queue.put('stop')
-                print(f"Sent stop command to session process for habit {habit_id}")
-
-                # Don't wait for process - let the monitoring loop handle cleanup
-                # The run() method will detect when process ends and clean up
-
             except Exception as e:
-                self.error_occurred.emit(f"Error stopping session: {str(e)}")
+                self.error_occurred.emit(f"Error stopping session: {e}")
 
-    def has_active_session(self, habit_id):
-        """Check if a habit has an active session"""
-        return habit_id in self.processes
+    def has_active_session(self, habit_id: int) -> bool:
+        """Return True if a subprocess is running for this habit."""
+        return habit_id in self._processes
 
-    def is_session_active(self):
-        """Check if any session is active"""
-        return len(self.processes) > 0
+    def is_session_active(self) -> bool:
+        """Return True if any session subprocess is running."""
+        return len(self._processes) > 0
 
-    def adjust_session_time(self, habit_id, delta_seconds):
-        """
-        Adjust the time of a running session.
-
-        Args:
-            habit_id: ID of the habit whose session to adjust
-            delta_seconds: Number of seconds to add (positive) or subtract (negative)
-        """
-        if habit_id in self.processes:
-            process, command_queue, result_queue = self.processes[habit_id]
+    def adjust_session_time(self, habit_id: int, delta_seconds: int) -> None:
+        """Forward a time adjustment command to a running session."""
+        if habit_id in self._processes:
+            _, command_queue, _ = self._processes[habit_id]
             try:
                 command_queue.put(('adjust_time', delta_seconds))
             except Exception as e:
-                self.error_occurred.emit(f"Error adjusting session time: {str(e)}")
+                self.error_occurred.emit(f"Error adjusting session time: {e}")
 
-    def run(self):
-        """Monitor all session processes for updates"""
+    def cleanup(self) -> None:
+        """Stop all sessions and wait briefly for them to send final stats."""
+        self.running = False
+
+        for habit_id, (process, command_queue, _) in list(self._processes.items()):
+            try:
+                command_queue.put('stop')
+            except Exception:
+                pass
+
+        self.msleep(500)
+        self._processes.clear()
+
+        # Finalize any logs that didn't get a clean 'ended' message
+        for habit_id in list(self._logs.keys()):
+            self._finalize_log(habit_id, {})
+
+    # ------------------------------------------------------------------
+    # Monitor loop (QThread)
+    # ------------------------------------------------------------------
+
+    def run(self) -> None:
+        """Poll subprocesses for messages and handle session lifecycle."""
         while self.running:
-            # Check all result queues for updates
-            for habit_id, (process, command_queue, result_queue) in list(self.processes.items()):
+            for habit_id, (process, command_queue, result_queue) in list(self._processes.items()):
                 try:
-                    # Check if process is still alive
-                    if not process.is_alive():
-                        self.session_ended.emit(habit_id)
-                        del self.processes[habit_id]
-                        print(f"Session process for habit {habit_id} has ended")
-                        continue
-
-                    # Check for results (non-blocking)
+                    # Drain result queue
                     while not result_queue.empty():
                         try:
                             message = result_queue.get_nowait()
-                            msg_type, msg_habit_id, data = message
+                            msg_type = message[0]
+                            msg_habit_id = message[1]
+                            data = message[2] if len(message) > 2 else None
 
                             if msg_type == 'elapsed':
                                 self.elapsed_updated.emit(msg_habit_id, data)
                             elif msg_type == 'ended':
+                                self._finalize_log(msg_habit_id, data or {})
+                                self._processes.pop(msg_habit_id, None)
                                 self.session_ended.emit(msg_habit_id)
-                                if msg_habit_id in self.processes:
-                                    del self.processes[msg_habit_id]
                             elif msg_type == 'error':
-                                self.error_occurred.emit(data)
+                                self.error_occurred.emit(data or "Unknown session error")
 
-                        except:
-                            break  # No more messages
+                        except Exception:
+                            break
+
+                    # Detect unexpected process death
+                    if not process.is_alive() and habit_id in self._processes:
+                        self._finalize_log(habit_id, {})
+                        self._processes.pop(habit_id, None)
+                        self.session_ended.emit(habit_id)
 
                 except Exception as e:
-                    self.error_occurred.emit(f"Process monitoring error: {str(e)}")
+                    self.error_occurred.emit(f"Session monitor error: {e}")
 
-            # Small delay to prevent busy waiting
             self.msleep(SessionConstants.PROCESS_MONITOR_INTERVAL)
 
-    def cleanup(self):
-        """Clean up all processes"""
-        self.running = False
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-        # Send stop commands to all processes
-        for habit_id, (process, command_queue, result_queue) in list(self.processes.items()):
-            try:
-                command_queue.put('stop')
-            except:
-                pass
-
-        # Give processes a moment to stop gracefully
-        self.msleep(500)
-
-        self.processes.clear()
+    def _finalize_log(self, habit_id: int, stats: dict) -> None:
+        """Write the final Log record. Called from the monitor thread."""
+        log = self._logs.pop(habit_id, None)
+        if log:
+            log.end = datetime.now()
+            log.idle_time = int(stats.get('idle_time', 0))
+            log.ended_by = stats.get('ended_by')
+            log.offset = int(stats.get('offset', 0))
+            log.save()

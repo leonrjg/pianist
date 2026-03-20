@@ -7,9 +7,11 @@ import os
 import sys
 import multiprocessing
 from pathlib import Path
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtGui import QFontDatabase, QFont
 
+from core.db import initialize_database
+from .services import HabitService
 from .widgets import PianoFloatingWindow
 
 
@@ -32,7 +34,6 @@ def load_application_fonts() -> None:
 
 def main():
     """Main entry point"""
-    # Required for multiprocessing on some platforms
     multiprocessing.set_start_method('spawn', force=True)
 
     app = QApplication(sys.argv)
@@ -43,8 +44,17 @@ def main():
     default_font = QFont("Rounded Mplus 1c", 12)
     app.setFont(default_font)
 
+    # Initialize database and data service before creating any UI
+    try:
+        initialize_database()
+        service = HabitService()
+        service.load()
+    except Exception as e:
+        QMessageBox.critical(None, "Startup Error", f"Failed to initialize application:\n{e}")
+        raise e
+
     # Create and show the window
-    window = PianoFloatingWindow()
+    window = PianoFloatingWindow(service)
     window.show()
 
     sys.exit(app.exec())

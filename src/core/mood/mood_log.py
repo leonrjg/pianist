@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional, List
 from peewee import *
@@ -8,7 +9,7 @@ from .mood import Mood
 class MoodLog(BaseModel):
     """
     Represents a logged mood entry with time range.
-    
+
     Args:
         id: Unique identifier for the log.
         mood: Foreign key to Mood.
@@ -16,11 +17,17 @@ class MoodLog(BaseModel):
         end: When this mood ended (defaults to 1 hour from start).
         ended_by: Reason for ending ('new_mood', 'expired', 'manual', etc.).
     """
-    id = AutoField()
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
     mood = ForeignKeyField(Mood, backref='logs', on_delete='CASCADE')
     start: datetime = DateTimeField(index=True)
     end: Optional[datetime] = DateTimeField(null=True, index=True)
     ended_by = CharField(null=True)
+    device_id = CharField(default='')
+    updated_at = DateTimeField(default=datetime.now)
+    deleted_at = DateTimeField(null=True)
+
+    class Meta:
+        table_name = 'mood_log'
     
     @staticmethod
     def log_new_mood(mood: Mood, ended_by_reason: str = 'new_mood') -> 'MoodLog':
@@ -75,6 +82,7 @@ class MoodLog(BaseModel):
         """
         return list(MoodLog
                    .select()
+                   .where(MoodLog.deleted_at.is_null())
                    .order_by(MoodLog.start.desc())
                    .limit(limit))
     

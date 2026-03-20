@@ -1,6 +1,8 @@
+import uuid
 from datetime import datetime
 from peewee import *
 from core.db import BaseModel
+from core.habit.habit import Habit
 
 
 class Reminder(BaseModel):
@@ -10,10 +12,10 @@ class Reminder(BaseModel):
     Supports three action types: open_link, random_line, show_text.
     Can optionally be linked to a habit for context.
     """
-    id = AutoField()
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
     name = CharField()
     reminder_type = CharField()  # 'sr' or 'stochastic'
-    habit_id = IntegerField(null=True)  # Optional habit link
+    habit = ForeignKeyField(Habit, null=True, on_delete='SET NULL', backref='reminders')
 
     # Action
     action_type = CharField()  # 'open_link', 'random_line', 'show_text'
@@ -37,13 +39,5 @@ class Reminder(BaseModel):
     is_enabled = BooleanField(default=True)
     created_at = DateTimeField(default=datetime.now)
     updated_at = DateTimeField(default=datetime.now)
-
-    def get_habit(self):
-        """Get linked habit if exists."""
-        if self.habit_id:
-            from core.habit.habit import Habit
-            try:
-                return Habit.get_by_id(self.habit_id)
-            except:
-                return None
-        return None
+    device_id = CharField(default='')
+    deleted_at = DateTimeField(null=True)

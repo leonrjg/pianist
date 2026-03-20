@@ -6,7 +6,7 @@ Tracks which migrations have been applied and runs pending migrations.
 
 import os
 import importlib.util
-from peewee import Model, CharField, IntegerField, DateTimeField
+from peewee import Model, CharField, IntegerField, DateTimeField, OperationalError
 from datetime import datetime
 from core.db import db, BaseModel
 
@@ -33,8 +33,8 @@ def get_applied_migrations():
     """Get set of already applied migration names"""
     try:
         return set(m.name for m in Migration.select())
-    except:
-        # Migration table doesn't exist yet
+    except OperationalError:
+        # Expected on first run — migrations table does not exist yet
         return set()
 
 
@@ -60,11 +60,10 @@ def run_migrations():
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
-        # Run the migration
-        module.up()
-
-        # Record that it was applied
-        Migration.create(name=migration_name)
+        # Run the migration and record it atomically
+        with db.atomic():
+            module.up()
+            Migration.create(name=migration_name)
 
         print(f"Applied migration: {migration_name}")
 
