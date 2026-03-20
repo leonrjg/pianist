@@ -75,7 +75,8 @@ class SessionItem(QFrame):
                 top_layout.addWidget(offset_note)
 
         # Session time
-        start_time = f"{self.log.start.strftime("%H:%M")} ~ {self.log.end.strftime("%H:%M") if self.log.end else '...'}"
+        end_str = self.log.end.strftime('%H:%M') if self.log.end else '...'
+        start_time = f"{self.log.start.strftime('%H:%M')} ~ {end_str}"
         time_label = QLabel(start_time)
         time_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
         top_layout.addWidget(time_label)
