@@ -78,13 +78,27 @@ def merge_record(table: str, incoming: dict) -> None:
         _insert(model, incoming)
 
 
+def _coerce(field, value):
+    """Convert a raw JSON value to the Python type Peewee expects for this field."""
+    if value is None:
+        return None
+    return field.python_value(value)
+
+
 def _update(model, existing, incoming: dict) -> None:
-    for field_name in model._meta.fields:
+    for field_name, field in model._meta.fields.items():
         if field_name in incoming:
-            setattr(existing, field_name, incoming[field_name])
+            setattr(existing, field_name, _coerce(field, incoming[field_name]))
     existing.save()
 
 
 def _insert(model, incoming: dict) -> None:
-    data = {k: v for k, v in incoming.items() if k in model._meta.fields}
-    model.create(**data)
+    data = {
+        field_name: _coerce(field, incoming[field_name])
+        for field_name, field in model._meta.fields.items()
+        if field_name in incoming
+    }
+    # on_conflict_replace handles the case where the remote UUID is new but a
+    # unique-together constraint (e.g. HabitTracker.habit+tracker) already exists
+    # locally under a different UUID assigned before first sync.
+    model.insert(**data).on_conflict_replace().execute()
