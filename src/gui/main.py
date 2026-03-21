@@ -8,6 +8,7 @@ import sys
 import multiprocessing
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QFontDatabase, QFont
 
 from core.db import initialize_database
@@ -52,6 +53,11 @@ def main():
     except Exception as e:
         QMessageBox.critical(None, "Startup Error", f"Failed to initialize application:\n{e}")
         raise e
+
+    # Refresh the UI after each sync completes. QTimer.singleShot marshals
+    # the call onto the main thread from delta_sync's background thread.
+    from core.sync.service import SyncService
+    SyncService.get_instance().client.on_sync_complete = lambda: QTimer.singleShot(0, service.refresh)
 
     # Create and show the window
     window = PianoFloatingWindow(service)

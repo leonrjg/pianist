@@ -27,6 +27,7 @@ class SyncClient:
         self._active_peers: dict[str, str] = {}  # device_id -> url
         self._lock = threading.Lock()
         self._sync_count: int = 0  # number of delta_syncs currently in-flight
+        self.on_sync_complete = None  # optional callback fired after each successful sync
 
     def register_peer(self, device_id: str, url: str) -> bool:
         """Register a peer. Returns True if the peer is newly added, False if already known."""
@@ -83,6 +84,9 @@ class SyncClient:
                 conflict_target=[SyncState.device_id],
                 update={SyncState.last_sync_at: now},
             ).execute()
+
+            if self.on_sync_complete:
+                self.on_sync_complete()
         except Exception:
             pass  # Will retry on next reconnect
         finally:
