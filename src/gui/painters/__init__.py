@@ -3,7 +3,7 @@
 from .base_painter import BasePainter
 from .frame_painter import FramePainter
 from .key_painter import KeyPainter
-from .brass_painter import BrassPainter
+from .accent_painter import AccentPainter
 from .music_sheet_painter import MusicSheetPainter
 
-__all__ = ['BasePainter', 'FramePainter', 'KeyPainter', 'BrassPainter', 'MusicSheetPainter']
+__all__ = ['BasePainter', 'FramePainter', 'KeyPainter', 'AccentPainter', 'MusicSheetPainter']

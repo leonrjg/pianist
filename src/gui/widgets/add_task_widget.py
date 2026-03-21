@@ -16,6 +16,16 @@ from core.task.service import TaskService
 from .vintage_date_picker import VintageDatePicker
 
 
+def _c():
+    from gui.constants import piano_colors
+    return piano_colors()
+
+
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class AddTaskWidget(QWidget):
     """Floating form for adding manual tasks"""
 
@@ -31,6 +41,8 @@ class AddTaskWidget(QWidget):
 
     def _setup_ui(self):
         """Setup the UI layout"""
+        c = _c()
+        t = _t()
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(6)
@@ -38,36 +50,31 @@ class AddTaskWidget(QWidget):
 
         # Title label
         title_label = QLabel("Add Task")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: rgb(255, 252, 245);
+        title_label.setStyleSheet(f"""
+            QLabel {{
+                color: {c.WHITE_KEY.name()};
                 font-size: 11px;
                 font-weight: bold;
                 background: transparent;
-            }
+            }}
         """)
         layout.addWidget(title_label)
 
         # Task title input
         self.title_input = QLineEdit()
         self.title_input.setPlaceholderText("Task title...")
-        self.title_input.setStyleSheet("""
-            QLineEdit {
-                background-color: rgba(255, 252, 245, 220);
-                border: 1px solid rgb(200, 185, 160);
+        self.title_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {t.paper};
+                border: 1px solid {t.border};
                 border-radius: 3px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 10px;
                 padding: 5px 6px;
-            }
-            QLineEdit:focus {
-                border: 1px solid rgb(184, 134, 11);
-                background-color: rgba(255, 255, 250, 240);
-            }
-            QLineEdit::placeholder {
-                color: rgba(120, 100, 80, 150);
-                font-style: italic;
-            }
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {t.accent};
+            }}
         """)
         # Connect Enter key to submit
         self.title_input.returnPressed.connect(self._on_submit)
@@ -78,12 +85,12 @@ class AddTaskWidget(QWidget):
         date_row.setSpacing(6)
 
         date_label = QLabel("Date:")
-        date_label.setStyleSheet("""
-            QLabel {
-                color: rgb(200, 185, 160);
+        date_label.setStyleSheet(f"""
+            QLabel {{
+                color: {c.FRAME_LIGHT.name()};
                 font-size: 9px;
                 background: transparent;
-            }
+            }}
         """)
         date_row.addWidget(date_label)
 
@@ -98,23 +105,20 @@ class AddTaskWidget(QWidget):
         # Submit button
         self.submit_button = QPushButton("Add Task")
         self.submit_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.submit_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(184, 134, 11, 180);
-                border: 1px solid rgb(184, 134, 11);
+        self.submit_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t.button_primary_bg};
+                border: 1px solid {t.accent};
                 border-radius: 3px;
-                color: rgb(255, 252, 245);
+                color: {t.button_primary_text};
                 font-size: 10px;
                 font-weight: bold;
                 padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: rgba(218, 165, 32, 200);
-                border-color: rgb(218, 165, 32);
-            }
-            QPushButton:pressed {
-                background-color: rgba(160, 115, 10, 200);
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {t.button_primary_hover};
+                border-color: {t.accent_light};
+            }}
         """)
         self.submit_button.clicked.connect(self._on_submit)
         layout.addWidget(self.submit_button)
@@ -156,8 +160,11 @@ class AddTaskWidget(QWidget):
         path = QPainterPath()
         path.addRoundedRect(0, 0, self.width(), self.height(), 6, 6)
 
-        painter.fillPath(path, QColor(61, 40, 23, 230))
-        painter.setPen(QColor(184, 134, 11))
+        c = _c()
+        bg = QColor(c.FRAME_DARK)
+        bg.setAlpha(230)
+        painter.fillPath(path, bg)
+        painter.setPen(c.ACCENT)
         painter.drawPath(path)
 
     def show_at_position(self, pos: QPoint):

@@ -49,6 +49,52 @@ class TaskService:
             task.save()
 
 
+def get_past_tasks(
+    habits: List[Habit],
+    lookback_seconds: int,
+    include_manual: bool = True,
+    include_completed: bool = True,
+) -> List[Task]:
+    """
+    Get tasks scheduled within the past `lookback_seconds` seconds (strictly before today).
+
+    Args:
+        habits: List of habits to query
+        lookback_seconds: How many seconds back to look
+        include_manual: Whether to include standalone manual tasks
+        include_completed: Whether to include already-completed tasks
+
+    Returns:
+        List of Task objects sorted ascending by scheduled_at
+    """
+    tasks: List[Task] = []
+    now = datetime.now()
+    cutoff = now - timedelta(seconds=lookback_seconds)
+    today_start = datetime.combine(now.date(), time.min)
+
+    for habit in habits:
+        schedule = habit.get_schedule()
+        past_dts = schedule.get_previous_tasks(lookback_seconds)
+        checker = habit.build_completion_checker(cutoff, today_start)
+        for scheduled_dt in past_dts:
+            if scheduled_dt < today_start:
+                task = Task.from_habit(habit, scheduled_dt, checker=checker)
+                if include_completed or not task.completed:
+                    tasks.append(task)
+
+    if include_manual:
+        for manual_task in ManualTask.select().where(
+            ManualTask.deleted_at.is_null() &
+            (ManualTask.scheduled_at >= cutoff) &
+            (ManualTask.scheduled_at < today_start)
+        ):
+            task = Task.from_manual_task(manual_task)
+            if include_completed or not task.completed:
+                tasks.append(task)
+
+    return sorted(tasks, key=lambda t: t.scheduled_at)
+
+
 def get_upcoming_tasks(
     habits: List[Habit],
     timespan: int,

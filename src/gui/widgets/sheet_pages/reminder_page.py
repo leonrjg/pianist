@@ -16,6 +16,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.reminder.service import ReminderService as _ReminderService
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class ReminderPage(SheetPage):
     """Page displaying list of all reminders"""
 
@@ -35,7 +40,7 @@ class ReminderPage(SheetPage):
 
         # Description
         desc = QLabel("Manage your spaced repetition and stochastic reminders")
-        desc.setStyleSheet("color: rgb(110, 90, 70); font-size: 12px; margin-bottom: 16px;")
+        desc.setStyleSheet(f"color: {_t().ink_secondary}; font-size: 12px; margin-bottom: 16px;")
         layout.addWidget(desc)
 
         # New reminder button
@@ -54,7 +59,7 @@ class ReminderPage(SheetPage):
 
         if not reminders:
             no_reminders_label = QLabel("No reminders yet. Create one to get started!")
-            no_reminders_label.setStyleSheet("color: rgb(110, 90, 70); font-style: italic; margin-top: 24px;")
+            no_reminders_label.setStyleSheet(f"color: {_t().ink_secondary}; font-style: italic; margin-top: 24px;")
             layout.addWidget(no_reminders_label)
         else:
             for reminder in reminders:
@@ -75,12 +80,12 @@ class ReminderPage(SheetPage):
         rm = self._get_reminder_manager()
 
         mute_label = QLabel("Mute all reminders")
-        mute_label.setStyleSheet("color: rgb(70, 50, 35); font-weight: bold; font-size: 12px;")
+        mute_label.setStyleSheet(f"color: {_t().ink_primary}; font-weight: bold; font-size: 12px;")
         layout.addWidget(mute_label)
 
         if rm and rm.is_muted:
             status = QLabel("Reminders are currently muted.")
-            status.setStyleSheet("color: rgb(160, 80, 50); font-style: italic; font-size: 11px;")
+            status.setStyleSheet(f"color: {_t().ink_secondary}; font-style: italic; font-size: 11px;")
             layout.addWidget(status)
 
             unmute_btn = VintageButton("Unmute", button_type="secondary", parent=self)

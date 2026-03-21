@@ -14,7 +14,7 @@ from PyQt6.QtGui import QPainter, QPen, QBrush, QColor
 from PyQt6.QtCore import Qt
 
 from .base_painter import BasePainter
-from ..constants import PianoColors, PianoLayout
+from ..constants import piano_colors, PianoLayout
 from ..models.piano_geometry import PianoGeometry
 
 
@@ -35,13 +35,13 @@ class FramePainter(BasePainter):
         toggleable_drawer_rect = geometry.toggleable_drawer_rect
         if not toggleable_drawer_rect.isEmpty():
             # Draw wooden toggleable drawer background
-            FramePainter.draw_wood_grain_effect(
+            FramePainter.draw_frame_texture(
                 painter,
                 start_x=0,
                 end_x=geometry.toggleable_drawer_width,
                 height=geometry.window_height,
-                dark_color=PianoColors.WOOD_DARK,
-                medium_color=PianoColors.WOOD_MEDIUM,
+                dark_color=piano_colors().FRAME_DARK,
+                medium_color=piano_colors().FRAME_MEDIUM,
                 shade_intensity=0.5
             )
             # MusicSheetWidget will be rendered on top by Qt's widget system
@@ -64,8 +64,8 @@ class FramePainter(BasePainter):
             fallboard_rect.y(),
             fallboard_rect.x() + geometry.fallboard_width,
             geometry.window_height,
-            PianoColors.WOOD_MEDIUM,
-            PianoColors.WOOD_DARK,
+            piano_colors().FRAME_MEDIUM,
+            piano_colors().FRAME_DARK,
             vertical=True
         )
 
@@ -74,7 +74,7 @@ class FramePainter(BasePainter):
         font = QFont()
         font.setPixelSize(16)
         painter.setFont(font)
-        painter.setPen(QPen(PianoColors.BRASS))
+        painter.setPen(QPen(piano_colors().ACCENT))
 
         x_center = fallboard_rect.x() + (geometry.fallboard_width // 2)
         y_center = fallboard_rect.y() + (geometry.window_height // 2)
@@ -90,7 +90,7 @@ class FramePainter(BasePainter):
             0,
             geometry.window_width,
             geometry.window_height,
-            PianoColors.WOOD_MEDIUM,
-            PianoColors.WOOD_DARK,
+            piano_colors().FRAME_MEDIUM,
+            piano_colors().FRAME_DARK,
             vertical=True
         )

@@ -18,6 +18,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.reminder.service import ReminderService
 from core.schedule.sm2 import SM2Scheduler
+
+
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
 from core.schedule.stochastic import StochasticScheduler
 from core.schedule.active_window import ActiveWindow
 
@@ -114,14 +119,15 @@ class ReminderDetailPage(SheetPage):
         self._payload_edit = QTextEdit()
         self._payload_edit.setMaximumHeight(80)
         self._payload_edit.setPlaceholderText("URL, file path, deck name, or text content")
-        self._payload_edit.setStyleSheet("""
-            QTextEdit {
-                background-color: rgba(255, 252, 245, 180);
-                border: 1px dotted rgb(150, 130, 100);
+        _pt = _t()
+        self._payload_edit.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {_pt.input_bg};
+                border: 1px dotted {_pt.border};
                 padding: 6px;
-                color: rgb(70, 50, 35);
+                color: {_pt.ink_primary};
                 font-size: 12px;
-            }
+            }}
         """)
         if self.reminder:
             self._payload_edit.setPlainText(self.reminder.action_payload)

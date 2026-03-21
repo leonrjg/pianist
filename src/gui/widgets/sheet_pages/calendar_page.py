@@ -13,8 +13,19 @@ from datetime import datetime, timedelta
 from typing import Dict, List
 
 from .base_page import SheetPage
-from .vintage_styles import VINTAGE_MENU_STYLE
+from .theme_styles import get_menu_stylesheet
 from ..task_calendar_widget import TaskCalendarWidget
+
+
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
+def _qcolor(rgb_str: str, alpha: int = 255) -> QColor:
+    """Parse 'rgb(r, g, b)' theme string into a QColor."""
+    nums = [int(x.strip()) for x in rgb_str[4:-1].split(',')]
+    return QColor(nums[0], nums[1], nums[2], alpha)
 
 import sys
 from pathlib import Path
@@ -59,23 +70,24 @@ class TaskPopup(QWidget):
 
         self._task_input = QLineEdit()
         self._task_input.setPlaceholderText("Add task...")
-        self._task_input.setStyleSheet("""
-            QLineEdit {
-                background-color: rgba(255, 252, 245, 220);
-                border: 1px solid rgb(200, 185, 160);
+        t = _t()
+        self._task_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {t.paper};
+                border: 1px solid {t.border};
                 border-radius: 2px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 9px;
                 padding: 3px 5px;
-            }
-            QLineEdit:focus {
-                border: 1px solid rgb(184, 134, 11);
-                background-color: rgba(255, 255, 250, 240);
-            }
-            QLineEdit::placeholder {
-                color: rgba(120, 100, 80, 150);
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {t.accent};
+                background-color: {t.paper_alt};
+            }}
+            QLineEdit::placeholder {{
+                color: {t.ink_secondary};
                 font-style: italic;
-            }
+            }}
         """)
         # Connect Enter key to submit
         self._task_input.returnPressed.connect(self._on_add_task)
@@ -85,23 +97,24 @@ class TaskPopup(QWidget):
         add_btn = QPushButton("+")
         add_btn.setFixedSize(20, 20)
         add_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        add_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(184, 134, 11, 180);
-                border: 1px solid rgb(184, 134, 11);
+        t = _t()
+        add_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t.accent};
+                border: 1px solid {t.accent};
                 border-radius: 2px;
-                color: rgb(255, 252, 245);
+                color: {t.paper};
                 font-size: 12px;
                 font-weight: bold;
                 padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: rgba(218, 165, 32, 200);
-                border-color: rgb(218, 165, 32);
-            }
-            QPushButton:pressed {
-                background-color: rgba(160, 115, 10, 200);
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {t.accent_light};
+                border-color: {t.accent_light};
+            }}
+            QPushButton:pressed {{
+                background-color: {t.accent_dark};
+            }}
         """)
         add_btn.clicked.connect(self._on_add_task)
         input_layout.addWidget(add_btn)
@@ -114,32 +127,33 @@ class TaskPopup(QWidget):
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
+        t = _t()
+        scroll_area.setStyleSheet(f"""
+            QScrollArea {{
                 background: transparent;
                 border: none;
-            }
-            QScrollBar:vertical {
-                background: rgb(61, 40, 23);
+            }}
+            QScrollBar:vertical {{
+                background: {t.wood_dark};
                 width: 6px;
                 margin: 2px;
                 border: none;
                 border-radius: 3px;
-            }
-            QScrollBar::handle:vertical {
-                background: rgb(184, 134, 11);
+            }}
+            QScrollBar::handle:vertical {{
+                background: {t.accent};
                 min-height: 20px;
                 border-radius: 3px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: rgb(218, 165, 32);
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {t.accent_light};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 background: transparent;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
                 background: transparent;
-            }
+            }}
         """)
 
         # Container for task items
@@ -156,27 +170,29 @@ class TaskPopup(QWidget):
         # Set fixed size for popup - very compact
         self.setFixedSize(180, 240)
 
-    def set_tasks(self, date: QDate, tasks: List[dict]):
+    def set_tasks(self, date: QDate, tasks: List[dict], ical_events: List = None):
         """
-        Set the tasks to display for a given date.
+        Set the tasks and ICAL events to display for a given date.
 
         Args:
             date: The date these tasks are for
             tasks: List of task dicts with 'habit' and 'datetime' keys
+            ical_events: Optional list of ICalEvent instances for this date
         """
-        self._current_date = date  # Store current date for task creation
+        self._current_date = date
 
-        # Clear existing tasks
+        # Clear existing content
         while self._tasks_layout.count():
             item = self._tasks_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # Add date header with better contrast
+        t = _t()
+        # Date header
         date_str = date.toString("MMM d")
         header = QLabel(date_str)
-        header.setStyleSheet("""
-            color: rgb(255, 252, 245);
+        header.setStyleSheet(f"""
+            color: {t.paper};
             font-size: 10px;
             font-weight: bold;
             background: transparent;
@@ -184,21 +200,44 @@ class TaskPopup(QWidget):
         """)
         self._tasks_layout.addWidget(header)
 
-        # Add tasks
+        # Tasks section
         if tasks:
             for task in tasks:
-                task_widget = self._create_task_widget(task)
-                self._tasks_layout.addWidget(task_widget)
+                self._tasks_layout.addWidget(self._create_task_widget(task))
         else:
             no_tasks_label = QLabel("No tasks")
-            no_tasks_label.setStyleSheet("""
-                color: rgb(200, 185, 160);
+            no_tasks_label.setStyleSheet(f"""
+                color: {t.border};
                 font-size: 8px;
                 font-style: italic;
                 background: transparent;
                 padding: 2px 1px;
             """)
             self._tasks_layout.addWidget(no_tasks_label)
+
+        # ICAL events section
+        if ical_events:
+            events_label = QLabel("Events")
+            events_label.setStyleSheet(f"""
+                color: {t.paper};
+                font-size: 9px;
+                font-weight: bold;
+                font-style: italic;
+                background: transparent;
+                padding: 4px 0px 1px 0px;
+            """)
+            self._tasks_layout.addWidget(events_label)
+            for event in ical_events:
+                lbl = QLabel(f"◆ {event.title}")
+                lbl.setWordWrap(True)
+                lbl.setStyleSheet(f"""
+                    color: {event.color};
+                    font-size: 9px;
+                    background: transparent;
+                    border: none;
+                    padding: 1px 2px;
+                """)
+                self._tasks_layout.addWidget(lbl)
 
         self._tasks_layout.addStretch()
 
@@ -234,12 +273,13 @@ class TaskPopup(QWidget):
     def _create_task_widget(self, task: dict) -> QWidget:
         """Create a widget for a single task"""
         widget = QFrame()
-        widget.setStyleSheet("""
-            QFrame {
-                background-color: rgba(255, 252, 245, 200);
-                border: 1px solid rgb(200, 185, 160);
+        t = _t()
+        widget.setStyleSheet(f"""
+            QFrame {{
+                background-color: {t.paper};
+                border: 1px solid {t.border};
                 border-radius: 3px;
-            }
+            }}
         """)
 
         layout = QVBoxLayout()
@@ -254,16 +294,16 @@ class TaskPopup(QWidget):
         # Add checkmark to name if completed
         name_text = f"✓ {habit.name}" if completed else habit.name
         name_label = QLabel(name_text)
-        name_label.setStyleSheet("""
-            QLabel {
-                color: rgb(70, 50, 35);
+        name_label.setStyleSheet(f"""
+            QLabel {{
+                color: {_t().ink_primary};
                 font-size: 10px;
                 font-weight: bold;
                 background: transparent;
                 border: none;
                 padding: 0px;
                 margin: 0px;
-            }
+            }}
         """)
         name_label.setWordWrap(True)
         layout.addWidget(name_label)
@@ -272,15 +312,15 @@ class TaskPopup(QWidget):
         task_dt = task['datetime']
         time_str = task_dt.strftime("%I:%M %p").lstrip('0')
         detail_label = QLabel(f"{time_str} • {habit.schedule}")
-        detail_label.setStyleSheet("""
-            QLabel {
-                color: rgb(110, 90, 70);
+        detail_label.setStyleSheet(f"""
+            QLabel {{
+                color: {_t().ink_secondary};
                 font-size: 9px;
                 background: transparent;
                 border: none;
                 padding: 0px;
                 margin: 0px;
-            }
+            }}
         """)
         layout.addWidget(detail_label)
 
@@ -291,12 +331,12 @@ class TaskPopup(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw rounded rectangle background
         path = QPainterPath()
         path.addRoundedRect(0, 0, self.width(), self.height(), 6, 6)
-        
-        painter.fillPath(path, QColor(61, 40, 23, 230))
-        painter.setPen(QColor(184, 134, 11))
+
+        t = _t()
+        painter.fillPath(path, _qcolor(t.wood_dark, 230))
+        painter.setPen(_qcolor(t.accent))
         painter.drawPath(path)
 
     def show_at_position(self, pos: QPoint):
@@ -476,19 +516,48 @@ class CalendarPage(SheetPage):
 
             self._calendar.set_tasks(tasks_by_date)
 
+            # Load ICAL events if enabled
+            try:
+                from core.settings.service import SettingsService
+                from core.ical.service import ICalService
+                if SettingsService.get('calendar.ical_sources_visible', True):
+                    ical_events = ICalService.get_events_in_range(start_date, end_date)
+                    ical_by_date: Dict[QDate, List] = {}
+                    for event in ical_events:
+                        for d in self._dates_in_range(event.start, event.end):
+                            qd = QDate(d.year, d.month, d.day)
+                            if qd not in ical_by_date:
+                                ical_by_date[qd] = []
+                            ical_by_date[qd].append(event)
+                    self._calendar.set_ical_events(ical_by_date)
+                else:
+                    self._calendar.set_ical_events({})
+            except Exception:
+                pass
+
         except Exception as e:
             print(f"Error loading tasks: {e}")
             import traceback
             traceback.print_exc()
+
+    @staticmethod
+    def _dates_in_range(start, end):
+        """Yield each date from start to end inclusive."""
+        from datetime import date as date_type, timedelta
+        d = start
+        while d <= end:
+            yield d
+            d += timedelta(days=1)
 
     def _on_month_changed(self, year: int, month: int):
         """Reload tasks when user navigates to different month"""
         self._load_tasks()
 
     def _on_day_clicked(self, date: QDate):
-        """Handle day click - show popup with tasks"""
+        """Handle day click - show popup with tasks and ICAL events"""
         tasks = self._calendar._tasks_by_date.get(date, [])
-        self._popup.set_tasks(date, tasks)
+        ical_events = self._calendar._ical_by_date.get(date, [])
+        self._popup.set_tasks(date, tasks, ical_events)
         
         # Calculate popup position (to the right of the calendar)
         calendar_global_pos = self._calendar.mapToGlobal(QPoint(0, 0))
@@ -506,10 +575,11 @@ class CalendarPage(SheetPage):
     def _on_task_created(self):
         """Handle new task creation - reload calendar and update popup"""
         self._load_tasks()
-        # Refresh popup with updated tasks for current date
         if self._popup.isVisible() and self._popup._current_date:
-            tasks = self._calendar._tasks_by_date.get(self._popup._current_date, [])
-            self._popup.set_tasks(self._popup._current_date, tasks)
+            d = self._popup._current_date
+            tasks = self._calendar._tasks_by_date.get(d, [])
+            ical_events = self._calendar._ical_by_date.get(d, [])
+            self._popup.set_tasks(d, tasks, ical_events)
 
     def _on_focus_changed(self, old, new):
         """Close popup when focus moves outside of it"""

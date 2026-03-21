@@ -1,6 +1,11 @@
-"""Reusable productivity/progress bar component with vintage styling."""
+"""Reusable productivity/progress bar component."""
 
 from PyQt6.QtWidgets import QProgressBar
+
+
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
 
 
 class ProductivityProgressBar(QProgressBar):
@@ -27,21 +32,21 @@ class ProductivityProgressBar(QProgressBar):
         self.setFormat(self.label_text)
         self.setFixedHeight(18)
 
-        # Color based on performance
+        t = _t()
         if self.rate >= 0.8:
-            bar_color = "rgb(184, 134, 11)"  # Brass - excellent
-            text_color = "rgb(255, 250, 240)"  # Light color for dark bar
+            bar_color = t.accent
+            text_color = t.button_primary_text
         elif self.rate >= 0.6:
-            bar_color = "rgb(140, 110, 80)"  # Brown - good
-            text_color = "rgb(255, 250, 240)"  # Light color for dark bar
+            bar_color = t.accent_dark
+            text_color = t.button_primary_text
         else:
-            bar_color = "rgb(180, 160, 140)"  # Light sepia - needs attention
-            text_color = "black"
+            bar_color = t.border
+            text_color = t.ink_primary
 
         self.setStyleSheet(f"""
             ProductivityProgressBar {{
-                background-color: rgba(230, 225, 210, 180);
-                border: 1px solid rgb(200, 185, 160);
+                background-color: {t.paper_dark};
+                border: 1px solid {t.border};
                 border-radius: 4px;
                 color: {text_color};
                 font-size: 9px;

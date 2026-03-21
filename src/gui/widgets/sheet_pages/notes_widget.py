@@ -7,6 +7,11 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class NotesWidget(QWidget):
     """Widget for displaying and editing Markdown notes"""
     
@@ -16,6 +21,7 @@ class NotesWidget(QWidget):
         super().__init__(parent)
         self._note_text = ""
         self._setup_ui()
+        self._setup_style()
         self._update_view()
     
     def _setup_ui(self):
@@ -33,41 +39,44 @@ class NotesWidget(QWidget):
             Qt.TextInteractionFlag.TextSelectableByMouse | 
             Qt.TextInteractionFlag.LinksAccessibleByMouse
         )
-        self._view_label.setStyleSheet("""
-            QLabel {
-                background-color: rgba(255, 252, 245, 150);
-                border: 1px solid rgb(200, 185, 160);
-                border-radius: 3px;
-                padding: 8px;
-                color: rgb(70, 50, 35);
-                font-size: 11px;
-            }
-        """)
         self._view_label.setCursor(Qt.CursorShape.IBeamCursor)
         self._view_label.mousePressEvent = lambda e: self._enter_edit_mode()
         layout.addWidget(self._view_label)
-        
+
         # Edit mode - Plain text editor
         self._edit_text = QTextEdit()
         self._edit_text.setAcceptRichText(False)
         self._edit_text.setPlaceholderText("Click to write a note (Markdown)")
-        self._edit_text.setStyleSheet("""
-            QTextEdit {
-                background-color: rgba(255, 255, 250, 220);
-                border: 2px solid rgb(184, 134, 11);
-                border-radius: 3px;
-                padding: 8px;
-                color: rgb(70, 50, 35);
-                font-size: 11px;
-                selection-background-color: rgba(184, 134, 11, 120);
-            }
-        """)
         self._edit_text.hide()
         layout.addWidget(self._edit_text)
         
         # Connect focus out to save and switch to view mode
         self._edit_text.focusOutEvent = self._on_focus_out
-    
+
+    def _setup_style(self):
+        t = _t()
+        self._view_label.setStyleSheet(f"""
+            QLabel {{
+                background-color: {t.paper};
+                border: 1px solid {t.border};
+                border-radius: 3px;
+                padding: 8px;
+                color: {t.ink_primary};
+                font-size: 11px;
+            }}
+        """)
+        self._edit_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {t.paper_alt};
+                border: 2px solid {t.accent};
+                border-radius: 3px;
+                padding: 8px;
+                color: {t.ink_primary};
+                font-size: 11px;
+                selection-background-color: {t.input_selection};
+            }}
+        """)
+
     def _enter_edit_mode(self):
         """Switch to edit mode"""
         # Store scroll position before switching

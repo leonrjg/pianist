@@ -1,6 +1,8 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
+
+from peewee import DateField, DateTimeField, ForeignKeyField, UUIDField
 
 
 def _parse_dt(val) -> Optional[datetime]:
@@ -14,6 +16,52 @@ def _parse_dt(val) -> Optional[datetime]:
         return None
 
 
+def to_wire(field, val):
+    """Convert a Python field value to a JSON-safe wire representation."""
+    if val is None:
+        return None
+    if isinstance(field, DateTimeField):
+        if isinstance(val, datetime):
+            return val.isoformat()
+        if isinstance(val, date):
+            return datetime(val.year, val.month, val.day).isoformat()
+        return val
+    if isinstance(field, DateField):
+        if isinstance(val, datetime):
+            return val.date().isoformat()
+        if isinstance(val, date):
+            return val.isoformat()
+        return val
+    if isinstance(field, UUIDField):
+        return str(val)
+    if isinstance(field, ForeignKeyField):
+        if isinstance(val, uuid.UUID):
+            return str(val)
+        return val
+    return val  # bool, int, float, str — JSON handles these natively
+
+
+def from_wire(field, val):
+    """Convert a JSON wire value back to the Python type Peewee expects."""
+    if val is None:
+        return None
+    if isinstance(field, DateTimeField):
+        if isinstance(val, str):
+            return datetime.fromisoformat(val)
+        return val
+    if isinstance(field, DateField):
+        if isinstance(val, str):
+            return date.fromisoformat(val[:10])
+        return val
+    if isinstance(field, UUIDField):
+        if isinstance(val, str):
+            return uuid.UUID(val)
+        return val
+    if isinstance(field, ForeignKeyField):
+        return from_wire(field.rel_field, val)
+    return val  # bool, int, float, str — already correct from JSON
+
+
 def get_model_registry() -> dict:
     from core.habit.habit import Habit
     from core.habit.log import Log
@@ -24,6 +72,8 @@ def get_model_registry() -> dict:
     from core.reminder.reminder import Reminder
     from core.reminder.reminder_log import ReminderLog
     from core.notes.note import Note
+    from core.settings.setting import AppSetting
+    from core.ical.source import ICalSource
     return {
         'habit': Habit,
         'log': Log,
@@ -34,26 +84,16 @@ def get_model_registry() -> dict:
         'reminder': Reminder,
         'reminder_log': ReminderLog,
         'note': Note,
+        'appsetting': AppSetting,
+        'ical_source': ICalSource,
     }
 
 
-_PEEWEE_DT_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
-
-
 def serialize_row(instance, table_name: str) -> dict:
-    """Serialize a model instance to a JSON-safe dict.
-
-    Datetimes are written in Peewee's primary format so that python_value()
-    on the receiving end can parse them without any special-casing.
-    """
+    """Serialize a model instance to a JSON-safe dict using ISO 8601 for dates."""
     row = {}
-    for name in instance._meta.fields:
-        val = instance.__data__.get(name)
-        if isinstance(val, datetime):
-            val = val.strftime(_PEEWEE_DT_FORMAT)
-        elif isinstance(val, uuid.UUID):
-            val = str(val)
-        row[name] = val
+    for name, field in instance._meta.fields.items():
+        row[name] = to_wire(field, instance.__data__.get(name))
     return {'table': table_name, 'data': row}
 
 
@@ -85,23 +125,23 @@ def merge_record(table: str, incoming: dict) -> None:
         _insert(model, incoming)
 
 
-def _coerce(field, value):
-    """Convert a DB-encoded value back to the Python type Peewee expects."""
-    if value is None:
-        return None
-    return field.python_value(value)
-
-
 def _update(model, existing, incoming: dict) -> None:
     for field_name, field in model._meta.fields.items():
         if field_name in incoming:
-            setattr(existing, field_name, _coerce(field, incoming[field_name]))
+            setattr(existing, field_name, from_wire(field, incoming[field_name]))
     existing.save()
+
+
+def live_push_instance(instance, table_name: str) -> None:
+    """Serialize a model instance and fire-and-forget push it to all active peers."""
+    record = serialize_row(instance, table_name)
+    from core.sync.service import SyncService
+    SyncService.get_instance().client.live_push(record)
 
 
 def _insert(model, incoming: dict) -> None:
     data = {
-        field_name: _coerce(field, incoming[field_name])
+        field_name: from_wire(field, incoming[field_name])
         for field_name, field in model._meta.fields.items()
         if field_name in incoming
     }

@@ -1,337 +1,314 @@
 """
-Vintage Form Widgets - Styled form components matching the vintage aesthetic.
+Form Widgets - Styled form components matching the active theme.
 """
 
 from PyQt6.QtWidgets import QLineEdit, QSpinBox, QCheckBox, QFrame, QVBoxLayout, QLabel, QPushButton, QDateEdit
 from PyQt6.QtGui import QFont, QCursor, QIcon
 from PyQt6.QtCore import Qt, QDate, QTimer
 from pathlib import Path
-from .vintage_styles import VINTAGE_MENU_STYLE
+from .theme_styles import get_menu_stylesheet as _get_menu_stylesheet
+
+
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
 
 
 class VintageLineEdit(QLineEdit):
-    """Line edit with vintage paper styling"""
+    """Line edit styled with the active theme."""
 
     def __init__(self, placeholder="", parent=None):
         super().__init__(parent)
         if placeholder:
             self.setPlaceholderText(placeholder)
+        self._setup_style()
 
-        self.setStyleSheet("""
-            QLineEdit {
-                background-color: rgba(255, 252, 245, 200);
-                border: 1px solid rgb(200, 185, 160);
+    def _setup_style(self):
+        t = _t()
+        self.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {t.input_bg};
+                border: 1px solid {t.border};
                 border-radius: 3px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 11px;
-                selection-background-color: rgba(184, 134, 11, 120);
-            }
-            QLineEdit:focus {
-                border: 1px solid rgb(184, 134, 11);
-                background-color: rgba(255, 255, 250, 220);
-            }
-            QLineEdit::placeholder {
-                color: rgba(120, 100, 80, 150);
+                selection-background-color: {t.input_selection};
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {t.input_focus_border};
+                background-color: {t.paper};
+            }}
+            QLineEdit::placeholder {{
+                color: {t.ink_secondary};
                 font-style: italic;
-            }
+            }}
         """)
 
 
 class VintageSpinBox(QSpinBox):
-    """Spin box with vintage paper styling"""
+    """Spin box styled with the active theme."""
 
     def __init__(self, suffix="", parent=None):
         super().__init__(parent)
-
-        # Disable up/down buttons
         self.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+        self._setup_style()
 
-        self.setStyleSheet("""
-            QSpinBox {
-                background-color: rgba(255, 252, 245, 200);
-                border: 1px solid rgb(200, 185, 160);
+    def _setup_style(self):
+        t = _t()
+        self.setStyleSheet(f"""
+            QSpinBox {{
+                background-color: {t.input_bg};
+                border: 1px solid {t.border};
                 border-radius: 3px;
                 padding: 4px 6px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 11px;
-                selection-background-color: rgba(184, 134, 11, 120);
-            }
-            QSpinBox:focus {
-                border: 1px solid rgb(184, 134, 11);
-                background-color: rgba(255, 255, 250, 220);
-            }
+                selection-background-color: {t.input_selection};
+            }}
+            QSpinBox:focus {{
+                border: 1px solid {t.input_focus_border};
+                background-color: {t.paper};
+            }}
         """)
 
     def stepBy(self, steps):
-        """Override to disable keyboard up/down arrow stepping"""
         pass
 
 
 class VintageCheckBox(QCheckBox):
-    """Checkbox with vintage paper styling"""
+    """Checkbox styled with the active theme."""
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
+        self._setup_style()
 
-        self.setStyleSheet("""
-            QCheckBox {
-                color: rgb(70, 50, 35);
+    def _setup_style(self):
+        t = _t()
+        self.setStyleSheet(f"""
+            QCheckBox {{
+                color: {t.ink_primary};
                 font-size: 11px;
                 spacing: 6px;
-            }
-            QCheckBox::indicator {
+            }}
+            QCheckBox::indicator {{
                 width: 16px;
                 height: 16px;
-                background-color: rgba(255, 252, 245, 200);
-                border: 1px solid rgb(200, 185, 160);
+                background-color: {t.input_bg};
+                border: 1px solid {t.border};
                 border-radius: 3px;
-            }
-            QCheckBox::indicator:hover {
-                border: 1px solid rgb(184, 134, 11);
-                background-color: rgba(255, 255, 250, 220);
-            }
-            QCheckBox::indicator:checked {
-                background-color: rgba(184, 134, 11, 180);
-                border: 1px solid rgb(160, 115, 10);
-            }
+            }}
+            QCheckBox::indicator:hover {{
+                border: 1px solid {t.input_focus_border};
+                background-color: {t.paper};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {t.button_primary_bg};
+                border: 1px solid {t.accent_dark};
+            }}
         """)
 
 
 class VintageDateEdit(QDateEdit):
-    """Date edit with vintage paper styling"""
+    """Date edit styled with the active theme."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setCalendarPopup(True)
         self.setDisplayFormat("yyyy-MM-dd")
-
-        # Disable up/down buttons
         self.setButtonSymbols(QDateEdit.ButtonSymbols.NoButtons)
+        self._setup_style()
 
-        # Build the complete stylesheet including shared menu styles
-        complete_style = """
-            QDateEdit {
-                background-color: rgba(255, 252, 245, 200);
-                border: 1px solid rgb(200, 185, 160);
+    def _setup_style(self):
+        t = _t()
+        menu_style = _get_menu_stylesheet().replace("QMenu", "QCalendarWidget QMenu")
+        self.setStyleSheet(f"""
+            QDateEdit {{
+                background-color: {t.input_bg};
+                border: 1px solid {t.border};
                 border-radius: 3px;
                 padding: 4px 6px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 11px;
-                selection-background-color: rgba(184, 134, 11, 120);
-            }
-            QDateEdit:focus {
-                border: 1px solid rgb(184, 134, 11);
-                background-color: rgba(255, 255, 250, 220);
-            }
-            QDateEdit::drop-down {
-                background-color: rgba(200, 185, 160, 120);
-                border: 1px solid rgb(200, 185, 160);
+                selection-background-color: {t.input_selection};
+            }}
+            QDateEdit:focus {{
+                border: 1px solid {t.input_focus_border};
+                background-color: {t.paper};
+            }}
+            QDateEdit::drop-down {{
+                background-color: {t.paper_dark};
+                border: 1px solid {t.border};
                 border-radius: 2px;
                 width: 24px;
                 subcontrol-position: right;
-                image: url({calendar_icon_url});
                 padding: 2px;
-            }
-            QDateEdit::drop-down:hover {
-                background-color: rgba(184, 134, 11, 120);
-            }
-            
-            /* Calendar popup styling */
-            QCalendarWidget {
-                background-color: rgb(255, 252, 245);
-                border: 2px solid rgb(184, 134, 11);
+            }}
+            QDateEdit::drop-down:hover {{
+                background-color: {t.input_selection};
+            }}
+            QCalendarWidget {{
+                background-color: {t.paper};
+                border: 2px solid {t.accent};
                 border-radius: 4px;
-            }
-            
-            /* Navigation bar */
-            QCalendarWidget QWidget#qt_calendar_navigationbar {
-                background-color: rgb(184, 134, 11);
-                border-bottom: 1px solid rgb(160, 115, 10);
-            }
-            
-            /* Month/Year buttons */
-            QCalendarWidget QToolButton {
-                color: rgb(255, 252, 245);
+            }}
+            QCalendarWidget QWidget#qt_calendar_navigationbar {{
+                background-color: {t.accent};
+                border-bottom: 1px solid {t.accent_dark};
+            }}
+            QCalendarWidget QToolButton {{
+                color: {t.button_primary_text};
                 font-size: 11px;
                 font-weight: bold;
                 padding: 4px;
                 border: none;
                 border-radius: 3px;
-            }
-            QCalendarWidget QToolButton:hover {
-                background-color: rgba(200, 150, 30, 150);
-            }
-            QCalendarWidget QToolButton:pressed {
-                background-color: rgba(160, 115, 10, 150);
-            }
-            
-            /* Vertical arrow buttons */
-            QCalendarWidget QToolButton::menu-indicator {
+            }}
+            QCalendarWidget QToolButton:hover {{
+                background-color: {t.accent_light};
+            }}
+            QCalendarWidget QToolButton:pressed {{
+                background-color: {t.accent_dark};
+            }}
+            QCalendarWidget QToolButton::menu-indicator {{
                 image: none;
-            }
-            
-            /* Header (day names) */
-            QCalendarWidget QWidget {
-                alternate-background-color: rgb(245, 240, 225);
-            }
-            QCalendarWidget QAbstractItemView:enabled {
-                background-color: rgb(255, 252, 245);
-                color: rgb(70, 50, 35);
+            }}
+            QCalendarWidget QWidget {{
+                alternate-background-color: {t.paper_alt};
+            }}
+            QCalendarWidget QAbstractItemView:enabled {{
+                background-color: {t.paper};
+                color: {t.ink_primary};
                 font-size: 10px;
-                selection-background-color: rgba(184, 134, 11, 180);
-                selection-color: rgb(255, 252, 245);
-            }
-            
-            /* Day cells */
-            QCalendarWidget QAbstractItemView {
-                gridline-color: rgb(230, 220, 200);
-            }
-            
-            /* Header row with day names */
-            QCalendarWidget QHeaderView::section {
-                background-color: rgba(200, 185, 160, 120);
-                color: rgb(70, 50, 35);
+                selection-background-color: {t.input_selection};
+                selection-color: {t.ink_primary};
+            }}
+            QCalendarWidget QAbstractItemView {{
+                gridline-color: {t.separator};
+            }}
+            QCalendarWidget QHeaderView::section {{
+                background-color: {t.paper_dark};
+                color: {t.ink_primary};
                 font-size: 9px;
                 font-weight: bold;
                 padding: 4px;
                 border: none;
-                border-bottom: 1px solid rgb(200, 185, 160);
-            }
-            
-            /* Today's date */
-            QCalendarWidget QAbstractItemView:enabled {
-                background-color: rgb(255, 252, 245);
-            }
-        """
-        
-        # Append the shared menu style for calendar dropdowns
-        complete_style += "\n" + VINTAGE_MENU_STYLE.replace("QMenu", "QCalendarWidget QMenu")
-        
-        self.setStyleSheet(complete_style)
-    
+                border-bottom: 1px solid {t.border};
+            }}
+            {menu_style}
+        """)
+
     def stepBy(self, steps):
-        """Override to disable keyboard up/down arrow stepping"""
         pass
 
 
 class VintageButton(QPushButton):
-    """Button with vintage paper styling"""
+    """Button styled with the active theme."""
 
     def __init__(self, text="", button_type="primary", parent=None):
-        """
-        Args:
-            text: Button text
-            button_type: "primary", "secondary", or "danger"
-            parent: Parent widget
-        """
         super().__init__(text, parent)
         self.button_type = button_type
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self._apply_style()
+        self._setup_style()
 
-    def _apply_style(self):
-        """Apply styling based on button type"""
+    def _setup_style(self):
+        t = _t()
         if self.button_type == "primary":
-            # Brass/gold primary button
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(184, 134, 11, 180);
-                    border: 1px solid rgb(160, 115, 10);
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {t.button_primary_bg};
+                    border: 1px solid {t.accent_dark};
                     border-radius: 4px;
                     padding: 6px 16px;
-                    color: rgb(255, 252, 245);
+                    color: {t.button_primary_text};
                     font-size: 11px;
                     font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: rgba(200, 150, 30, 200);
-                    border: 1px solid rgb(184, 134, 11);
-                }
-                QPushButton:pressed {
-                    background-color: rgba(160, 115, 10, 200);
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: {t.button_primary_hover};
+                    border: 1px solid {t.accent};
+                }}
+                QPushButton:pressed {{
+                    background-color: {t.accent_dark};
+                }}
             """)
         elif self.button_type == "danger":
-            # Red danger button
-            self.setStyleSheet("""
-                QPushButton {
+            t = _t()
+            self.setStyleSheet(f"""
+                QPushButton {{
                     background-color: rgba(180, 50, 50, 150);
                     border: 1px solid rgb(150, 40, 40);
                     border-radius: 4px;
                     padding: 6px 16px;
-                    color: rgb(255, 252, 245);
+                    color: {t.button_primary_text};
                     font-size: 11px;
-                }
-                QPushButton:hover {
+                }}
+                QPushButton:hover {{
                     background-color: rgba(200, 60, 60, 180);
                     border: 1px solid rgb(180, 50, 50);
-                }
-                QPushButton:pressed {
+                }}
+                QPushButton:pressed {{
                     background-color: rgba(150, 40, 40, 180);
-                }
+                }}
             """)
         else:  # secondary
-            # Light paper secondary button
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(255, 252, 245, 200);
-                    border: 1px solid rgb(200, 185, 160);
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {t.button_secondary_bg};
+                    border: 1px solid {t.border};
                     border-radius: 4px;
                     padding: 6px 16px;
-                    color: rgb(70, 50, 35);
+                    color: {t.button_secondary_text};
                     font-size: 11px;
-                }
-                QPushButton:hover {
-                    background-color: rgba(255, 255, 250, 220);
-                    border: 1px solid rgb(184, 134, 11);
-                }
-                QPushButton:pressed {
-                    background-color: rgba(240, 235, 220, 220);
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: {t.button_secondary_hover};
+                    border: 1px solid {t.accent};
+                }}
+                QPushButton:pressed {{
+                    background-color: {t.paper_dark};
+                }}
             """)
 
 
 class FormSection(QFrame):
-    """Card-style section container for grouping form fields"""
+    """Card-style section container for grouping form fields."""
 
     def __init__(self, title=None, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("""
-            FormSection {
-                background-color: rgba(255, 252, 245, 150);
-                border: 1px solid rgb(200, 185, 160);
-                border-radius: 4px;
-                padding: 4px;
-                margin: 4px 0px;
-            }
-        """)
-
-        # Main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.setContentsMargins(8, 8, 8, 8)
         self.main_layout.setSpacing(6)
         self.setLayout(self.main_layout)
+        self._title_text = title
+        self._setup_style()
 
-        # Add title if provided
         if title:
             title_label = QLabel(title)
             title_font = QFont()
             title_font.setBold(True)
             title_font.setPointSize(10)
             title_label.setFont(title_font)
-            title_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
+            title_label.setStyleSheet(f"color: {_t().ink_primary}; background: transparent;")
             self.main_layout.addWidget(title_label)
 
-    def add_field(self, label_text, widget):
-        """Add a labeled field to the section"""
-        # Label
-        label = QLabel(label_text)
-        label.setStyleSheet("color: rgb(100, 80, 65); font-size: 10px; background: transparent;")
-        self.main_layout.addWidget(label)
+    def _setup_style(self):
+        t = _t()
+        self.setStyleSheet(f"""
+            FormSection {{
+                background-color: {t.card_bg};
+                border: 1px solid {t.card_border};
+                border-radius: 4px;
+                padding: 4px;
+                margin: 4px 0px;
+            }}
+        """)
 
-        # Widget
+    def add_field(self, label_text, widget):
+        t = _t()
+        label = QLabel(label_text)
+        label.setStyleSheet(f"color: {t.ink_secondary}; font-size: 10px; background: transparent;")
+        self.main_layout.addWidget(label)
         self.main_layout.addWidget(widget)
 
     def add_widget(self, widget):
-        """Add a widget directly to the section"""
         self.main_layout.addWidget(widget)

@@ -39,7 +39,12 @@ from PyQt6.QtGui import (
     QIcon,
 )
 
-from ..constants import PianoColors
+from ..constants import piano_colors
+
+
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
 
 
 class NotificationToast(QWidget):
@@ -61,13 +66,12 @@ class NotificationToast(QWidget):
     # Timer limits (QTimer uses signed 32-bit int milliseconds)
     MAX_TIMER_MS = 2147483647  # ~24.8 days
     
-    # Colors
-    BG_COLOR_TOP = PianoColors.WOOD_MEDIUM
-    BG_COLOR_BOTTOM = PianoColors.WOOD_DARK
+    # Colors (resolved dynamically from active theme in paintEvent)
+    BORDER_COLOR = QColor(60, 60, 65)
     BORDER_COLOR = QColor(60, 60, 65)
     TITLE_COLOR = QColor(255, 255, 255)
     MESSAGE_COLOR = QColor(220, 220, 225)
-    ACCENT_COLOR = QColor(184, 134, 11)  # Subtle brass accent
+
     URGENT_COLOR = QColor(220, 80, 80)
     
     # Animation
@@ -243,16 +247,17 @@ class NotificationToast(QWidget):
         self._progress_bar.setFixedHeight(4)
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(100)
-        self._progress_bar.setStyleSheet("""
-            QProgressBar {
+        _accent_rgb = _t().accent[4:-1]
+        self._progress_bar.setStyleSheet(f"""
+            QProgressBar {{
                 background: rgba(255, 255, 255, 25);
                 border: none;
                 border-radius: 2px;
-            }
-            QProgressBar::chunk {
-                background: rgba(184, 134, 11, 170);
+            }}
+            QProgressBar::chunk {{
+                background: rgba({_accent_rgb}, 170);
                 border-radius: 2px;
-            }
+            }}
         """)
         text_layout.addWidget(self._progress_bar)
         main_layout.addLayout(text_layout, 1)
@@ -424,7 +429,7 @@ class NotificationToast(QWidget):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background-color: {color};
-                        color: rgb(255, 252, 245);
+                        color: {_t().button_primary_text};
                         border: none;
                         padding: 6px 16px;
                         border-radius: 4px;
@@ -443,7 +448,7 @@ class NotificationToast(QWidget):
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background-color: {color};
-                        color: rgb(255, 252, 245);
+                        color: {_t().button_primary_text};
                         border: none;
                         padding: 6px 8px;
                         border-radius: 4px;
@@ -571,8 +576,9 @@ class NotificationToast(QWidget):
         path = QPainterPath()
         path.addRoundedRect(content_rect, self.BORDER_RADIUS, self.BORDER_RADIUS)
         gradient = QLinearGradient(content_rect.topLeft(), content_rect.bottomLeft())
-        gradient.setColorAt(0.0, self.BG_COLOR_TOP)
-        gradient.setColorAt(1.0, self.BG_COLOR_BOTTOM)
+        c = piano_colors()
+        gradient.setColorAt(0.0, c.FRAME_MEDIUM)
+        gradient.setColorAt(1.0, c.FRAME_DARK)
         painter.fillPath(path, QBrush(gradient))
         
         # Subtle border

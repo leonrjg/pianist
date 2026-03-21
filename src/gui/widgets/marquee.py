@@ -12,7 +12,12 @@ from PyQt6.QtGui import QPainter, QColor, QFont, QFontMetrics
 class Marquee(QWidget):
     """A marquee widget that scrolls through tips to help users learn the UI."""
 
-    TEXT_COLOR = QColor(180, 160, 140)
+    @staticmethod
+    def _text_color():
+        from gui.constants import piano_colors
+        return piano_colors().FRAME_HIGHLIGHT
+
+    TEXT_COLOR = QColor(180, 160, 140)  # fallback only
     SCROLL_SPEED = 1
     TICK_INTERVAL = 30
     TIP_SEPARATOR = "   •   "
@@ -47,17 +52,19 @@ class Marquee(QWidget):
         self._toggle_btn = QPushButton("Tips ▶")
         self._toggle_btn.setFixedHeight(18)
         self._toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._toggle_btn.setStyleSheet("""
-            QPushButton {
+        from gui.constants import piano_colors
+        c = piano_colors()
+        self._toggle_btn.setStyleSheet(f"""
+            QPushButton {{
                 background: transparent;
                 border: none;
-                color: rgb(140, 110, 80);
+                color: {c.FRAME_HIGHLIGHT.name()};
                 font-size: 10px;
                 padding: 0 4px;
-            }
-            QPushButton:hover {
-                color: rgb(184, 134, 11);
-            }
+            }}
+            QPushButton:hover {{
+                color: {c.ACCENT.name()};
+            }}
         """)
         self._toggle_btn.clicked.connect(self._toggle)
         layout.addWidget(self._toggle_btn)
@@ -89,7 +96,7 @@ class Marquee(QWidget):
         font = QFont()
         font.setPointSize(9)
         painter.setFont(font)
-        painter.setPen(self.TEXT_COLOR)
+        painter.setPen(self._text_color())
 
         # Clip to area before the toggle button
         text_area_width = self._toggle_btn.x() - 4

@@ -12,6 +12,11 @@ from .calendar_cell import CalendarCell
 
 # Import database models
 import sys
+
+
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.bucket import Bucket
@@ -163,8 +168,9 @@ class CalendarGraph(QFrame):
 
             # Add label spanning all weeks of this month
             month_label = QLabel(self.MONTH_LABELS[month - 1])
-            month_label.setStyleSheet("""
-                color: rgb(110, 90, 70);
+            _tc = _t()
+            month_label.setStyleSheet(f"""
+                color: {_tc.ink_secondary};
                 font-size: 9px;
                 background: transparent;
             """)
@@ -176,8 +182,8 @@ class CalendarGraph(QFrame):
         """Add day abbreviations on left side"""
         for day in range(7):
             day_label = QLabel(self.DAY_LABELS[day])
-            day_label.setStyleSheet("""
-                color: rgb(110, 90, 70);
+            day_label.setStyleSheet(f"""
+                color: {_t().ink_secondary};
                 font-size: 9px;
                 background: transparent;
             """)
@@ -202,31 +208,35 @@ class CalendarGraph(QFrame):
         legend_layout.setSpacing(4)
         legend_widget.setLayout(legend_layout)
 
+        t = _t()
+        label_style = f"color: {t.ink_secondary}; font-size: 9px; background: transparent;"
+
         # Legend label
         less_label = QLabel("Less")
-        less_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 9px; background: transparent;")
+        less_label.setStyleSheet(label_style)
         legend_layout.addWidget(less_label, 0, 0)
 
-        # Color boxes
-        colors = [
-            CalendarCell.COLOR_NONE,
-            CalendarCell.COLOR_SOME,
-            CalendarCell.COLOR_GOOD,
-        ]
+        # Color boxes — derive colors the same way CalendarCell does
+        parts = t.paper_dark[4:-1].split(',')
+        none_color = QColor(int(parts[0]), int(parts[1]), int(parts[2]))
+        aparts = t.accent[4:-1].split(',')
+        accent_c = QColor(int(aparts[0]), int(aparts[1]), int(aparts[2]))
+        some_color = QColor(accent_c.red(), accent_c.green(), accent_c.blue(), 100)
+        legend_colors = [none_color, some_color, accent_c]
 
-        for i, color in enumerate(colors):
+        for i, color in enumerate(legend_colors):
             box = QFrame()
             box.setFixedSize(8, 8)
             box.setStyleSheet(f"""
                 background-color: {color.name(QColor.NameFormat.HexArgb)};
-                border: 1px solid rgb(200, 185, 160);
+                border: 1px solid {t.border};
                 border-radius: 1px;
             """)
             legend_layout.addWidget(box, 0, i + 1)
 
         # More label
         more_label = QLabel("More")
-        more_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 9px; background: transparent;")
+        more_label.setStyleSheet(label_style)
         legend_layout.addWidget(more_label, 0, len(colors) + 1)
 
         layout.addWidget(legend_widget, alignment=Qt.AlignmentFlag.AlignCenter)

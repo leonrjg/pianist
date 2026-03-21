@@ -15,7 +15,7 @@ from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QFontMetrics
 from PyQt6.QtCore import Qt, QRect
 
 from .base_painter import BasePainter
-from ..constants import PianoColors, PianoLayout, Animations
+from ..constants import piano_colors, PianoLayout, Animations
 from ..models.piano_geometry import PianoGeometry
 from ..models.piano_state import PianoState
 
@@ -89,7 +89,7 @@ class KeyPainter(BasePainter):
         painter.setPen(Qt.PenStyle.NoPen)
         if is_pressed:
             # Pressed state: darker color
-            key_color = PianoColors.WHITE_KEY_PRESSED
+            key_color = piano_colors().WHITE_KEY_PRESSED
             painter.setBrush(QBrush(key_color))
             # Offset key slightly when pressed
             pressed_rect = QRect(
@@ -101,7 +101,7 @@ class KeyPainter(BasePainter):
             painter.drawRect(pressed_rect)
         else:
             # Normal state - fill with white
-            painter.setBrush(QBrush(PianoColors.WHITE_KEY))
+            painter.setBrush(QBrush(piano_colors().WHITE_KEY))
             painter.drawRect(key_rect)
 
         # Key front edge (curved edge like real piano keys)
@@ -117,8 +117,8 @@ class KeyPainter(BasePainter):
     @staticmethod
     def draw_key_front_edge(painter: QPainter, geometry: PianoGeometry, key_rect: QRect):
         """Draw the curved front edge of a piano key"""
-        painter.setPen(QPen(PianoColors.WHITE_KEY_SHADOW))
-        painter.setBrush(QBrush(PianoColors.WHITE_KEY_SHADOW))
+        painter.setPen(QPen(piano_colors().WHITE_KEY_SHADOW))
+        painter.setBrush(QBrush(piano_colors().WHITE_KEY_SHADOW))
         painter.drawChord(
             geometry.keys_start_x - 10,
             int(key_rect.y() + 2),
@@ -131,7 +131,7 @@ class KeyPainter(BasePainter):
     @staticmethod
     def draw_key_label(painter: QPainter, geometry: PianoGeometry, key_rect: QRect, label: str):
         """Draw the label text on a piano key"""
-        painter.setPen(QPen(PianoColors.TEXT_PRIMARY))
+        painter.setPen(QPen(piano_colors().TEXT_PRIMARY))
         font = QFont()
         painter.setFont(font)
 
@@ -186,21 +186,33 @@ class KeyPainter(BasePainter):
             y,
             x + width,
             y + height,
-            PianoColors.BLACK_KEY_SHINE,
-            PianoColors.BLACK_KEY,
+            piano_colors().BLACK_KEY_SHINE,
+            piano_colors().BLACK_KEY,
             vertical=True
         )
 
+        # Derive edge highlight/shadow tones from the black key base color
+        bk = piano_colors().BLACK_KEY
+        edge_highlight = bk.lighter(200)
+        edge_highlight.setAlpha(120)
+        edge_shadow = bk.darker(200)
+        edge_shadow.setAlpha(180)
+        gloss_top = bk.lighter(180)
+        gloss_top.setAlpha(80)
+        gloss_fade = QColor(gloss_top.red(), gloss_top.green(), gloss_top.blue(), 0)
+        front_edge = bk.lighter(160)
+        front_edge_shadow = bk.darker(150)
+
         # Left edge highlight (simulates light catching the edge)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(60, 60, 60, 120)))
+        painter.setBrush(QBrush(edge_highlight))
         painter.drawRect(int(x), int(y), 1, int(height))
 
         # Right edge shadow
-        painter.setBrush(QBrush(QColor(10, 10, 10, 150)))
+        painter.setBrush(QBrush(edge_shadow))
         painter.drawRect(int(x + width - 1), int(y), 1, int(height))
 
-        # Top glossy highlight (realistic piano black keys have a shine at the top)
+        # Top glossy highlight
         highlight_height = int(height * 0.25)
         KeyPainter.draw_gradient_rect(
             painter,
@@ -208,22 +220,22 @@ class KeyPainter(BasePainter):
             y,
             x + width,
             y + highlight_height,
-            QColor(80, 80, 80, 80),
-            QColor(40, 40, 40, 0),
+            gloss_top,
+            gloss_fade,
             vertical=True
         )
 
         # Front edge (left side) - more prominent 3D effect
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(80, 80, 80)))
+        painter.setBrush(QBrush(front_edge))
         painter.drawRect(int(x - 2), int(y), 2, int(height))
 
         # Front edge shadow at bottom
-        painter.setBrush(QBrush(QColor(15, 15, 15)))
+        painter.setBrush(QBrush(front_edge_shadow))
         painter.drawRect(int(x - 2), int(y + height - 3), 2, 3)
 
         # Rounded bottom edge effect
-        painter.setPen(QPen(QColor(15, 15, 15), 1))
+        painter.setPen(QPen(front_edge_shadow, 1))
         painter.drawLine(int(x), int(y + height - 1), int(x + width), int(y + height - 1))
 
         # Time text on black key
@@ -259,7 +271,7 @@ class KeyPainter(BasePainter):
         )
 
         font_size = 12 if len(time_text) <= 5 else 11
-        painter.setPen(QPen(PianoColors.BLACK_KEY_TEXT))
+        painter.setPen(QPen(piano_colors().BLACK_KEY_TEXT))
         painter.setFont(QFont('Helvetica', font_size))
         painter.drawText(
             text_rect,
@@ -304,25 +316,16 @@ class KeyPainter(BasePainter):
     @staticmethod
     def _draw_time_button(painter: QPainter, rect: QRect, text: str, is_hovered: bool = False):
         """Draw a single time adjustment button with opaque background"""
-        # Opaque background - slightly brighter when hovered
-        if is_hovered:
-            bg_color = QColor(218, 165, 32)  # Brighter brass when hovered (goldenrod)
-        else:
-            bg_color = QColor(184, 134, 11)  # Standard brass color
+        bg_color = piano_colors().ACCENT_LIGHT if is_hovered else piano_colors().ACCENT
+        border_color = piano_colors().ACCENT.darker(130)
 
-        # Draw background
-        painter.setPen(QPen(QColor(140, 100, 8), 1))  # Darker brass border
+        painter.setPen(QPen(border_color, 1))
         painter.setBrush(QBrush(bg_color))
         painter.drawRect(rect)
 
-        # Draw text
-        painter.setPen(QPen(QColor(255, 255, 255)))  # White text for contrast
+        painter.setPen(QPen(piano_colors().WHITE_KEY))
         painter.setFont(QFont('Helvetica', 10, QFont.Weight.Bold))
-        painter.drawText(
-            rect,
-            Qt.AlignmentFlag.AlignCenter,
-            text
-        )
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
 
     @staticmethod
     def draw_task_checkmark(painter: QPainter, black_key_rect: QRect, state: PianoState,
@@ -354,13 +357,14 @@ class KeyPainter(BasePainter):
         is_hovered = (state.hovered_checkmark_index == index)
 
         if is_hovered or is_completed:
-            # Filled brass circle with checkmark
+            # Filled accent circle with checkmark
+            accent = piano_colors().ACCENT
+            circle_color = QColor(accent.red(), accent.green(), accent.blue(), 200 if is_hovered else 160)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(184, 134, 11, 200 if is_hovered else 160)))
+            painter.setBrush(QBrush(circle_color))
             painter.drawEllipse(int(checkmark_x), int(checkmark_y), checkmark_size, checkmark_size)
 
-            # Draw checkmark symbol
-            painter.setPen(QPen(QColor(255, 252, 245), 2))
+            painter.setPen(QPen(piano_colors().WHITE_KEY, 2))
             painter.setFont(QFont('Arial', 12, QFont.Weight.Bold))
             painter.drawText(
                 QRect(int(checkmark_x), int(checkmark_y), checkmark_size, checkmark_size),
@@ -380,7 +384,7 @@ class KeyPainter(BasePainter):
         y_position = geometry.get_key_rect(state.drop_target_index).y()
 
         # Draw horizontal line indicator
-        painter.setPen(QPen(PianoColors.BRASS_LIGHT, 3))
+        painter.setPen(QPen(piano_colors().ACCENT_LIGHT, 3))
         painter.drawLine(
             geometry.keys_start_x,
             int(y_position),
@@ -389,7 +393,7 @@ class KeyPainter(BasePainter):
         )
 
         # Draw small triangles on the sides
-        painter.setBrush(QBrush(PianoColors.BRASS_LIGHT))
+        painter.setBrush(QBrush(piano_colors().ACCENT_LIGHT))
         painter.setPen(Qt.PenStyle.NoPen)
 
         # Left triangle
@@ -441,7 +445,7 @@ class KeyPainter(BasePainter):
 
         # Draw white key at dragged position
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(PianoColors.WHITE_KEY))
+        painter.setBrush(QBrush(piano_colors().WHITE_KEY))
         painter.drawRect(dragged_rect)
 
         # Draw key front edge
@@ -469,8 +473,8 @@ class KeyPainter(BasePainter):
             KeyPainter.draw_gradient_rect(
                 painter,
                 x, y, x + width, y + height,
-                PianoColors.BLACK_KEY_SHINE,
-                PianoColors.BLACK_KEY,
+                piano_colors().BLACK_KEY_SHINE,
+                piano_colors().BLACK_KEY,
                 vertical=True
             )
 

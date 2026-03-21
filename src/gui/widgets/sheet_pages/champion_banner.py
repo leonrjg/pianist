@@ -8,6 +8,11 @@ from PyQt6.QtCore import Qt
 from typing import Optional, Callable
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class ChampionBanner(QFrame):
     """Vintage award-style banner highlighting the champion habit"""
 
@@ -31,26 +36,28 @@ class ChampionBanner(QFrame):
 
     def _setup_ui(self):
         """Setup the banner UI"""
-        # Prominent brass/gold styling - more compact
-        self.setStyleSheet("""
-            ChampionBanner {
+        t = _t()
+        accent_rgb = t.accent[4:-1]
+        accent_light_rgb = t.accent_light[4:-1]
+        self.setStyleSheet(f"""
+            ChampionBanner {{
                 background: qlineargradient(
                     x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgba(232, 195, 92, 180),
-                    stop:1 rgba(184, 134, 11, 180)
+                    stop:0 rgba({accent_light_rgb}, 180),
+                    stop:1 rgba({accent_rgb}, 180)
                 );
-                border: 1px solid rgb(160, 115, 10);
+                border: 1px solid {t.accent_dark};
                 border-radius: 4px;
                 padding: 6px;
                 margin: 3px 0px;
-            }
-            ChampionBanner:hover {
+            }}
+            ChampionBanner:hover {{
                 background: qlineargradient(
                     x1:0, y1:0, x2:0, y2:1,
-                    stop:0 rgba(240, 210, 110, 200),
-                    stop:1 rgba(200, 150, 30, 200)
+                    stop:0 rgba({accent_light_rgb}, 200),
+                    stop:1 rgba({accent_rgb}, 200)
                 );
-            }
+            }}
         """)
 
         if self.on_click:
@@ -77,13 +84,13 @@ class ChampionBanner(QFrame):
         name_font.setBold(True)
         name_font.setPointSize(11)
         name_label.setFont(name_font)
-        name_label.setStyleSheet("color: rgb(40, 20, 10); background: transparent;")
+        name_label.setStyleSheet(f"color: {t.button_primary_text}; background: transparent;")
         info_layout.addWidget(name_label)
 
         # Stats in one line
         stats_text = f"🔥 {self.streak} streak  •  {int(self.completion_rate * 100)}% completion"
         stats_label = QLabel(stats_text)
-        stats_label.setStyleSheet("color: rgb(50, 30, 15); font-size: 10px; background: transparent;")
+        stats_label.setStyleSheet(f"color: {t.button_primary_text}; font-size: 10px; background: transparent;")
         info_layout.addWidget(stats_label)
 
         main_layout.addLayout(info_layout)

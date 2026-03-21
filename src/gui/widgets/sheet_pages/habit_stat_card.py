@@ -10,6 +10,11 @@ from typing import Optional, Callable
 from .productivity_progress_bar import ProductivityProgressBar
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class HabitStatCard(QFrame):
     """Card displaying detailed statistics for a single habit"""
 
@@ -31,24 +36,24 @@ class HabitStatCard(QFrame):
 
     def _setup_ui(self):
         """Setup the card UI"""
-        # Card styling - more compact
-        self.setStyleSheet("""
-            HabitStatCard {
-                background-color: rgba(255, 252, 245, 180);
-                border-left: 4px solid rgb(184, 134, 11);
-                border-top: 1px solid rgb(200, 185, 160);
-                border-right: 1px solid rgb(200, 185, 160);
-                border-bottom: 1px solid rgb(200, 185, 160);
+        t = _t()
+        self.setStyleSheet(f"""
+            HabitStatCard {{
+                background-color: {t.card_bg};
+                border-left: 4px solid {t.accent};
+                border-top: 1px solid {t.card_border};
+                border-right: 1px solid {t.card_border};
+                border-bottom: 1px solid {t.card_border};
                 border-radius: 3px;
                 padding: 6px;
                 margin: 2px 0px;
-            }
-            HabitStatCard:hover {
-                background-color: rgba(255, 255, 250, 200);
-                border-top: 1px solid rgb(184, 134, 11);
-                border-right: 1px solid rgb(184, 134, 11);
-                border-bottom: 1px solid rgb(184, 134, 11);
-            }
+            }}
+            HabitStatCard:hover {{
+                background-color: {t.card_bg};
+                border-top: 1px solid {t.card_hover_border};
+                border-right: 1px solid {t.card_hover_border};
+                border-bottom: 1px solid {t.card_hover_border};
+            }}
         """)
 
         if self.on_click:
@@ -69,14 +74,14 @@ class HabitStatCard(QFrame):
         name_font.setBold(True)
         name_font.setPointSize(11)
         name_label.setFont(name_font)
-        name_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
+        name_label.setStyleSheet(f"color: {t.ink_primary}; background: transparent;")
         name_layout.addWidget(name_label)
 
         # Schedule badge
         schedule_badge = QLabel(self.habit.schedule)
-        schedule_badge.setStyleSheet("""
-            background-color: rgba(200, 185, 160, 120);
-            color: rgb(70, 50, 35);
+        schedule_badge.setStyleSheet(f"""
+            background-color: {t.paper_dark};
+            color: {t.ink_primary};
             font-size: 9px;
             padding: 2px 6px;
             border-radius: 3px;
@@ -86,7 +91,7 @@ class HabitStatCard(QFrame):
         # Streak
         if self.stats.get('streak', 0) > 0:
             streak_label = QLabel(f"🔥 Streak: {self.stats['streak']}")
-            streak_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
+            streak_label.setStyleSheet(f"color: {t.ink_primary}; font-size: 10px; background: transparent;")
             name_layout.addWidget(streak_label)
 
         name_layout.addStretch()
@@ -104,13 +109,13 @@ class HabitStatCard(QFrame):
         # Total time
         if self.stats.get('total_time'):
             time_label = QLabel(f"Total time: {self.stats['total_time']}")
-            time_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
+            time_label.setStyleSheet(f"color: {t.ink_primary}; font-size: 10px; background: transparent;")
             stats_layout.addWidget(time_label)
 
         # Session count
         if self.stats.get('session_count'):
             session_label = QLabel(f"Sessions: {self.stats['session_count']}")
-            session_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
+            session_label.setStyleSheet(f"color: {t.ink_primary}; font-size: 10px; background: transparent;")
             stats_layout.addWidget(session_label)
 
         stats_layout.addStretch()

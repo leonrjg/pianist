@@ -17,6 +17,11 @@ from core.habit.service import HabitService
 from core.util.time import get_friendly_elapsed, get_friendly_datetime, HOUR
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class ActivityCard(QFrame):
     """Expandable card displaying a bucket with individual sessions"""
 
@@ -41,21 +46,21 @@ class ActivityCard(QFrame):
 
     def _setup_ui(self):
         """Set up the card UI"""
-        # Card styling
-        self.setStyleSheet("""
-            ActivityCard {
-                background-color: rgba(255, 252, 245, 180);
-                border-left: 4px solid rgb(140, 110, 80);
-                border-top: 1px solid rgb(200, 185, 160);
-                border-right: 1px solid rgb(200, 185, 160);
-                border-bottom: 1px solid rgb(200, 185, 160);
+        t = _t()
+        self.setStyleSheet(f"""
+            ActivityCard {{
+                background-color: {t.card_bg};
+                border-left: 4px solid {t.accent_dark};
+                border-top: 1px solid {t.card_border};
+                border-right: 1px solid {t.card_border};
+                border-bottom: 1px solid {t.card_border};
                 border-radius: 3px;
                 padding: 4px;
                 margin: 2px 0px;
-            }
-            ActivityCard:hover {
-                background-color: rgba(255, 255, 250, 200);
-            }
+            }}
+            ActivityCard:hover {{
+                background-color: {t.card_bg};
+            }}
         """)
 
 
@@ -70,14 +75,15 @@ class ActivityCard(QFrame):
 
     def _build_summary_section(self):
         """Build the collapsed summary view"""
+        t = _t()
         date_layout = QHBoxLayout()
         date_layout.setSpacing(4)
-        
+
         date_str = get_friendly_datetime(self.bucket.start, HOUR)
         date_badge = QLabel(f"📅 {date_str}")
-        date_badge.setStyleSheet("""
-                    background-color: rgba(200, 185, 160, 120);
-                    color: rgb(70, 50, 35);
+        date_badge.setStyleSheet(f"""
+                    background-color: {t.paper_dark};
+                    color: {t.ink_primary};
                     font-size: 10px;
                     padding: 2px;
                     border-radius: 3px;
@@ -87,9 +93,9 @@ class ActivityCard(QFrame):
         # Duration badge with emoji
         duration_str = get_friendly_elapsed(self.bucket.net_duration)
         duration_badge = QLabel(f"⏱ {duration_str}")
-        duration_badge.setStyleSheet("""
-                            background-color: rgba(184, 134, 11, 120);
-                            color: rgb(40, 20, 10);
+        duration_badge.setStyleSheet(f"""
+                            background-color: {t.button_primary_bg};
+                            color: {t.button_primary_text};
                             font-size: 9px;
                             padding: 2px 0px;
                             border-radius: 3px;
@@ -102,9 +108,9 @@ class ActivityCard(QFrame):
         if not self.compact:
             # Habit name badge on its own row (skip in compact mode)
             self.name_badge = QLabel(self.habit.name)
-            self.name_badge.setStyleSheet("""
-                background-color: rgba(140, 110, 80, 120);
-                color: rgb(70, 50, 35);
+            self.name_badge.setStyleSheet(f"""
+                background-color: {t.paper_dark};
+                color: {t.ink_primary};
                 font-size: 10px;
                 font-weight: bold;
                 padding: 2px;
@@ -126,9 +132,9 @@ class ActivityCard(QFrame):
 
         self.expand_stripe = QLabel(f"📶 {self.bucket.sessions} sessions")
         self.expand_stripe.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.expand_stripe.setStyleSheet("""
-            background-color: rgba(200, 185, 160, 80);
-            color: rgb(100, 80, 65);
+        self.expand_stripe.setStyleSheet(f"""
+            background-color: {t.paper_dark};
+            color: {t.ink_secondary};
             font-size: 9px;
             padding: 1px;
             border-radius: 2px;

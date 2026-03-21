@@ -14,13 +14,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.util.time import get_friendly_elapsed
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class CalendarCell(QFrame):
     """Single day cell in calendar contribution graph"""
-
-    # Color constants
-    COLOR_NONE = QColor(230, 225, 210)  # Light aged paper - no activity
-    COLOR_SOME = QColor(184, 134, 11, 100)  # Semi-transparent brass - some activity
-    COLOR_GOOD = QColor(184, 134, 11)  # Solid brass - good activity
 
     def __init__(self, cell_date: date, duration: int, sessions: int, threshold: int, parent=None):
         """
@@ -41,13 +41,11 @@ class CalendarCell(QFrame):
 
     def _setup_ui(self):
         """Setup cell UI with color and tooltip"""
-        # Fixed size
+        t = _t()
         self.setFixedSize(10, 10)
 
-        # Determine color based on duration and threshold
-        color = self._get_color()
+        color = self._get_color(t)
 
-        # Apply styling
         self.setStyleSheet(f"""
             CalendarCell {{
                 background-color: {color.name(QColor.NameFormat.HexArgb)};
@@ -55,33 +53,39 @@ class CalendarCell(QFrame):
                 border-radius: 1px;
             }}
             CalendarCell:hover {{
-                border: 1px solid rgb(184, 134, 11);
+                border: 1px solid {t.accent};
             }}
         """)
 
-        # Add day number label if this is the first day of the month
         if self.cell_date.day == 1:
             day_label = QLabel("1", self)
             day_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            day_label.setStyleSheet("""
+            day_label.setStyleSheet(f"""
                 background: transparent;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 7px;
                 font-weight: bold;
             """)
             day_label.setGeometry(0, 0, 10, 10)
 
-        # Set tooltip
         self._set_tooltip()
 
-    def _get_color(self) -> QColor:
+    def _get_color(self, t=None) -> QColor:
         """Get cell color based on duration"""
+        if t is None:
+            t = _t()
+        from PyQt6.QtGui import QColor as _QColor
+        parts = t.paper_dark[4:-1].split(',')
+        none_color = _QColor(int(parts[0]), int(parts[1]), int(parts[2]))
+        aparts = t.accent[4:-1].split(',')
+        accent = _QColor(int(aparts[0]), int(aparts[1]), int(aparts[2]))
+        some_color = _QColor(accent.red(), accent.green(), accent.blue(), 100)
         if self.duration == 0:
-            return self.COLOR_NONE
+            return none_color
         elif self.duration < self.threshold:
-            return self.COLOR_SOME
+            return some_color
         else:
-            return self.COLOR_GOOD
+            return accent
 
     def _set_tooltip(self):
         """Set tooltip with date, duration, and session info"""

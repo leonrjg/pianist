@@ -21,6 +21,11 @@ from core.util.time import get_friendly_elapsed
 from core import analytics
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class HabitStatsPage(SheetPage):
     """Statistics page with calendar graph for individual habit"""
 
@@ -70,10 +75,11 @@ class HabitStatsPage(SheetPage):
         title = self._create_section_header(self.habit.name)
         header_layout.addWidget(title)
 
+        t = _t()
         schedule_badge = QLabel(self.habit.schedule)
-        schedule_badge.setStyleSheet("""
-            background-color: rgba(200, 185, 160, 120);
-            color: rgb(70, 50, 35);
+        schedule_badge.setStyleSheet(f"""
+            background-color: {t.paper_dark};
+            color: {t.ink_primary};
             font-size: 9px;
             padding: 2px 6px;
             border-radius: 3px;
@@ -88,7 +94,7 @@ class HabitStatsPage(SheetPage):
         time_range_layout.setSpacing(6)
 
         range_label = QLabel("Show:")
-        range_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 10px; background: transparent;")
+        range_label.setStyleSheet(f"color: {t.ink_secondary}; font-size: 10px; background: transparent;")
         time_range_layout.addWidget(range_label)
 
         self._time_range_dropdown = VintageDropdown(["1 month", "6 months", "1 year"], "1 month")

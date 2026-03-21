@@ -18,6 +18,28 @@ from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
 
+def _theme():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
+def _qcolor(rgb_str: str, alpha: int = None) -> QColor:
+    """Parse 'rgb(r,g,b)' or 'rgba(r,g,b,a)' into QColor."""
+    s = rgb_str.strip()
+    if s.startswith('rgba('):
+        parts = s[5:-1].split(',')
+        r, g, b = int(parts[0]), int(parts[1]), int(parts[2])
+        a = int(float(parts[3])) if len(parts) > 3 else 255
+    elif s.startswith('rgb('):
+        parts = s[4:-1].split(',')
+        r, g, b, a = int(parts[0]), int(parts[1]), int(parts[2]), 255
+    else:
+        return QColor(s)
+    if alpha is not None:
+        a = alpha
+    return QColor(r, g, b, a)
+
+
 class DogEarOverlay(QWidget):
     """Transparent overlay widget that draws only the dog ear on top of everything"""
 
@@ -48,11 +70,11 @@ class DogEarOverlay(QWidget):
         # Draw the folded part (darker, shows back of paper)
         fold_triangle = QPolygonF([horizontal_point, vertical_point, fold_corner])
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(220, 210, 185)))
+        painter.setBrush(QBrush(_qcolor(_theme().dog_ear_color)))
         painter.drawPolygon(fold_triangle)
 
         # Draw shadow under the fold
-        painter.setPen(QPen(QColor(150, 140, 120, 60), 3))
+        painter.setPen(QPen(_qcolor(_theme().sheet_shadow, 80), 3))
         painter.drawLine(horizontal_point, fold_corner)
         painter.drawLine(fold_corner, vertical_point)
 
@@ -100,6 +122,13 @@ class MusicSheetWidget(QWidget):
 
         self._setup_ui()
         self._navigate_to_index()
+
+    def _setup_style(self):
+        """Called by ThemeManager.apply() — trigger repaint so new theme takes effect."""
+        self._svg_renderer_cache = {}
+        self.update()
+        if hasattr(self, '_dog_ear_overlay'):
+            self._dog_ear_overlay.update()
 
     def _setup_ui(self):
         """Setup the widget UI"""
@@ -157,22 +186,23 @@ class MusicSheetWidget(QWidget):
 
         from PyQt6.QtCore import QRect
 
-        # Dark wooden container (background holder)
+        t = _theme()
+
+        # Dark frame container (background holder)
         widget_rect = self.rect()
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(44, 24, 16)))  # Very dark wood
+        painter.setBrush(QBrush(_qcolor(t.sheet_frame)))
         painter.drawRect(widget_rect)
 
         # Draw inner shadow for depth on container edges
-        shadow_color = QColor(20, 10, 5, 100)
+        shadow_color = _qcolor(t.sheet_frame, 180)
         painter.setPen(QPen(shadow_color, 2))
         painter.drawRect(widget_rect.adjusted(1, 1, -1, -1))
 
-        # Aged paper colors with sepia tones
-        paper_center = QColor(252, 248, 235)  # Cream center
-        paper_shadow = QColor(160, 140, 110, 100)  # Warm shadow
-        paper_border = QColor(200, 185, 160)  # Sepia border
-        binding_shadow = QColor(120, 100, 75, 60)  # Left edge shadow
+        paper_center = _qcolor(t.sheet_bg)
+        paper_shadow = _qcolor(t.sheet_shadow)
+        paper_border = _qcolor(t.sheet_border)
+        binding_shadow = _qcolor(t.sheet_binding)
 
         # Calculate paper sheet dimensions (inset from dark container)
         sheet_margin = 10
@@ -193,16 +223,17 @@ class MusicSheetWidget(QWidget):
         paper_rect = sheet_rect
 
         # Draw aging gradient (darker at edges)
-        # Top edge darkening
+        edge_color = _qcolor(t.sheet_border, 0)
+        edge_color_dim = _qcolor(t.sheet_border, 50)
+
         top_gradient = QLinearGradient(0, paper_rect.top(), 0, paper_rect.top() + 20)
-        top_gradient.setColorAt(0, QColor(220, 210, 185, 40))
-        top_gradient.setColorAt(1, QColor(220, 210, 185, 0))
+        top_gradient.setColorAt(0, edge_color_dim)
+        top_gradient.setColorAt(1, edge_color)
         painter.fillRect(paper_rect.adjusted(0, 0, 0, -paper_rect.height() + 20), top_gradient)
 
-        # Bottom edge darkening
         bottom_gradient = QLinearGradient(0, paper_rect.bottom() - 20, 0, paper_rect.bottom())
-        bottom_gradient.setColorAt(0, QColor(220, 210, 185, 0))
-        bottom_gradient.setColorAt(1, QColor(220, 210, 185, 40))
+        bottom_gradient.setColorAt(0, edge_color)
+        bottom_gradient.setColorAt(1, edge_color_dim)
         painter.fillRect(paper_rect.adjusted(0, paper_rect.height() - 20, 0, 0), bottom_gradient)
 
         # Left edge binding shadow
@@ -210,6 +241,10 @@ class MusicSheetWidget(QWidget):
         binding_gradient.setColorAt(0, binding_shadow)
         binding_gradient.setColorAt(1, QColor(0, 0, 0, 0))
         painter.fillRect(paper_rect.adjusted(0, 0, -paper_rect.width() + 12, 0), binding_gradient)
+
+        # Optional SVG background overlay (e.g. cherry blossoms)
+        if t.background_svg:
+            self._draw_background_svg(painter, paper_rect, t.background_svg, t.background_svg_opacity)
 
         # Draw music stand holder below container
         self._draw_music_stand_holder(painter, widget_rect)
@@ -467,24 +502,54 @@ class MusicSheetWidget(QWidget):
             self._current_matches = []
             self._current_match_index = -1
 
+    def _draw_background_svg(self, painter, rect, svg_path: str, opacity: float):
+        """Draw an SVG file over the paper area at the given opacity."""
+        try:
+            from PyQt6.QtSvg import QSvgRenderer
+            import os
+            if not hasattr(self, '_svg_renderer_cache'):
+                self._svg_renderer_cache = {}
+            if svg_path not in self._svg_renderer_cache:
+                src_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                full_path = os.path.join(src_dir, svg_path)
+                if not os.path.isfile(full_path):
+                    return
+                self._svg_renderer_cache[svg_path] = QSvgRenderer(full_path)
+            renderer = self._svg_renderer_cache[svg_path]
+            painter.save()
+            painter.setOpacity(opacity)
+            from PyQt6.QtCore import QRectF
+            renderer.render(painter, QRectF(rect))
+            painter.restore()
+        except Exception:
+            pass
+
     def _draw_music_stand_holder(self, painter, widget_rect):
         """Draw a music stand holder/ledge at the bottom of the container"""
         from PyQt6.QtCore import QRect
+        t = _theme()
+        frame = _qcolor(t.sheet_frame)
+
+        # Derive slightly lighter and darker variants for the ledge
+        h, s, v, _ = frame.getHsv()
+        lighter = QColor.fromHsv(h, max(0, s - 20), min(255, v + 30))
+        highlight = QColor.fromHsv(h, max(0, s - 30), min(255, v + 50))
+        shadow = QColor.fromHsv(h, s, max(0, v - 15))
 
         # Holder dimensions
         holder_height = 8
         holder_y = widget_rect.bottom() - holder_height
 
-        # Draw the wooden ledge
+        # Draw the ledge
         holder_rect = QRect(widget_rect.left(), holder_y, widget_rect.width(), holder_height)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(60, 35, 20)))  # Slightly lighter dark wood
+        painter.setBrush(QBrush(lighter))
         painter.drawRect(holder_rect)
 
         # Draw highlight on top edge
-        painter.setPen(QPen(QColor(80, 50, 30), 3))
+        painter.setPen(QPen(highlight, 3))
         painter.drawLine(holder_rect.left(), holder_y, holder_rect.right(), holder_y)
 
         # Draw shadow on bottom edge
-        painter.setPen(QPen(QColor(30, 15, 8), 1))
+        painter.setPen(QPen(shadow, 1))
         painter.drawLine(holder_rect.left(), holder_rect.bottom(), holder_rect.right(), holder_rect.bottom())

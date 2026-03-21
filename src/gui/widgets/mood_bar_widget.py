@@ -10,7 +10,11 @@ from PyQt6.QtGui import QPainter, QColor, QPainterPath
 
 from core.mood.service import MoodService
 from core.mood.mood import Mood
-from ..constants import PianoColors
+
+
+def _c():
+    from gui.constants import piano_colors
+    return piano_colors()
 
 
 class MoodBarWidget(QWidget):
@@ -51,21 +55,25 @@ class MoodBarWidget(QWidget):
             btn.setFixedSize(32, 32)
             btn.setToolTip(mood.description)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setStyleSheet("""
-                QPushButton {
-                    background-color: rgba(92, 61, 46, 200);
-                    border: 1px solid rgb(184, 134, 11);
+            c = _c()
+            m = c.FRAME_MEDIUM
+            l = c.FRAME_LIGHT
+            d = c.FRAME_DARK
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: rgba({m.red()}, {m.green()}, {m.blue()}, 200);
+                    border: 1px solid {c.ACCENT.name()};
                     border-radius: 4px;
                     font-size: 16px;
                     padding: 0px;
-                }
-                QPushButton:hover {
-                    background-color: rgba(122, 80, 64, 220);
-                    border-color: rgb(218, 165, 32);
-                }
-                QPushButton:pressed {
-                    background-color: rgba(61, 40, 23, 200);
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: rgba({l.red()}, {l.green()}, {l.blue()}, 220);
+                    border-color: {c.ACCENT_LIGHT.name()};
+                }}
+                QPushButton:pressed {{
+                    background-color: rgba({d.red()}, {d.green()}, {d.blue()}, 200);
+                }}
             """)
             btn.clicked.connect(lambda checked, m=mood: self._on_mood_clicked(m))
             layout.addWidget(btn)
@@ -85,8 +93,11 @@ class MoodBarWidget(QWidget):
         path = QPainterPath()
         path.addRoundedRect(0, 0, self.width(), self.height(), 6, 6)
         
-        painter.fillPath(path, QColor(61, 40, 23, 230))
-        painter.setPen(QColor(184, 134, 11))
+        c = _c()
+        bg = QColor(c.FRAME_DARK)
+        bg.setAlpha(230)
+        painter.fillPath(path, bg)
+        painter.setPen(c.ACCENT)
         painter.drawPath(path)
 
     def show_at_position(self, pos: QPoint):

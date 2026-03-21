@@ -7,6 +7,11 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class StatCard(QFrame):
     """Vintage-styled card for displaying a single summary statistic"""
 
@@ -27,15 +32,15 @@ class StatCard(QFrame):
 
     def _setup_ui(self):
         """Set up the card UI"""
-        # Card styling with vintage paper and brass accents - more compact
-        self.setStyleSheet("""
-            StatCard {
-                background-color: rgba(255, 252, 245, 200);
-                border: 1px solid rgb(184, 134, 11);
+        t = _t()
+        self.setStyleSheet(f"""
+            StatCard {{
+                background-color: {t.card_bg};
+                border: 1px solid {t.accent};
                 border-radius: 3px;
                 padding: 2px;
                 margin: 2px;
-            }
+            }}
         """)
 
         # Layout
@@ -51,13 +56,13 @@ class StatCard(QFrame):
             title_text = self.title
 
         title_label = QLabel(title_text)
-        title_label.setStyleSheet("color: rgb(110, 90, 70); background: transparent;")
+        title_label.setStyleSheet(f"color: {t.ink_secondary}; background: transparent;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
 
         # Value (large and prominent)
         value_label = QLabel(self.value)
-        value_label.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
+        value_label.setStyleSheet(f"color: {t.ink_primary}; background: transparent;")
         value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(value_label)
 

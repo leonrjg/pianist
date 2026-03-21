@@ -9,7 +9,17 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QIcon, QKeyEvent, QTextBlockFormat, QTextCursor
 
 from core.notes.service import NoteService
-from ..constants import PianoColors
+
+
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
+def _c():
+    from gui.constants import piano_colors
+    return piano_colors()
+
 
 
 class AutoIndentTextEdit(QTextEdit):
@@ -105,19 +115,21 @@ class NotesWidget(QWidget):
         self.habit_selector.setMaximumWidth(150)
         self.habit_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.habit_selector.currentIndexChanged.connect(self._on_habit_changed)
+        t = _t()
+        c = _c()
         self.habit_selector.setStyleSheet(f"""
             QComboBox {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
+                background-color: {c.FRAME_DARK.name()};
+                border: 1px solid {c.ACCENT.name()};
                 border-radius: 3px;
-                color: rgb(218, 165, 32);
+                color: {c.ACCENT_LIGHT.name()};
                 font-size: 11px;
                 padding: 1px 4px;
                 padding-right: 4px;
             }}
             QComboBox:hover {{
-                border-color: rgb(218, 165, 32);
-                background-color: rgb(92, 61, 46);
+                border-color: {c.ACCENT_LIGHT.name()};
+                background-color: {c.FRAME_MEDIUM.name()};
             }}
             QComboBox::drop-down {{
                 border: none;
@@ -129,11 +141,11 @@ class NotesWidget(QWidget):
                 height: 0px;
             }}
             QComboBox QAbstractItemView {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
-                color: rgb(218, 165, 32);
-                selection-background-color: rgb(92, 61, 46);
-                selection-color: rgb(218, 165, 32);
+                background-color: {c.FRAME_DARK.name()};
+                border: 1px solid {c.ACCENT.name()};
+                color: {c.ACCENT_LIGHT.name()};
+                selection-background-color: {c.FRAME_MEDIUM.name()};
+                selection-color: {c.ACCENT_LIGHT.name()};
                 padding: 2px;
             }}
         """)
@@ -161,17 +173,17 @@ class NotesWidget(QWidget):
         close_button.clicked.connect(self.close)
         close_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
+                background-color: {c.FRAME_DARK.name()};
+                border: 1px solid {c.ACCENT.name()};
                 border-radius: 10px;
-                color: rgb(218, 165, 32);
+                color: {c.ACCENT_LIGHT.name()};
                 font-size: 16px;
                 font-weight: bold;
                 padding-bottom: 2px;
             }}
             QPushButton:hover {{
-                border-color: rgb(218, 165, 32);
-                background-color: rgb(92, 61, 46);
+                border-color: {c.ACCENT_LIGHT.name()};
+                background-color: {c.FRAME_MEDIUM.name()};
             }}
         """)
         header.addWidget(close_button)
@@ -194,26 +206,26 @@ class NotesWidget(QWidget):
 
         self.text_edit.setStyleSheet(f"""
             QTextEdit {{
-                background-color: rgb(92, 61, 46);
-                color: rgb(253, 252, 248);
+                background-color: {c.FRAME_MEDIUM.name()};
+                color: {c.WHITE_KEY.name()};
                 border: none;
                 padding: 8px;
                 font-size: 12px;
-                selection-background-color: rgb(184, 134, 11);
-                selection-color: rgb(26, 26, 26);
+                selection-background-color: {c.ACCENT.name()};
+                selection-color: {c.BACKGROUND.name()};
             }}
             QScrollBar:vertical {{
-                background-color: rgb(61, 40, 23);
+                background-color: {c.FRAME_DARK.name()};
                 width: 6px;
                 border-radius: 3px;
             }}
             QScrollBar::handle:vertical {{
-                background-color: rgb(184, 134, 11);
+                background-color: {c.ACCENT.name()};
                 border-radius: 3px;
                 min-height: 20px;
             }}
             QScrollBar::handle:vertical:hover {{
-                background-color: rgb(218, 165, 32);
+                background-color: {c.ACCENT_LIGHT.name()};
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0px;
@@ -279,7 +291,10 @@ class NotesWidget(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # Draw simple rectangle background (no border, no rounded corners)
-        painter.fillRect(self.rect(), QColor(61, 40, 23, 240))
+        c = _c()
+        bg = QColor(c.FRAME_DARK)
+        bg.setAlpha(240)
+        painter.fillRect(self.rect(), bg)
 
     def show_at_position(self, pos: QPoint, width: int):
         """
@@ -389,11 +404,11 @@ class NotesWidget(QWidget):
             self.save_status_label.setToolTip("Saved")
         elif status == 'saving':
             self.save_status_label.setText("⏳")
-            self.save_status_label.setStyleSheet("""
-                QLabel {
-                    color: rgb(218, 165, 32);
+            self.save_status_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {_c().ACCENT_LIGHT.name()};
                     font-size: 14px;
-                }
+                }}
             """)
             self.save_status_label.setToolTip("Saving...")
         elif status == 'error':

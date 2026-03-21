@@ -11,6 +11,11 @@ from core.util.time import get_friendly_elapsed, get_friendly_datetime, HOUR
 from .productivity_progress_bar import ProductivityProgressBar
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class SessionItem(QFrame):
     """Individual session display with delete button"""
 
@@ -29,15 +34,15 @@ class SessionItem(QFrame):
 
     def _setup_ui(self):
         """Set up the session item UI"""
-        # Subtle nested card styling
-        self.setStyleSheet("""
-            SessionItem {
-                background-color: rgba(245, 240, 230, 150);
-                border: 1px solid rgb(210, 200, 185);
+        t = _t()
+        self.setStyleSheet(f"""
+            SessionItem {{
+                background-color: {t.paper_dark};
+                border: 1px solid {t.border};
                 border-radius: 2px;
                 padding: 4px;
                 margin: 2px 0px;
-            }
+            }}
         """)
 
         # Main vertical layout
@@ -57,9 +62,9 @@ class SessionItem(QFrame):
             duration_seconds = (self.log.end - self.log.start).total_seconds() - self.log.idle_time + offset
             duration_str = get_friendly_elapsed(duration_seconds)
             duration_badge = QLabel(f"⏱ {duration_str}")
-            duration_badge.setStyleSheet("""
-                background-color: rgba(184, 134, 11, 120);
-                color: rgb(40, 20, 10);
+            duration_badge.setStyleSheet(f"""
+                background-color: {t.button_primary_bg};
+                color: {t.button_primary_text};
                 font-size: 9px;
                 padding: 2px 6px;
                 border-radius: 3px;
@@ -78,7 +83,7 @@ class SessionItem(QFrame):
         end_str = self.log.end.strftime('%H:%M') if self.log.end else '...'
         start_time = f"{self.log.start.strftime('%H:%M')} ~ {end_str}"
         time_label = QLabel(start_time)
-        time_label.setStyleSheet("color: rgb(70, 50, 35); font-size: 10px; background: transparent;")
+        time_label.setStyleSheet(f"color: {t.ink_primary}; font-size: 10px; background: transparent;")
         top_layout.addWidget(time_label)
 
         if self.log.started_by:

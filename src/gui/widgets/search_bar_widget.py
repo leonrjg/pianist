@@ -9,6 +9,11 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QKeyEvent
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class SearchBarWidget(QFrame):
     """Browser-style search bar for text search functionality."""
     
@@ -53,43 +58,44 @@ class SearchBarWidget(QFrame):
         layout.addWidget(self._close_button)
         
         # Style the widget and children
-        self.setStyleSheet("""
-            SearchBarWidget {
-                background-color: rgb(252, 248, 235);
-                border: 2px solid rgb(184, 134, 11);
+        t = _t()
+        self.setStyleSheet(f"""
+            SearchBarWidget {{
+                background-color: {t.paper_alt};
+                border: 2px solid {t.accent};
                 border-radius: 4px;
-            }
-            QLineEdit {
-                background-color: white;
-                border: 1px solid rgb(200, 185, 160);
+            }}
+            QLineEdit {{
+                background-color: {t.paper};
+                border: 1px solid {t.border};
                 border-radius: 3px;
                 padding: 4px 8px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 12px;
-            }
-            QLineEdit:focus {
-                border-color: rgb(184, 134, 11);
-            }
-            QLabel {
-                color: rgb(70, 50, 35);
+            }}
+            QLineEdit:focus {{
+                border-color: {t.accent};
+            }}
+            QLabel {{
+                color: {t.ink_primary};
                 font-size: 11px;
                 font-weight: 600;
                 background: transparent;
-            }
-            QPushButton {
+            }}
+            QPushButton {{
                 background-color: transparent;
                 border: none;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 18px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: rgba(184, 134, 11, 0.2);
+            }}
+            QPushButton:hover {{
+                background-color: {t.input_selection};
                 border-radius: 3px;
-            }
-            QPushButton:pressed {
-                background-color: rgba(184, 134, 11, 0.3);
-            }
+            }}
+            QPushButton:pressed {{
+                background-color: {t.input_selection};
+            }}
         """)
     
     def _setup_shortcuts(self):

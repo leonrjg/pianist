@@ -40,9 +40,9 @@ class BasePainter:
         return QColor(r, g, b)
 
     @staticmethod
-    def draw_wood_grain_effect(painter: QPainter, start_x: int, end_x: int, height: int,
-                               dark_color: QColor, medium_color: QColor, shade_intensity: float = 0.3):
-        """Draw a wood grain effect by drawing vertical lines with varying shades"""
+    def draw_frame_texture(painter: QPainter, start_x: int, end_x: int, height: int,
+                           dark_color: QColor, medium_color: QColor, shade_intensity: float = 0.3):
+        """Draw frame texture by drawing vertical lines with varying shades"""
         for i in range(end_x - start_x):
             shade = i / (end_x - start_x)
             color = BasePainter.interpolate_color(dark_color, medium_color, shade * shade_intensity)

@@ -10,6 +10,11 @@ from PyQt6.QtGui import QCursor
 from .task_calendar_widget import TaskCalendarWidget
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class VintageDatePicker(QWidget):
     """Custom date picker widget with TaskCalendarWidget popup"""
 
@@ -32,20 +37,21 @@ class VintageDatePicker(QWidget):
         self._date_button = QPushButton()
         self._date_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self._date_button.clicked.connect(self._show_calendar)
-        self._date_button.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 252, 245, 220);
-                border: 1px solid rgb(200, 185, 160);
+        t = _t()
+        self._date_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t.paper};
+                border: 1px solid {t.border};
                 border-radius: 3px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 10px;
                 padding: 4px 8px;
                 text-align: left;
-            }
-            QPushButton:hover {
-                border: 1px solid rgb(184, 134, 11);
-                background-color: rgba(255, 255, 250, 240);
-            }
+            }}
+            QPushButton:hover {{
+                border: 1px solid {t.accent};
+                background-color: {t.paper_alt};
+            }}
         """)
         layout.addWidget(self._date_button)
 

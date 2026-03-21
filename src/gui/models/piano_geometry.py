@@ -36,7 +36,7 @@ class PianoGeometry:
 
     # ===== Frame Geometry =====
     # The "toggleable drawer" is the toggleable wooden panel with music sheet
-    # It's only visible when toggled via the brass hinges
+    # It's only visible when toggled via the hinges
 
     @property
     def toggleable_drawer_width(self) -> int:
@@ -55,7 +55,7 @@ class PianoGeometry:
 
     @property
     def hinge_x(self) -> int:
-        """X position of toggleable drawer opener (brass hinges) - always at toggleable drawer edge"""
+        """X position of toggleable drawer opener (hinges) - always at toggleable drawer edge"""
         return self.toggleable_drawer_width
 
     # ===== Main Content Panel Geometry =====
@@ -183,15 +183,15 @@ class PianoGeometry:
             self.window_height - 20
         )
 
-    # ===== Brass Elements Geometry =====
+    # ===== Hinge Elements Geometry =====
 
     def get_hinge_positions(self) -> list[tuple[int, int, int, int]]:
-        """Get positions for brass hinges as (x, y, width, height) tuples"""
+        """Get positions for hinges as (x, y, width, height) tuples"""
         return [
-            (self.hinge_x + 5, PianoLayout.BRASS_HINGE_TOP_Y - 4,
-             PianoLayout.BRASS_HINGE_SIZE, PianoLayout.BRASS_HINGE_SIZE),
-            (self.hinge_x + 5, self.window_height - PianoLayout.BRASS_HINGE_BOTTOM_OFFSET - 4,
-             PianoLayout.BRASS_HINGE_SIZE, PianoLayout.BRASS_HINGE_SIZE)
+            (self.hinge_x + 5, PianoLayout.HINGE_TOP_Y - 4,
+             PianoLayout.HINGE_SIZE, PianoLayout.HINGE_SIZE),
+            (self.hinge_x + 5, self.window_height - PianoLayout.HINGE_BOTTOM_OFFSET - 4,
+             PianoLayout.HINGE_SIZE, PianoLayout.HINGE_SIZE)
         ]
 
     def get_hinge_click_areas(self) -> list[QRect]:
@@ -356,17 +356,17 @@ class PianoGeometry:
         return False
 
     def is_point_in_hinge(self, pos: QPoint) -> bool:
-        """Check if point is in a brass hinge clickable area"""
+        """Check if point is in a hinge clickable area"""
         for area in self.get_hinge_click_areas():
             if area.contains(pos):
                 return True
         return False
 
-    def is_point_in_brass_section(self, pos: QPoint) -> bool:
-        """Check if point is in the brass pedals section"""
+    def is_point_in_pedal_section(self, pos: QPoint) -> bool:
+        """Check if point is in the pedals section"""
         pedal_x = self.window_width - PianoLayout.PEDAL_X_OFFSET
-        brass_area = QRect(pedal_x - 20, self.window_height // 2 - 60, 40, 120)
-        return brass_area.contains(pos)
+        pedal_area = QRect(pedal_x - 20, self.window_height // 2 - 60, 40, 120)
+        return pedal_area.contains(pos)
 
     def is_point_on_pedal(self, pos: QPoint) -> bool:
         """
@@ -394,7 +394,7 @@ class PianoGeometry:
         # Point is on frame if it's NOT in the keys area
         if pos.x() < self.keys_start_x or pos.x() > self.keys_end_x:
             return True
-        # Also consider brass section as part of frame
-        if self.is_point_in_brass_section(pos):
+        # Also consider pedal section as part of frame
+        if self.is_point_in_pedal_section(pos):
             return True
         return False

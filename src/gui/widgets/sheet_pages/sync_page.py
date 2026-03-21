@@ -14,6 +14,11 @@ from PyQt6.QtGui import QDesktopServices
 from .base_page import SheetPage
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 def _friendly_dt(dt: Optional[datetime]) -> str:
     if dt is None:
         return "Never"
@@ -126,9 +131,10 @@ class SyncPage(SheetPage):
         h.setContentsMargins(0, 4, 0, 2)
         h.setSpacing(8)
 
+        t = _t()
         def _header_label(text, stretch):
             lbl = QLabel(text)
-            lbl.setStyleSheet("color: rgb(110, 90, 70); font-style: italic; background: transparent;")
+            lbl.setStyleSheet(f"color: {t.ink_secondary}; font-style: italic; background: transparent;")
             font = lbl.font()
             font.setPointSize(font.pointSize() - 1)
             lbl.setFont(font)
@@ -149,29 +155,30 @@ class SyncPage(SheetPage):
 
         # Name
         name_lbl = QLabel(device.name)
-        name_lbl.setStyleSheet("color: rgb(70, 50, 35); background: transparent;")
+        name_lbl.setStyleSheet(f"color: {_t().ink_primary}; background: transparent;")
         font = name_lbl.font()
         font.setBold(True)
         name_lbl.setFont(font)
         h.addWidget(name_lbl, 3)
 
         # Status dot
+        t = _t()
         if is_active:
             status_lbl = QLabel("● In range")
-            status_lbl.setStyleSheet("color: rgb(60, 140, 60); background: transparent;")
+            status_lbl.setStyleSheet(f"color: {t.status_active}; background: transparent;")
         else:
             status_lbl = QLabel("○ Offline")
-            status_lbl.setStyleSheet("color: rgb(140, 120, 95); background: transparent;")
+            status_lbl.setStyleSheet(f"color: {t.status_inactive}; background: transparent;")
         h.addWidget(status_lbl, 2)
 
         # Last seen
         last_seen_lbl = QLabel(_friendly_dt(device.last_seen))
-        last_seen_lbl.setStyleSheet("color: rgb(110, 90, 70); background: transparent;")
+        last_seen_lbl.setStyleSheet(f"color: {_t().ink_secondary}; background: transparent;")
         h.addWidget(last_seen_lbl, 2)
 
         # Last synced
         last_sync_lbl = QLabel(_friendly_dt(last_sync))
-        last_sync_lbl.setStyleSheet("color: rgb(110, 90, 70); background: transparent;")
+        last_sync_lbl.setStyleSheet(f"color: {_t().ink_secondary}; background: transparent;")
         h.addWidget(last_sync_lbl, 2)
 
         return row

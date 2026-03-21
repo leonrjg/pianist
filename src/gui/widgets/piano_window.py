@@ -10,7 +10,7 @@ Responsibilities:
 Heavy lifting is delegated to:
 - Models: PianoGeometry, PianoState
 - Managers: SessionManager, AnimationManager, SoundManager
-- Painters: FramePainter, KeyPainter, BrassPainter
+- Painters: FramePainter, KeyPainter, AccentPainter
 """
 
 import time
@@ -24,7 +24,7 @@ from core.util.time import get_friendly_elapsed
 from datetime import datetime
 
 from ..services import HabitService
-from ..constants import PianoLayout, PianoColors, Animations, Interactions
+from ..constants import PianoLayout, piano_colors, _parse_rgb, Animations, Interactions
 from ..models import PianoGeometry, PianoState
 from ..managers import SessionManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager, ReminderManager
 from ..painters import FramePainter, KeyPainter
@@ -187,16 +187,6 @@ class PianoFloatingWindow(QWidget):
         self.close_button.setIconSize(QSize(14, 14))
         self.close_button.setFixedSize(20, 20)
         self.close_button.clicked.connect(self.showMinimized)
-        self.close_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
-                border-radius: 10px;
-            }}
-            QPushButton:hover {{
-                border-color: rgb(218, 165, 32);
-            }}
-        """)
         self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Maximize button
@@ -206,16 +196,6 @@ class PianoFloatingWindow(QWidget):
         self.maximize_button.setFixedSize(20, 20)
         self.maximize_button.setToolTip('Maximize window')
         self.maximize_button.clicked.connect(self.toggle_maximize)
-        self.maximize_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
-                border-radius: 10px;
-            }}
-            QPushButton:hover {{
-                border-color: rgb(218, 165, 32);
-            }}
-        """)
         self.maximize_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Reorder button
@@ -225,16 +205,6 @@ class PianoFloatingWindow(QWidget):
         self.reorder_button.setFixedSize(20, 20)
         self.reorder_button.setToolTip('Reorder keys')
         self.reorder_button.clicked.connect(self.reorder_mode_manager.toggle_reorder_mode)
-        self.reorder_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
-                border-radius: 10px;
-            }}
-            QPushButton:hover {{
-                border-color: rgb(218, 165, 32);
-            }}
-        """)
         self.reorder_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Mood button
@@ -244,16 +214,6 @@ class PianoFloatingWindow(QWidget):
         self.mood_button.setFixedSize(20, 20)
         self.mood_button.setToolTip('Log mood')
         self.mood_button.clicked.connect(self.on_mood_button_clicked)
-        self.mood_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
-                border-radius: 10px;
-            }}
-            QPushButton:hover {{
-                border-color: rgb(218, 165, 32);
-            }}
-        """)
         self.mood_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.mood_button.installEventFilter(self)
 
@@ -262,21 +222,6 @@ class PianoFloatingWindow(QWidget):
         self.add_task_button.setFixedSize(20, 20)
         self.add_task_button.setToolTip('Add task')
         self.add_task_button.clicked.connect(self.on_add_task_button_clicked)
-        self.add_task_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
-                border-radius: 10px;
-                color: rgb(184, 134, 11);
-                font-size: 14px;
-                font-weight: bold;
-                padding-bottom: 2px;
-            }}
-            QPushButton:hover {{
-                border-color: rgb(218, 165, 32);
-                color: rgb(218, 165, 32);
-            }}
-        """)
         self.add_task_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Notes button
@@ -286,16 +231,7 @@ class PianoFloatingWindow(QWidget):
         self.notes_button.setFixedSize(20, 20)
         self.notes_button.setToolTip('Notes')
         self.notes_button.clicked.connect(self.on_notes_button_clicked)
-        self.notes_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid rgb(184, 134, 11);
-                border-radius: 10px;
-            }}
-            QPushButton:hover {{
-                border-color: rgb(218, 165, 32);
-            }}
-        """)
+        self.notes_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.notes_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # Sync button
@@ -308,15 +244,11 @@ class PianoFloatingWindow(QWidget):
         self.sync_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.sync_button.hide()  # Hidden until a peer device is known
         self._sync_rotation = 0
-        # Cache the base pixmap so _on_sync_spin_tick doesn't reload from disk each frame
-        from PyQt6.QtGui import QPixmap
-        self._sync_icon_pixmap = QPixmap('gui/icons/sync.svg').scaled(
-            14, 14,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
+        # Cached pixmap is rebuilt in _setup_style with the correct theme color
+        self._sync_icon_pixmap = None
 
         self._apply_sync_button_style(active=False)
+        self._setup_style()
 
         control_layout.addWidget(self.close_button)
         control_layout.addWidget(self.maximize_button)
@@ -497,7 +429,7 @@ class PianoFloatingWindow(QWidget):
         painter.setClipPath(path)
 
         # Draw background
-        painter.fillRect(self.rect(), PianoColors.BACKGROUND)
+        painter.fillRect(self.rect(), piano_colors().BACKGROUND)
 
         # Delegate to painters (window mask controls visibility)
         FramePainter.draw_frame(painter, self.geometry_model)
@@ -1113,17 +1045,85 @@ class PianoFloatingWindow(QWidget):
 
     # ===== Sync Button =====
 
+    def _control_button_stylesheet(self, border_override: str = None, color_override: str = None) -> str:
+        """Return a themed stylesheet for a control panel button."""
+        c = piano_colors()
+        bg = c.FRAME_DARK.name()
+        border = border_override or c.ACCENT.name()
+        hover_border = c.ACCENT_LIGHT.name()
+        txt = color_override or c.ACCENT.name()
+        hover_txt = c.ACCENT_LIGHT.name()
+        return f"""
+            QPushButton {{
+                background-color: {bg};
+                border: 1px solid {border};
+                border-radius: 10px;
+                color: {txt};
+                font-size: 14px;
+                font-weight: bold;
+                padding-bottom: 2px;
+            }}
+            QPushButton:hover {{
+                border-color: {hover_border};
+                color: {hover_txt};
+            }}
+        """
+
+    @staticmethod
+    def _themed_icon(svg_path: str, color) -> QIcon:
+        """Return svg_path icon tinted to the given QColor via composition."""
+        base = QIcon(svg_path)
+        pixmap = base.pixmap(QSize(14, 14))
+        if pixmap.isNull():
+            return base
+        p = QPainter(pixmap)
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+        p.fillRect(pixmap.rect(), color)
+        p.end()
+        return QIcon(pixmap)
+
+    def _setup_style(self):
+        """Re-apply theme to all control panel buttons and repaint."""
+        plain = self._control_button_stylesheet()
+        c = piano_colors()
+        icon_color = c.ACCENT
+        icon_map = {
+            self.close_button: 'gui/icons/min.svg',
+            self.maximize_button: 'gui/icons/maximize.svg',
+            self.reorder_button: 'gui/icons/reorder.svg',
+            self.mood_button: 'gui/icons/mood.svg',
+            self.notes_button: 'gui/icons/notes.svg',
+        }
+        for btn, svg_path in icon_map.items():
+            btn.setStyleSheet(plain)
+            btn.setIcon(self._themed_icon(svg_path, icon_color))
+        self.add_task_button.setStyleSheet(plain)
+        # Rebuild cached sync spin pixmap with current theme color
+        sync_icon = self._themed_icon('gui/icons/sync.svg', icon_color)
+        self._sync_icon_pixmap = sync_icon.pixmap(QSize(14, 14))
+        self.sync_button.setIcon(sync_icon)
+        # Re-apply sync button only if fully initialized
+        if hasattr(self, '_sync_spin_timer'):
+            self._update_sync_button_state()
+        # Re-apply mood button (it has its own icon logic)
+        self.update_mood_button_icon()
+        self.update()
+
     def _apply_sync_button_style(self, active: bool):
-        """Apply green (peers in range) or muted (no peers) style to the sync button."""
-        border_color = 'rgb(80, 160, 80)' if active else 'rgb(100, 90, 75)'
+        """Apply active (peers in range) or muted (no peers) style to the sync button."""
+        from gui.themes.manager import ThemeManager
+        t = ThemeManager.get_instance().current
+        c = piano_colors()
+        border = t.status_active if active else c.FRAME_LIGHT.name()
+        hover_border = _parse_rgb(t.status_active).lighter(130).name() if active else c.ACCENT.name()
         self.sync_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: rgb(61, 40, 23);
-                border: 1px solid {border_color};
+                background-color: {c.FRAME_DARK.name()};
+                border: 1px solid {border};
                 border-radius: 10px;
             }}
             QPushButton:hover {{
-                border-color: {'rgb(110, 200, 110)' if active else 'rgb(140, 125, 105)'};
+                border-color: {hover_border};
             }}
         """)
 
@@ -1149,7 +1149,7 @@ class PianoFloatingWindow(QWidget):
         elif not is_syncing and self._sync_spin_timer.isActive():
             self._sync_spin_timer.stop()
             self._sync_rotation = 0
-            self.sync_button.setIcon(QIcon('gui/icons/sync.svg'))
+            self.sync_button.setIcon(self._themed_icon('gui/icons/sync.svg', piano_colors().ACCENT))
             self.sync_button.setIconSize(QSize(14, 14))
 
     def _on_sync_spin_tick(self):
@@ -1215,36 +1215,15 @@ class PianoFloatingWindow(QWidget):
         """Update mood button icon to show current mood or default"""
         from core.mood.service import MoodService
 
+        c = piano_colors()
         current_log = MoodService.get_current_log()
         if current_log:
-            # Show current mood emoji
             self.mood_button.setText(current_log.mood.symbol)
             self.mood_button.setIcon(QIcon())
-            self.mood_button.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: rgb(61, 40, 23);
-                    border: 1px solid rgb(184, 134, 11);
-                    border-radius: 10px;
-                    font-size: 12px;
-                }}
-                QPushButton:hover {{
-                    border-color: rgb(218, 165, 32);
-                }}
-            """)
         else:
-            # Show default smiley icon
             self.mood_button.setText('')
-            self.mood_button.setIcon(QIcon('gui/icons/mood.svg'))
-            self.mood_button.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: rgb(61, 40, 23);
-                    border: 1px solid rgb(184, 134, 11);
-                    border-radius: 10px;
-                }}
-                QPushButton:hover {{
-                    border-color: rgb(218, 165, 32);
-                }}
-            """)
+            self.mood_button.setIcon(self._themed_icon('gui/icons/mood.svg', c.ACCENT))
+        self.mood_button.setStyleSheet(self._control_button_stylesheet())
 
     def eventFilter(self, obj, event):
         """Filter events for mood button right-click and notes widget drag forwarding"""

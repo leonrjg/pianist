@@ -187,14 +187,16 @@ class TrackerHelpWidget(QWidget):
         self._active_workers = [w for w in self._active_workers if not w._cancelled]
 
         self._help_label.setText(f"Error: {error_message}")
-        self._help_label.setStyleSheet("""
-            QLabel {
+        from gui.themes.manager import ThemeManager
+        _border = ThemeManager.get_instance().current.border
+        self._help_label.setStyleSheet(f"""
+            QLabel {{
                 background-color: rgb(255, 240, 240);
                 color: rgb(180, 50, 50);
                 padding: 10px;
                 font-size: 11px;
-                border: 1px solid rgb(200, 185, 160);
-            }
+                border: 1px solid {_border};
+            }}
         """)
         self._set_loading(False)
 

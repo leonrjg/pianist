@@ -1,3 +1,5 @@
+import uuid
+from datetime import datetime
 from pathlib import Path
 from peewee import *
 
@@ -13,6 +15,24 @@ class BaseModel(Model):
     Provides common database configuration for all Peewee models
     used in the habit tracking application.
     """
+    class Meta:
+        database = db
+
+
+class SyncableModel(BaseModel):
+    """
+    Base class for models that participate in cross-device sync.
+
+    Provides the standard syncable fields: UUID primary key, timestamps,
+    device_id for LWW conflict resolution, and soft-delete via deleted_at.
+    All new models that need to sync should extend this instead of BaseModel.
+    """
+    id = UUIDField(primary_key=True, default=uuid.uuid4)
+    created_at = DateTimeField(default=datetime.now)
+    updated_at = DateTimeField(default=datetime.now)
+    device_id = CharField(default='')
+    deleted_at = DateTimeField(null=True)
+
     class Meta:
         database = db
 

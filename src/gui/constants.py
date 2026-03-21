@@ -6,6 +6,46 @@ All magic numbers, colors, and configuration values are centralized here.
 from PyQt6.QtGui import QColor
 
 
+def _parse_rgb(s: str) -> QColor:
+    """Convert 'rgb(r, g, b)' theme string to QColor."""
+    nums = [int(x.strip()) for x in s[4:-1].split(',')]
+    return QColor(nums[0], nums[1], nums[2])
+
+
+_piano_colors_cache: tuple = (None, None)  # (theme, colors_class)
+
+
+def piano_colors():
+    """Return a theme-aware PianoColors-compatible object."""
+    global _piano_colors_cache
+    try:
+        from gui.themes.manager import ThemeManager
+        t = ThemeManager.get_instance().current
+        if _piano_colors_cache[0] is t:
+            return _piano_colors_cache[1]
+
+        class _Colors:
+            WHITE_KEY = _parse_rgb(t.white_key)
+            WHITE_KEY_PRESSED = _parse_rgb(t.white_key).darker(108)
+            WHITE_KEY_SHADOW = _parse_rgb(t.white_key).darker(115)
+            BLACK_KEY = _parse_rgb(t.black_key)
+            BLACK_KEY_SHINE = _parse_rgb(t.black_key).lighter(160)
+            BLACK_KEY_TEXT = _parse_rgb(t.black_key_text_color)
+            FRAME_DARK = _parse_rgb(t.wood_dark)
+            FRAME_MEDIUM = _parse_rgb(t.wood_medium)
+            FRAME_LIGHT = _parse_rgb(t.wood_light)
+            FRAME_HIGHLIGHT = _parse_rgb(t.wood_light).lighter(110)
+            ACCENT = _parse_rgb(t.accent)
+            ACCENT_LIGHT = _parse_rgb(t.accent_light)
+            TEXT_PRIMARY = _parse_rgb(t.key_label_color)
+            BACKGROUND = _parse_rgb(t.wood_dark).darker(130)
+
+        _piano_colors_cache = (t, _Colors)
+        return _Colors
+    except Exception:
+        return PianoColors
+
+
 class PianoLayout:
     """Layout dimensions and positioning constants"""
 
@@ -34,10 +74,10 @@ class PianoLayout:
     FRAME_PADDING_VERTICAL = 60  # Top and bottom padding
     TOGGLEABLE_DRAWER_PADDING_VERTICAL = 10  # Padding around toggleable drawer
 
-    # Brass elements
-    BRASS_HINGE_SIZE = 8
-    BRASS_HINGE_TOP_Y = 50
-    BRASS_HINGE_BOTTOM_OFFSET = 50  # From bottom
+    # Hinge elements
+    HINGE_SIZE = 8
+    HINGE_TOP_Y = 50
+    HINGE_BOTTOM_OFFSET = 50  # From bottom
 
     # Pedals (decorative on right side)
     PEDAL_SIZE = 10
@@ -65,7 +105,7 @@ class PianoLayout:
 
 
 class PianoColors:
-    """Color scheme for piano interface"""
+    """Fallback color scheme (vintage defaults) for piano interface"""
 
     # Piano keys
     WHITE_KEY = QColor(253, 252, 248)
@@ -74,17 +114,16 @@ class PianoColors:
     BLACK_KEY = QColor(20, 20, 18)
     BLACK_KEY_SHINE = QColor(55, 55, 50)
     BLACK_KEY_TEXT = QColor(180, 180, 180)
-    KEY_GAP = QColor(26, 26, 26)
 
-    # Wood frame
-    WOOD_DARK = QColor(61, 40, 23)
-    WOOD_MEDIUM = QColor(92, 61, 46)
-    WOOD_LIGHT = QColor(122, 80, 64)
-    WOOD_HIGHLIGHT = QColor(141, 95, 74)
+    # Frame
+    FRAME_DARK = QColor(61, 40, 23)
+    FRAME_MEDIUM = QColor(92, 61, 46)
+    FRAME_LIGHT = QColor(122, 80, 64)
+    FRAME_HIGHLIGHT = QColor(141, 95, 74)
 
-    # Brass elements
-    BRASS = QColor(184, 134, 11)
-    BRASS_LIGHT = QColor(218, 165, 32)
+    # Accent elements
+    ACCENT = QColor(184, 134, 11)
+    ACCENT_LIGHT = QColor(218, 165, 32)
 
     # Text
     TEXT_PRIMARY = QColor(74, 74, 74)

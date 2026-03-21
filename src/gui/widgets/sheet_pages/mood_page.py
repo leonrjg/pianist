@@ -14,6 +14,11 @@ from .base_page import SheetPage
 from .vintage_form_widgets import VintageLineEdit, VintageButton, FormSection
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class MoodPage(SheetPage):
     """Page for managing moods and viewing logs"""
 
@@ -58,15 +63,16 @@ class MoodPage(SheetPage):
 
         current_log = MoodService.get_current_log()
         if current_log:
+            t = _t()
             # Container for current mood
             container = QWidget()
-            container.setStyleSheet("""
-                QWidget {
-                    background-color: rgba(184, 134, 11, 30);
-                    border: 1px solid rgb(184, 134, 11);
+            container.setStyleSheet(f"""
+                QWidget {{
+                    background-color: {t.card_bg};
+                    border: 1px solid {t.accent};
                     border-radius: 4px;
                     padding: 8px;
-                }
+                }}
             """)
             container_layout = QVBoxLayout()
             container_layout.setContentsMargins(8, 8, 8, 8)
@@ -89,18 +95,18 @@ class MoodPage(SheetPage):
             # End button
             end_btn = QPushButton("End Current Mood")
             end_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            end_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: rgb(92, 61, 46);
-                    border: 1px solid rgb(120, 100, 75);
+            end_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {t.button_secondary_bg};
+                    border: 1px solid {t.border};
                     border-radius: 3px;
                     padding: 4px 8px;
-                    color: rgb(252, 248, 235);
-                }
-                QPushButton:hover {
-                    background-color: rgb(122, 80, 64);
-                    border-color: rgb(184, 134, 11);
-                }
+                    color: {t.button_secondary_text};
+                }}
+                QPushButton:hover {{
+                    background-color: {t.button_secondary_hover};
+                    border-color: {t.accent};
+                }}
             """)
             end_btn.clicked.connect(lambda: self._end_current_mood(current_log))
             container_layout.addWidget(end_btn)
@@ -122,6 +128,7 @@ class MoodPage(SheetPage):
 
     def _create_mood_row(self, mood: Mood) -> QWidget:
         """Create a row for a mood"""
+        t = _t()
         row = QWidget()
         row_layout = QHBoxLayout()
         row_layout.setContentsMargins(4, 4, 4, 4)
@@ -146,17 +153,17 @@ class MoodPage(SheetPage):
         up_btn = QPushButton("↑")
         up_btn.setFixedWidth(30)
         up_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        up_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(184, 134, 11, 50);
-                border: 1px solid rgb(120, 100, 75);
+        up_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t.button_secondary_bg};
+                border: 1px solid {t.border};
                 border-radius: 3px;
                 padding: 2px;
-                color: rgb(70, 50, 35);
-            }
-            QPushButton:hover {
-                background-color: rgba(184, 134, 11, 100);
-            }
+                color: {t.button_secondary_text};
+            }}
+            QPushButton:hover {{
+                background-color: {t.button_secondary_hover};
+            }}
         """)
         up_btn.clicked.connect(lambda: self._move_mood_up(mood))
         row_layout.addWidget(up_btn)
@@ -165,17 +172,17 @@ class MoodPage(SheetPage):
         down_btn = QPushButton("↓")
         down_btn.setFixedWidth(30)
         down_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        down_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(184, 134, 11, 50);
-                border: 1px solid rgb(120, 100, 75);
+        down_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t.button_secondary_bg};
+                border: 1px solid {t.border};
                 border-radius: 3px;
                 padding: 2px;
-                color: rgb(70, 50, 35);
-            }
-            QPushButton:hover {
-                background-color: rgba(184, 134, 11, 100);
-            }
+                color: {t.button_secondary_text};
+            }}
+            QPushButton:hover {{
+                background-color: {t.button_secondary_hover};
+            }}
         """)
         down_btn.clicked.connect(lambda: self._move_mood_down(mood))
         row_layout.addWidget(down_btn)
@@ -184,18 +191,18 @@ class MoodPage(SheetPage):
         delete_btn = QPushButton("×")
         delete_btn.setFixedWidth(30)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        delete_btn.setStyleSheet("""
-            QPushButton {
+        delete_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: rgba(160, 50, 50, 100);
                 border: 1px solid rgb(120, 40, 40);
                 border-radius: 3px;
                 padding: 2px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 16px;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: rgba(180, 60, 60, 150);
-            }
+            }}
         """)
         delete_btn.clicked.connect(lambda: self._delete_mood(mood))
         row_layout.addWidget(delete_btn)
@@ -246,6 +253,7 @@ class MoodPage(SheetPage):
 
     def _create_log_row(self, log: MoodLog) -> QWidget:
         """Create a row for a mood log"""
+        t = _t()
         row = QWidget()
         row_layout = QHBoxLayout()
         row_layout.setContentsMargins(4, 2, 4, 2)
@@ -259,7 +267,7 @@ class MoodPage(SheetPage):
 
         # Description
         desc_label = QLabel(log.mood.description)
-        desc_label.setStyleSheet("color: rgb(70, 50, 35);")
+        desc_label.setStyleSheet(f"color: {t.ink_primary};")
         desc_label.setFixedWidth(200)
         row_layout.addWidget(desc_label)
 
@@ -275,18 +283,18 @@ class MoodPage(SheetPage):
         delete_btn = QPushButton("×")
         delete_btn.setFixedWidth(25)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        delete_btn.setStyleSheet("""
-            QPushButton {
+        delete_btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: rgba(160, 50, 50, 80);
                 border: 1px solid rgb(120, 40, 40);
                 border-radius: 3px;
                 padding: 0px;
-                color: rgb(70, 50, 35);
+                color: {t.ink_primary};
                 font-size: 14px;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: rgba(180, 60, 60, 120);
-            }
+            }}
         """)
         delete_btn.clicked.connect(lambda: self._delete_log(log))
         row_layout.addWidget(delete_btn)
@@ -300,7 +308,7 @@ class MoodPage(SheetPage):
         font.setPointSize(11)
         font.setBold(True)
         label.setFont(font)
-        label.setStyleSheet("color: rgb(70, 50, 35); padding: 4px 0px 2px 0px;")
+        label.setStyleSheet(f"color: {_t().ink_primary}; padding: 4px 0px 2px 0px;")
         return label
 
     def _end_current_mood(self, log):

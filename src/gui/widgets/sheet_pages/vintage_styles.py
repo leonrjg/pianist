@@ -1,8 +1,9 @@
 """
-Vintage Styles - Shared stylesheet definitions for vintage-themed widgets.
+vintage_styles.py — kept for import compatibility.
+All styling is now theme-driven via theme_styles.py and ThemeManager.
 """
-
-# Common vintage color palette
+# VINTAGE_COLORS is retained as a static fallback for any code that reads
+# colors directly from this dict (should be migrated to ThemeManager).
 VINTAGE_COLORS = {
     'paper': 'rgb(255, 252, 245)',
     'paper_alt': 'rgb(252, 248, 235)',
@@ -17,27 +18,3 @@ VINTAGE_COLORS = {
     'text_link_hover': 'rgb(160, 110, 70)',
 }
 
-# Vintage menu styling (used by dropdowns and calendar popups)
-VINTAGE_MENU_STYLE = """
-    QMenu {
-        background-color: rgb(255, 252, 245);
-        border: 2px solid rgb(184, 134, 11);
-        border-radius: 3px;
-        padding: 4px;
-    }
-    QMenu::item {
-        background-color: transparent;
-        color: rgb(70, 50, 35);
-        padding: 6px 20px;
-        font-size: 11px;
-    }
-    QMenu::item:selected {
-        background-color: rgba(184, 134, 11, 180);
-        color: rgb(255, 252, 245);
-        border-radius: 2px;
-    }
-    QMenu::item:hover {
-        background-color: rgba(184, 134, 11, 120);
-        border-radius: 2px;
-    }
-"""

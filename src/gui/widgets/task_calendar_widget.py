@@ -10,6 +10,11 @@ from PyQt6.QtGui import QPainter, QColor, QTextCharFormat
 from typing import Dict, List
 
 
+def _parse_rgb(s: str, alpha: int = 255) -> QColor:
+    nums = [int(x.strip()) for x in s[4:-1].split(',')]
+    return QColor(nums[0], nums[1], nums[2], alpha)
+
+
 class TaskCalendarWidget(QCalendarWidget):
     """Custom calendar widget with task indicators"""
 
@@ -18,12 +23,14 @@ class TaskCalendarWidget(QCalendarWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._tasks_by_date: Dict[QDate, List[dict]] = {}
+        self._ical_by_date: Dict[QDate, List] = {}
         self._max_tasks_per_day = 1
         self._setup_style()
 
         # Remove weekend highlighting
         weekend_format = QTextCharFormat()
-        weekend_format.setForeground(QColor(70, 50, 35))  # Same as regular days
+        from gui.themes.manager import ThemeManager
+        weekend_format.setForeground(_parse_rgb(ThemeManager.get_instance().current.ink_primary))
         self.setWeekdayTextFormat(Qt.DayOfWeek.Saturday, weekend_format)
         self.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, weekend_format)
 
@@ -32,171 +39,147 @@ class TaskCalendarWidget(QCalendarWidget):
         self.clicked.connect(self._on_date_clicked)
 
     def _setup_style(self):
-        """Apply vintage styling to the calendar"""
-        from .sheet_pages.vintage_styles import VINTAGE_MENU_STYLE
+        """Apply theme-aware styling to the calendar."""
+        from gui.themes.manager import ThemeManager
+        from .sheet_pages.theme_styles import get_menu_stylesheet
+        t = ThemeManager.get_instance().current
 
-        # Build the complete stylesheet
-        complete_style = """
-            QCalendarWidget {
-                background-color: rgb(255, 252, 245);
-                border: 2px solid rgb(184, 134, 11);
+        complete_style = f"""
+            QCalendarWidget {{
+                background-color: {t.paper};
+                border: 2px solid {t.accent};
                 border-radius: 4px;
-            }
-
-            /* Navigation bar */
-            QCalendarWidget QWidget#qt_calendar_navigationbar {
-                background-color: rgb(201, 147, 78);
+            }}
+            QCalendarWidget QWidget#qt_calendar_navigationbar {{
+                background-color: {t.accent};
                 border-radius: 3px;
-                border-bottom: 1px solid rgb(160, 115, 10);
-            }
-
-            /* Month/Year buttons */
-            QCalendarWidget QToolButton {
-                color: rgb(255, 252, 245);
+                border-bottom: 1px solid {t.accent_dark};
+            }}
+            QCalendarWidget QToolButton {{
+                color: {t.paper};
                 font-size: 11px;
                 font-weight: bold;
                 padding: 4px;
                 border: none;
                 border-radius: 3px;
-            }
-            QCalendarWidget QToolButton:hover {
-                background-color: rgba(200, 150, 30, 150);
-            }
-            QCalendarWidget QToolButton:pressed {
-                background-color: rgba(160, 115, 10, 150);
-            }
-
-            /* Vertical arrow buttons */
-            QCalendarWidget QToolButton::menu-indicator {
+            }}
+            QCalendarWidget QToolButton:hover {{
+                background-color: {t.accent_light};
+            }}
+            QCalendarWidget QToolButton:pressed {{
+                background-color: {t.accent_dark};
+            }}
+            QCalendarWidget QToolButton::menu-indicator {{
                 image: none;
-            }
-
-            /* Header (day names) */
-            QCalendarWidget QWidget {
-                alternate-background-color: rgb(245, 240, 225);
-            }
-            QCalendarWidget QAbstractItemView:enabled {
-                background-color: rgb(255, 252, 245);
-                color: rgb(70, 50, 35);
+            }}
+            QCalendarWidget QWidget {{
+                alternate-background-color: {t.paper_dark};
+            }}
+            QCalendarWidget QAbstractItemView:enabled {{
+                background-color: {t.paper};
+                color: {t.ink_primary};
                 font-size: 11px;
-                selection-background-color: rgba(184, 134, 11, 180);
-                selection-color: rgb(255, 252, 245);
-            }
-
-            /* Day cells */
-            QCalendarWidget QAbstractItemView {
-                gridline-color: rgb(230, 220, 200);
-            }
-
-            /* Header row with day names */
-            QCalendarWidget QHeaderView::section {
-                background-color: rgba(200, 185, 160, 120);
-                color: rgb(70, 50, 35);
+                selection-background-color: {t.accent};
+                selection-color: {t.paper};
+            }}
+            QCalendarWidget QAbstractItemView {{
+                gridline-color: {t.border};
+            }}
+            QCalendarWidget QHeaderView::section {{
+                background-color: {t.paper_dark};
+                color: {t.ink_primary};
                 font-size: 9px;
                 font-weight: bold;
                 padding: 4px;
                 border: none;
-                border-bottom: 1px solid rgb(200, 185, 160);
-            }
-
-            /* Today's date */
-            QCalendarWidget QAbstractItemView:enabled {
-                background-color: rgb(255, 252, 245);
-            }
+                border-bottom: 1px solid {t.border};
+            }}
         """
-
-        # Append the shared menu style for calendar dropdowns
-        complete_style += "\n" + VINTAGE_MENU_STYLE.replace("QMenu", "QCalendarWidget QMenu")
-
+        complete_style += "\n" + get_menu_stylesheet().replace("QMenu", "QCalendarWidget QMenu")
         self.setStyleSheet(complete_style)
 
     def set_tasks(self, tasks_by_date: Dict[QDate, List[dict]]):
-        """
-        Set tasks to display on the calendar.
-
-        Args:
-            tasks_by_date: Dictionary mapping QDate to list of task dicts
-        """
+        """Set tasks to display on the calendar."""
         self._tasks_by_date = tasks_by_date
-
-        # Calculate max tasks per day for dot intensity
         if tasks_by_date:
             self._max_tasks_per_day = max(len(tasks) for tasks in tasks_by_date.values())
         else:
             self._max_tasks_per_day = 1
+        self.updateCells()
 
-        # Update the display
+    def set_ical_events(self, ical_by_date: Dict[QDate, List]):
+        """Set ICAL events to display on the calendar (rendered as small diamonds)."""
+        self._ical_by_date = ical_by_date
         self.updateCells()
 
     def paintCell(self, painter, rect, date):
-        """Override to paint day number and task indicator dot, vertically stacked"""
+        """Override to paint day number, task dot, and ICAL diamond."""
+        from gui.themes.manager import ThemeManager
+        t = ThemeManager.get_instance().current
+
         painter.save()
-
-        # Determine if this is the selected date
         is_selected = (date == self.selectedDate())
-
-        # Determine if this is current month
         is_current_month = (date.month() == self.monthShown() and date.year() == self.yearShown())
 
-        # Background for selected date
         if is_selected:
-            painter.fillRect(rect, QColor(184, 134, 11, 180))
+            painter.fillRect(rect, _parse_rgb(t.accent, 180))
 
-        # Text color
         if is_selected:
-            text_color = QColor(255, 252, 245)
+            text_color = _parse_rgb(t.paper)
         elif is_current_month:
-            text_color = QColor(70, 50, 35)
+            text_color = _parse_rgb(t.ink_primary)
         else:
-            text_color = QColor(150, 140, 120)
+            text_color = _parse_rgb(t.ink_secondary)
 
-        # Check if this date has tasks
         qdate = QDate(date.year(), date.month(), date.day())
         has_tasks = qdate in self._tasks_by_date
+        has_ical = qdate in self._ical_by_date
 
-        # Calculate layout - number on top, dot below, both centered
         dot_size = 5
+        ical_size = 4
         spacing = 2
-        number_height = 14  # Approximate height for the number
+        number_height = 14
 
-        if has_tasks:
-            # Total height of number + spacing + dot
-            total_height = number_height + spacing + dot_size
-            top_y = rect.center().y() - total_height // 2
-        else:
-            top_y = rect.center().y() - number_height // 2
+        row_count = 1 + (1 if has_tasks else 0) + (1 if has_ical else 0)
+        total_height = number_height + (spacing + dot_size if has_tasks else 0) + (spacing + ical_size if has_ical else 0)
+        top_y = rect.center().y() - total_height // 2
 
-        # Draw the day number
+        # Day number
         painter.setPen(text_color)
         number_rect = rect.adjusted(0, 0, 0, 0)
         number_rect.setTop(top_y)
         number_rect.setHeight(number_height)
         painter.drawText(number_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, str(date.day()))
 
-        # Draw dot if has tasks
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+
+        current_y = top_y + number_height + spacing
+
+        # Task dot (circle)
         if has_tasks:
-            tasks = self._tasks_by_date[qdate]
-            task_count = len(tasks)
-
-            # Calculate dot opacity based on task count
-            if self._max_tasks_per_day > 0:
-                intensity = task_count / self._max_tasks_per_day
-            else:
-                intensity = 0
-
-            # Dot position - centered below the number
+            task_count = len(self._tasks_by_date[qdate])
+            intensity = task_count / max(self._max_tasks_per_day, 1)
+            alpha = int(20 + 235 * intensity * intensity)
+            painter.setBrush(_parse_rgb(t.accent, min(alpha, 255)))
             dot_x = rect.center().x()
-            dot_y = top_y + number_height + spacing + dot_size // 2
-
-            # Color: brass with varying opacity (stark difference)
-            base_color = QColor(184, 134, 11)
-            alpha = int(20 + (235 * intensity * intensity))  # Quadratic for starker contrast
-            dot_color = QColor(base_color.red(), base_color.green(), base_color.blue(), min(alpha, 255))
-
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(dot_color)
+            dot_y = current_y + dot_size // 2
             painter.drawEllipse(int(dot_x - dot_size // 2), int(dot_y - dot_size // 2), dot_size, dot_size)
+            current_y += dot_size + spacing
+
+        # ICAL diamond (small rotated square)
+        if has_ical:
+            events = self._ical_by_date[qdate]
+            # Use color of first event's source
+            event_color = events[0].color if events else t.link
+            from PyQt6.QtGui import QPolygon
+            from PyQt6.QtCore import QPoint as QP
+            cx = rect.center().x()
+            cy = int(current_y + ical_size // 2)
+            half = ical_size // 2 + 1
+            diamond = QPolygon([QP(cx, cy - half), QP(cx + half, cy), QP(cx, cy + half), QP(cx - half, cy)])
+            painter.setBrush(_parse_rgb(event_color, 200))
+            painter.drawPolygon(diamond)
 
         painter.restore()
 

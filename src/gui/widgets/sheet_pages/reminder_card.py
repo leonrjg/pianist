@@ -11,6 +11,11 @@ from .vintage_form_widgets import VintageButton
 from ..flow_layout import FlowLayout
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class ReminderCard(QFrame):
     """Vintage-styled card for displaying a reminder"""
 
@@ -30,26 +35,27 @@ class ReminderCard(QFrame):
 
     def _setup_ui(self):
         """Setup the card UI"""
-        opacity = 180 if self.reminder.is_enabled else 100
+        t = _t()
+        bg = t.card_bg_completed if not self.reminder.is_enabled else t.card_bg
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setMinimumWidth(0)
 
         self.setStyleSheet(f"""
             ReminderCard {{
-                background-color: rgba(255, 252, 245, {opacity});
-                border-left: 4px solid rgb(184, 134, 11);
-                border-top: 1px solid rgb(200, 185, 160);
-                border-right: 1px solid rgb(200, 185, 160);
-                border-bottom: 1px solid rgb(200, 185, 160);
+                background-color: {bg};
+                border-left: 4px solid {t.accent};
+                border-top: 1px solid {t.card_border};
+                border-right: 1px solid {t.card_border};
+                border-bottom: 1px solid {t.card_border};
                 border-radius: 3px;
                 padding: 12px;
                 margin: 4px 0px;
             }}
             ReminderCard:hover {{
-                background-color: rgba(255, 255, 250, 200);
-                border-top: 1px solid rgb(184, 134, 11);
-                border-right: 1px solid rgb(184, 134, 11);
-                border-bottom: 1px solid rgb(184, 134, 11);
+                background-color: {t.card_bg};
+                border-top: 1px solid {t.card_hover_border};
+                border-right: 1px solid {t.card_hover_border};
+                border-bottom: 1px solid {t.card_hover_border};
             }}
         """)
 
@@ -66,9 +72,9 @@ class ReminderCard(QFrame):
 
         type_badge = self.reminder.reminder_type.upper()
         type_label = QLabel(type_badge)
-        type_label.setStyleSheet("""
-            background-color: rgba(184, 134, 11, 100);
-            color: rgb(255, 252, 245);
+        type_label.setStyleSheet(f"""
+            background-color: {t.button_primary_bg};
+            color: {t.button_primary_text};
             padding: 2px 8px;
             border-radius: 2px;
             font-size: 10px;
@@ -84,7 +90,7 @@ class ReminderCard(QFrame):
         details_label = QLabel(details)
         details_label.setWordWrap(True)
         details_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        details_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 11px;")
+        details_label.setStyleSheet(f"color: {t.ink_secondary}; font-size: 11px;")
         layout.addWidget(details_label)
 
         # Action buttons

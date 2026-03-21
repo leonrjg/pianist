@@ -21,6 +21,11 @@ from core.util.time import get_friendly_elapsed, get_friendly_datetime
 from core import analytics
 
 
+def _t():
+    from gui.themes.manager import ThemeManager
+    return ThemeManager.get_instance().current
+
+
 class StatsPage(SheetPage):
     """Statistics page showing habit analytics"""
 
@@ -59,7 +64,7 @@ class StatsPage(SheetPage):
             time_range_layout.setSpacing(6)
 
             range_label = QLabel("Show:")
-            range_label.setStyleSheet("color: rgb(110, 90, 70); font-size: 10px; background: transparent;")
+            range_label.setStyleSheet(f"color: {_t().ink_secondary}; font-size: 10px; background: transparent;")
             time_range_layout.addWidget(range_label)
 
             self._time_range_dropdown = VintageDropdown(["1 month", "6 months", "1 year"], "1 month")
