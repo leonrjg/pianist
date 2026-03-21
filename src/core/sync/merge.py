@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -36,11 +37,22 @@ def get_model_registry() -> dict:
     }
 
 
+_PEEWEE_DT_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
+
+
 def serialize_row(instance, table_name: str) -> dict:
-    """Serialize a model instance to a JSON-safe dict using Peewee's own DB encoding."""
+    """Serialize a model instance to a JSON-safe dict.
+
+    Datetimes are written in Peewee's primary format so that python_value()
+    on the receiving end can parse them without any special-casing.
+    """
     row = {}
-    for name, field in instance._meta.fields.items():
-        val = field.db_value(instance.__data__.get(name))
+    for name in instance._meta.fields:
+        val = instance.__data__.get(name)
+        if isinstance(val, datetime):
+            val = val.strftime(_PEEWEE_DT_FORMAT)
+        elif isinstance(val, uuid.UUID):
+            val = str(val)
         row[name] = val
     return {'table': table_name, 'data': row}
 
