@@ -237,6 +237,6 @@ class CalendarGraph(QFrame):
         # More label
         more_label = QLabel("More")
         more_label.setStyleSheet(label_style)
-        legend_layout.addWidget(more_label, 0, len(colors) + 1)
+        legend_layout.addWidget(more_label, 0, len(legend_colors) + 1)
 
         layout.addWidget(legend_widget, alignment=Qt.AlignmentFlag.AlignCenter)
