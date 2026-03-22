@@ -87,6 +87,8 @@ VINTAGE_THEME = Theme(
     sheet_border='rgb(200, 185, 160)',
     sheet_binding='rgba(120, 100, 75, 60)',
     dog_ear_color='rgb(220, 210, 185)',
+    sheet_bg_image='',
+    sheet_bg_image_opacity=1.0,
     background_svg='',
     background_svg_opacity=0.0,
     # Cards
@@ -108,4 +110,11 @@ VINTAGE_THEME = Theme(
     # Piano key colors
     black_key_text_color='rgb(180, 180, 180)',
     key_label_color='rgb(74, 74, 74)',
+    # Fallboard / control panel
+    fallboard_gradient=(),
+    frame_gradient=(),
+    frame_svg='',
+    frame_svg_opacity=0.0,
+    keys_overlay='',
+    keys_overlay_opacity=0.0,
 )

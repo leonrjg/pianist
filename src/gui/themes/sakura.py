@@ -2,119 +2,142 @@ from .theme import Theme
 
 _MENU = """
     QMenu {
-        background-color: rgb(255, 245, 250);
-        border: 2px solid rgb(210, 90, 130);
+        background-color: rgb(248, 248, 250);
+        border: 2px solid rgb(55, 75, 115);
         border-radius: 4px;
         padding: 4px;
     }
     QMenu::item {
         background-color: transparent;
-        color: rgb(35, 25, 45);
+        color: rgb(20, 25, 40);
         padding: 6px 20px;
         font-size: 11px;
     }
     QMenu::item:selected {
-        background-color: rgba(210, 90, 130, 200);
-        color: rgb(255, 245, 250);
+        background-color: rgba(55, 75, 115, 200);
+        color: rgb(245, 245, 245);
         border-radius: 3px;
     }
     QMenu::item:hover {
-        background-color: rgba(210, 90, 130, 80);
+        background-color: rgba(55, 75, 115, 80);
         border-radius: 3px;
     }
 """
 
 _SCROLLBAR = """
     QScrollBar:vertical {
-        background: rgb(25, 18, 42);
+        background: rgb(18, 25, 48);
         width: 8px;
         margin: 30px 2px 20px 2px;
         border: none;
         border-radius: 2px;
     }
     QScrollBar::handle:vertical {
-        background: rgb(210, 90, 130);
+        background: rgb(55, 75, 115);
         min-height: 20px;
         border-radius: 2px;
-        border: 1px solid rgb(180, 70, 110);
+        border: 1px solid rgb(35, 55, 90);
     }
     QScrollBar::handle:vertical:hover {
-        background: rgb(240, 130, 165);
-        border: 1px solid rgb(240, 130, 165);
+        background: rgb(90, 130, 175);
+        border: 1px solid rgb(90, 130, 175);
     }
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
         background: transparent;
     }
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-        background: rgb(40, 30, 60);
+        background: rgb(28, 38, 65);
     }
 """
 
 SAKURA_THEME = Theme(
     name='sakura',
-    # Page / sheet background — soft cherry-blossom parchment
-    paper='rgb(255, 247, 251)',
-    paper_alt='rgb(252, 241, 247)',
-    paper_dark='rgb(245, 232, 241)',
-    # Text — deep ink, like sumi-e brush
-    ink_primary='rgb(30, 20, 40)',
-    ink_secondary='rgb(90, 70, 100)',
-    link='rgb(190, 60, 110)',
-    link_hover='rgb(225, 95, 145)',
-    # Borders — petal-pink
-    border='rgb(225, 185, 205)',
-    separator='rgb(230, 195, 215)',
-    # Accent — deep sakura crimson
-    accent='rgb(210, 90, 130)',
-    accent_dark='rgb(175, 60, 100)',
-    accent_light='rgb(245, 135, 170)',
-    # Piano frame — deep indigo, unmistakably different from vintage brown
-    wood_dark='rgb(232, 200, 218)',
-    wood_medium='rgb(244, 228, 238)',
-    wood_light='rgb(254, 249, 253)',
-    # Piano keys — distinctly pink whites, deep indigo blacks
-    white_key='rgb(253, 252, 248)',
+    # Page / sheet background — whitesmoke
+    paper='rgb(245, 245, 245)',
+    paper_alt='rgb(240, 240, 242)',
+    paper_dark='rgb(228, 228, 232)',
+    # Text — deep blue-black ink
+    ink_primary='rgb(20, 25, 40)',
+    ink_secondary='rgb(50, 65, 95)',
+    link='rgb(55, 75, 115)',
+    link_hover='rgb(90, 155, 185)',
+    # Borders — blue-grey
+    border='rgb(185, 200, 220)',
+    separator='rgb(195, 208, 225)',
+    # Accent — slate blue
+    accent='rgb(55, 75, 115)',
+    accent_dark='rgb(35, 55, 90)',
+    accent_light='rgb(90, 155, 185)',
+    # Piano frame
+    wood_dark='rgb(200, 210, 228)',
+    wood_medium='rgb(225, 232, 242)',
+    wood_light='rgb(242, 245, 250)',
+    # Piano keys
+    white_key='rgb(250, 250, 250)',
     black_key='rgb(20, 20, 18)',
     # Status
     status_active='rgb(60, 170, 100)',
-    status_inactive='rgb(140, 110, 150)',
+    status_inactive='rgb(90, 110, 148)',
     # Typography — Japanese-flavored serif
     header_font='Hiragino Mincho ProN, Georgia, serif',
     # Urgency: (overdue, soon, today, future)
     urgency_colors=(
         'rgb(200, 50, 80)',
-        'rgb(210, 90, 130)',
-        'rgb(140, 90, 150)',
-        'rgb(210, 175, 195)',
+        'rgb(55, 75, 115)',
+        'rgb(70, 100, 140)',
+        'rgb(160, 182, 210)',
     ),
     menu_stylesheet=_MENU,
     scrollbar_stylesheet=_SCROLLBAR,
-    # Sheet painting — soft petal paper with cherry blossom SVG overlay
-    sheet_frame='rgb(90, 40, 60)',
-    sheet_bg='rgb(255, 235, 245)',
-    sheet_shadow='rgba(200, 120, 160, 80)',
-    sheet_border='rgb(225, 185, 205)',
-    sheet_binding='rgba(190, 100, 140, 45)',
-    dog_ear_color='rgb(248, 220, 235)',
-    background_svg='gui/cherry_blossoms.svg',
-    background_svg_opacity=0.055,
+    # Sheet painting
+    sheet_frame='rgb(25, 40, 78)',
+    sheet_bg='rgb(255, 255, 255)',
+    sheet_shadow='rgba(55, 75, 115, 80)',
+    sheet_border='rgb(185, 200, 220)',
+    sheet_binding='rgba(55, 75, 115, 45)',
+    dog_ear_color='rgb(232, 236, 245)',
+    sheet_bg_image='gui/themes/sakura/1697702970869684.jpg',
+    sheet_bg_image_opacity=0.35,
+    background_svg='',
+    background_svg_opacity=0.0,
     # Cards
-    card_bg='rgba(255, 247, 251, 180)',
-    card_bg_completed='rgba(255, 247, 251, 100)',
-    card_border='rgb(225, 185, 205)',
-    card_hover_border='rgb(210, 90, 130)',
-    # Inputs — pink-tinted paper fields
-    input_bg='rgba(255, 247, 251, 210)',
-    input_focus_border='rgb(210, 90, 130)',
-    input_selection='rgba(210, 90, 130, 110)',
-    # Buttons — sakura primary, pale secondary
-    button_primary_bg='rgba(210, 90, 130, 185)',
-    button_primary_hover='rgba(235, 115, 155, 210)',
-    button_primary_text='rgb(255, 247, 251)',
-    button_secondary_bg='rgba(255, 247, 251, 210)',
-    button_secondary_hover='rgba(255, 240, 248, 230)',
-    button_secondary_text='rgb(30, 20, 40)',
+    card_bg='rgba(245, 245, 245, 180)',
+    card_bg_completed='rgba(245, 245, 245, 100)',
+    card_border='rgb(185, 200, 220)',
+    card_hover_border='rgb(55, 75, 115)',
+    # Inputs
+    input_bg='rgba(245, 245, 245, 210)',
+    input_focus_border='rgb(55, 75, 115)',
+    input_selection='rgba(55, 75, 115, 110)',
+    # Buttons
+    button_primary_bg='rgba(55, 75, 115, 185)',
+    button_primary_hover='rgba(75, 100, 148, 210)',
+    button_primary_text='rgb(245, 245, 245)',
+    button_secondary_bg='rgba(245, 245, 245, 210)',
+    button_secondary_hover='rgba(235, 238, 245, 230)',
+    button_secondary_text='rgb(20, 25, 40)',
     # Piano key colors
-    black_key_text_color='rgb(240, 175, 210)',
-    key_label_color='rgb(30, 20, 40)',
+    black_key_text_color='rgb(155, 185, 215)',
+    key_label_color='rgb(20, 25, 40)',
+    # Fallboard / control panel — Mt. Fuji gradient + cherry blossom overlay
+    fallboard_gradient=(
+        (0.0,  'rgb(255, 255, 255)'),  # snow-white peak
+        (0.22, 'rgb(255, 255, 255)'),  # snow ends
+        (0.62, 'rgb(55, 75, 115)'),    # slate-blue mountain body
+        (0.74, 'rgb(55, 110, 105)'),    # light teal treeline
+        (1.0,  'rgb(90, 155, 185)'),   # lake blue at bottom
+    ),
+    # Frame (toggleable drawer) — same scene, slightly darker/deeper so the
+    # fallboard reads as a lighter foreground strip against it
+    frame_gradient=(
+        (0.0,  'rgb(230, 235, 245)'),  # off-white, less bright than snow
+        (0.22, 'rgb(210, 215, 230)'),  # cool grey transition
+        (0.62, 'rgb(38, 55, 90)'),     # deeper navy mountain
+        (0.74, 'rgb(38, 85, 82)'),     # darker teal
+        (1.0,  'rgb(65, 125, 160)'),   # deeper lake blue
+    ),
+    frame_svg='gui/themes/sakura/1553444947.png',
+    frame_svg_opacity=0.22,
+    keys_overlay='gui/themes/sakura/1553444947.png',
+    keys_overlay_opacity=0.18,
 )

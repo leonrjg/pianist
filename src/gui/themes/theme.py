@@ -61,10 +61,30 @@ class Theme:
     sheet_binding: str
     # Folded dog-ear corner color
     dog_ear_color: str
+    # Optional image path (relative to src/) used as the paper fill; '' = solid sheet_bg color
+    sheet_bg_image: str
+    # Opacity for the sheet background image (0.0 – 1.0)
+    sheet_bg_image_opacity: float
     # Optional SVG path (relative to src/) drawn over the paper at low opacity; '' = none
     background_svg: str
     # Opacity for the background SVG (0.0 – 1.0)
     background_svg_opacity: float
+
+    # --- Fallboard / control panel painting ---
+    # Gradient stops as ((pos, color_str), ...) e.g. ((0.0, 'rgb(...)'), (0.6, 'rgb(...)'), (1.0, 'rgb(...)'))
+    # Empty tuple = use legacy wood_medium → wood_dark two-stop gradient
+    fallboard_gradient: tuple
+    # Same format; used for the toggleable drawer (left frame panel)
+    # Empty tuple = use fallboard_gradient if set, otherwise legacy draw_frame_texture
+    frame_gradient: tuple
+    # Optional SVG overlay on fallboard and control panel; '' = none
+    frame_svg: str
+    # Opacity for the frame SVG (0.0 – 1.0)
+    frame_svg_opacity: float
+    # Optional image overlay drawn over all keys as a region; '' = none
+    keys_overlay: str
+    # Opacity for the keys overlay (0.0 – 1.0)
+    keys_overlay_opacity: float
 
     # --- Cards (HabitCard) ---
     card_bg: str

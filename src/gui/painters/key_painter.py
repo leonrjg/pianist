@@ -60,6 +60,20 @@ class KeyPainter(BasePainter):
         if state.is_dragging_key() and state.dragged_key_index is not None:
             KeyPainter.draw_dragged_key(painter, geometry, state, keys_data, reorder_manager)
 
+        # Keys region overlay (theme-defined image over all keys)
+        try:
+            from gui.themes.manager import ThemeManager
+            t = ThemeManager.get_instance().current
+            if t.keys_overlay:
+                BasePainter.draw_image_overlay(
+                    painter,
+                    geometry.keys_start_x, 0,
+                    geometry.keys_width, geometry.window_height,
+                    t.keys_overlay, t.keys_overlay_opacity,
+                )
+        except Exception:
+            pass
+
     @staticmethod
     def draw_white_key(painter: QPainter, geometry: PianoGeometry, state: PianoState,
                        index: int, key_data: dict, reorder_manager: Optional['ReorderModeManager'] = None):

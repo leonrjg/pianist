@@ -219,6 +219,9 @@ class MusicSheetWidget(QWidget):
         painter.setBrush(QBrush(paper_center))
         painter.drawRect(sheet_rect)
 
+        if t.sheet_bg_image:
+            self._draw_sheet_bg_image(painter, sheet_rect, t.sheet_bg_image, t.sheet_bg_image_opacity)
+
         # Use sheet_rect for remaining drawing
         paper_rect = sheet_rect
 
@@ -502,11 +505,33 @@ class MusicSheetWidget(QWidget):
             self._current_matches = []
             self._current_match_index = -1
 
-    def _draw_background_svg(self, painter, rect, svg_path: str, opacity: float):
-        """Draw an SVG file over the paper area at the given opacity."""
+    def _draw_sheet_bg_image(self, painter, rect, image_path: str, opacity: float):
+        """Draw an image scaled to fill the paper rect, clipped to it."""
         try:
-            from PyQt6.QtSvg import QSvgRenderer
             import os
+            from PyQt6.QtGui import QPixmap
+            if not hasattr(self, '_sheet_bg_pixmap_cache'):
+                self._sheet_bg_pixmap_cache = {}
+            if image_path not in self._sheet_bg_pixmap_cache:
+                src_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                full_path = os.path.join(src_dir, image_path)
+                if not os.path.isfile(full_path):
+                    return
+                self._sheet_bg_pixmap_cache[image_path] = QPixmap(full_path)
+            pixmap = self._sheet_bg_pixmap_cache[image_path]
+            painter.save()
+            painter.setClipRect(rect)
+            painter.setOpacity(opacity)
+            painter.drawPixmap(rect, pixmap)
+            painter.restore()
+        except Exception:
+            pass
+
+    def _draw_background_svg(self, painter, rect, svg_path: str, opacity: float):
+        """Draw an image (SVG or raster) over the paper area at the given opacity."""
+        try:
+            import os
+            from PyQt6.QtCore import QRectF
             if not hasattr(self, '_svg_renderer_cache'):
                 self._svg_renderer_cache = {}
             if svg_path not in self._svg_renderer_cache:
@@ -514,12 +539,19 @@ class MusicSheetWidget(QWidget):
                 full_path = os.path.join(src_dir, svg_path)
                 if not os.path.isfile(full_path):
                     return
-                self._svg_renderer_cache[svg_path] = QSvgRenderer(full_path)
-            renderer = self._svg_renderer_cache[svg_path]
+                if full_path.lower().endswith('.svg'):
+                    from PyQt6.QtSvg import QSvgRenderer
+                    self._svg_renderer_cache[svg_path] = ('svg', QSvgRenderer(full_path))
+                else:
+                    from PyQt6.QtGui import QPixmap
+                    self._svg_renderer_cache[svg_path] = ('raster', QPixmap(full_path))
+            kind, resource = self._svg_renderer_cache[svg_path]
             painter.save()
             painter.setOpacity(opacity)
-            from PyQt6.QtCore import QRectF
-            renderer.render(painter, QRectF(rect))
+            if kind == 'svg':
+                resource.render(painter, QRectF(rect))
+            else:
+                painter.drawPixmap(rect, resource)
             painter.restore()
         except Exception:
             pass
