@@ -10,6 +10,7 @@ from .sheet_pages.theme_styles import get_menu_stylesheet as _get_menu_styleshee
 
 
 from gui.themes import current_theme as _t
+from gui.constants import font_pt
 
 
 class ThemedLineEdit(QLineEdit):
@@ -283,7 +284,7 @@ class ThemedFormSection(QFrame):
             title_label = QLabel(title)
             title_font = QFont()
             title_font.setBold(True)
-            title_font.setPointSize(10)
+            title_font.setPointSize(font_pt(10))
             title_label.setFont(title_font)
             title_label.setStyleSheet(f"color: {_t().ink_primary}; background: transparent;")
             self.main_layout.addWidget(title_label)

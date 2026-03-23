@@ -14,7 +14,7 @@ class Marquee(QWidget):
 
     @staticmethod
     def _text_color():
-        from gui.constants import piano_colors
+        from gui.constants import piano_colors, font_pt
         return piano_colors().FRAME_HIGHLIGHT
 
     TEXT_COLOR = QColor(180, 160, 140)  # fallback only
@@ -52,7 +52,7 @@ class Marquee(QWidget):
         self._toggle_btn = QPushButton("Tips ▶")
         self._toggle_btn.setFixedHeight(18)
         self._toggle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        from gui.constants import piano_colors
+        from gui.constants import piano_colors, font_pt
         c = piano_colors()
         self._toggle_btn.setStyleSheet(f"""
             QPushButton {{
@@ -74,7 +74,8 @@ class Marquee(QWidget):
 
     def _calculate_text_width(self):
         font = QFont()
-        font.setPointSize(9)
+        from gui.constants import font_pt
+        font.setPointSize(font_pt(9))
         metrics = QFontMetrics(font)
         self._text_width = metrics.horizontalAdvance(self._get_full_text())
 
@@ -94,7 +95,8 @@ class Marquee(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         font = QFont()
-        font.setPointSize(9)
+        from gui.constants import font_pt
+        font.setPointSize(font_pt(9))
         painter.setFont(font)
         painter.setPen(self._text_color())
 

@@ -7,6 +7,7 @@ from PyQt6.QtGui import QFont
 from datetime import datetime, timedelta
 
 from core.util.time import get_friendly_datetime
+from gui.constants import font_pt
 from .base_page import SheetPage
 from .habit_card import HabitCard
 
@@ -160,7 +161,7 @@ class IndexPage(SheetPage):
         from gui.themes.manager import ThemeManager
         t = ThemeManager.get_instance().current
         label = QLabel(f"♪ {text}")
-        font = QFont(label.font().family(), 12)
+        font = QFont(label.font().family(), font_pt(12))
         font.setBold(True)
         label.setFont(font)
         label.setStyleSheet(f"""

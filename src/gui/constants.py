@@ -7,6 +7,21 @@ from PyQt6.QtGui import QColor
 from gui.themes.color import parse_color as _parse_rgb
 
 
+def font_pt(pt: int) -> int:
+    """Convert a Mac-native point size to the equivalent size on the current platform.
+
+    Qt maps point sizes to pixels using the screen's logical DPI (72 on macOS, 96 on
+    Windows), so the same point value renders 33% larger on Windows. This normalises
+    against macOS's 72 DPI baseline so all platforms produce the same physical size.
+    """
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if app is None:
+        return pt
+    dpi = app.primaryScreen().logicalDotsPerInch()
+    return max(6, round(pt * 72 / dpi))
+
+
 _piano_colors_cache: tuple = (None, None)  # (theme, colors_class)
 
 

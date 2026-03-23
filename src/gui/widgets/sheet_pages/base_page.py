@@ -9,6 +9,7 @@ from PyQt6.QtGui import QColor
 
 
 from gui.themes import current_theme as _t
+from gui.constants import font_pt
 
 
 # Resolve metaclass conflict between QWidget and ABC
@@ -200,7 +201,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         from PyQt6.QtGui import QFont
         t = _t()
         label = QLabel(f'♫ {text}')
-        font = QFont(t.header_font, 18)
+        font = QFont(t.header_font, font_pt(18))
         font.setBold(True)
         label.setFont(font)
         label.setStyleSheet(f"color: {t.ink_primary};")
