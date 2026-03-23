@@ -10,9 +10,6 @@ from core.util.time import get_friendly_datetime
 from .base_page import SheetPage
 from .habit_card import HabitCard
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.task import get_upcoming_tasks, get_past_tasks, Task
 from core.task.service import TaskService
 

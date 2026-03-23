@@ -1,8 +1,8 @@
 """
 Theme Styles - Dynamic stylesheet helpers for themed widgets.
 
-Replaces vintage_styles.py. All functions read from the active ThemeManager
-instead of returning hardcoded vintage strings.
+Replaces wood_styles.py. All functions read from the active ThemeManager
+instead of returning hardcoded wood strings.
 """
 
 

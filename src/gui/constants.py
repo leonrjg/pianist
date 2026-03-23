@@ -4,12 +4,7 @@ All magic numbers, colors, and configuration values are centralized here.
 """
 
 from PyQt6.QtGui import QColor
-
-
-def _parse_rgb(s: str) -> QColor:
-    """Convert 'rgb(r, g, b)' theme string to QColor."""
-    nums = [int(x.strip()) for x in s[4:-1].split(',')]
-    return QColor(nums[0], nums[1], nums[2])
+from gui.themes.color import parse_color as _parse_rgb
 
 
 _piano_colors_cache: tuple = (None, None)  # (theme, colors_class)
@@ -31,14 +26,14 @@ def piano_colors():
             BLACK_KEY = _parse_rgb(t.black_key)
             BLACK_KEY_SHINE = _parse_rgb(t.black_key).lighter(160)
             BLACK_KEY_TEXT = _parse_rgb(t.black_key_text_color)
-            FRAME_DARK = _parse_rgb(t.wood_dark)
-            FRAME_MEDIUM = _parse_rgb(t.wood_medium)
-            FRAME_LIGHT = _parse_rgb(t.wood_light)
-            FRAME_HIGHLIGHT = _parse_rgb(t.wood_light).lighter(110)
+            FRAME_DARK = _parse_rgb(t.frame_dark)
+            FRAME_MEDIUM = _parse_rgb(t.frame_medium)
+            FRAME_LIGHT = _parse_rgb(t.frame_light)
+            FRAME_HIGHLIGHT = _parse_rgb(t.frame_light).lighter(110)
             ACCENT = _parse_rgb(t.accent)
             ACCENT_LIGHT = _parse_rgb(t.accent_light)
             TEXT_PRIMARY = _parse_rgb(t.key_label_color)
-            BACKGROUND = _parse_rgb(t.wood_dark).darker(130)
+            BACKGROUND = _parse_rgb(t.frame_dark).darker(130)
 
         _piano_colors_cache = (t, _Colors)
         return _Colors
@@ -105,14 +100,14 @@ class PianoLayout:
 
 
 class PianoColors:
-    """Fallback color scheme (vintage defaults) for piano interface"""
+    """Fallback color scheme (wood defaults) for piano interface"""
 
     # Piano keys
     WHITE_KEY = QColor(253, 252, 248)
     WHITE_KEY_PRESSED = QColor(245, 243, 237)
     WHITE_KEY_SHADOW = QColor(232, 230, 224)
-    BLACK_KEY = QColor(20, 20, 18)
-    BLACK_KEY_SHINE = QColor(55, 55, 50)
+    BLACK_KEY = QColor(48, 48, 44)
+    BLACK_KEY_SHINE = QColor(80, 80, 74)
     BLACK_KEY_TEXT = QColor(180, 180, 180)
 
     # Frame

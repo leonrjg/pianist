@@ -3,13 +3,11 @@
 from PyQt6.QtWidgets import QProgressBar
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class ProductivityProgressBar(QProgressBar):
-    """Progress bar with embedded text showing percentage and vintage styling."""
+    """Progress bar with embedded text showing percentage and wood styling."""
 
     def __init__(self, rate: float, label_text: str = None, parent=None):
         """

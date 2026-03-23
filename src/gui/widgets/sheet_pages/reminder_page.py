@@ -8,17 +8,12 @@ from PyQt6.QtCore import Qt
 
 from .base_page import SheetPage
 from .reminder_card import ReminderCard
-from .vintage_form_widgets import VintageButton
+from ..themed_form_widgets import ThemedButton
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.reminder.service import ReminderService as _ReminderService
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class ReminderPage(SheetPage):
@@ -35,16 +30,11 @@ class ReminderPage(SheetPage):
         layout = self.layout()
 
         # Header
-        header = self._create_section_header("🔔 Reminders")
+        header = self._create_section_header("Reminders")
         layout.addWidget(header)
 
-        # Description
-        desc = QLabel("Manage your spaced repetition and stochastic reminders")
-        desc.setStyleSheet(f"color: {_t().ink_secondary}; font-size: 12px; margin-bottom: 16px;")
-        layout.addWidget(desc)
-
         # New reminder button
-        new_btn = VintageButton("+ New Reminder", parent=self)
+        new_btn = ThemedButton("+ New Reminder", parent=self)
         new_btn.clicked.connect(lambda: self.navigate_to.emit('reminder_detail', None))
         layout.addWidget(new_btn)
 
@@ -88,7 +78,7 @@ class ReminderPage(SheetPage):
             status.setStyleSheet(f"color: {_t().ink_secondary}; font-style: italic; font-size: 11px;")
             layout.addWidget(status)
 
-            unmute_btn = VintageButton("Unmute", button_type="secondary", parent=self)
+            unmute_btn = ThemedButton("Unmute", button_type="secondary", parent=self)
             unmute_btn.clicked.connect(self._unmute)
             layout.addWidget(unmute_btn)
         else:
@@ -98,7 +88,7 @@ class ReminderPage(SheetPage):
             row_layout.setSpacing(6)
 
             for label, hours in [("1 h", 1), ("4 h", 4), ("24 h", 24), ("Indefinitely", None)]:
-                btn = VintageButton(label, button_type="secondary", parent=self)
+                btn = ThemedButton(label, button_type="secondary", parent=self)
                 btn.clicked.connect(lambda _, h=hours: self._mute(h))
                 row_layout.addWidget(btn)
 

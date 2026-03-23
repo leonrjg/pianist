@@ -6,15 +6,13 @@ from PyQt6.QtWidgets import QLineEdit, QSpinBox, QCheckBox, QFrame, QVBoxLayout,
 from PyQt6.QtGui import QFont, QCursor, QIcon
 from PyQt6.QtCore import Qt, QDate, QTimer
 from pathlib import Path
-from .theme_styles import get_menu_stylesheet as _get_menu_stylesheet
+from .sheet_pages.theme_styles import get_menu_stylesheet as _get_menu_stylesheet
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
-class VintageLineEdit(QLineEdit):
+class ThemedLineEdit(QLineEdit):
     """Line edit styled with the active theme."""
 
     def __init__(self, placeholder="", parent=None):
@@ -45,7 +43,7 @@ class VintageLineEdit(QLineEdit):
         """)
 
 
-class VintageSpinBox(QSpinBox):
+class ThemedSpinBox(QSpinBox):
     """Spin box styled with the active theme."""
 
     def __init__(self, suffix="", parent=None):
@@ -75,7 +73,7 @@ class VintageSpinBox(QSpinBox):
         pass
 
 
-class VintageCheckBox(QCheckBox):
+class ThemedCheckBox(QCheckBox):
     """Checkbox styled with the active theme."""
 
     def __init__(self, text="", parent=None):
@@ -108,7 +106,7 @@ class VintageCheckBox(QCheckBox):
         """)
 
 
-class VintageDateEdit(QDateEdit):
+class ThemedDateEdit(QDateEdit):
     """Date edit styled with the active theme."""
 
     def __init__(self, parent=None):
@@ -201,7 +199,7 @@ class VintageDateEdit(QDateEdit):
         pass
 
 
-class VintageButton(QPushButton):
+class ThemedButton(QPushButton):
     """Button styled with the active theme."""
 
     def __init__(self, text="", button_type="primary", parent=None):
@@ -218,7 +216,7 @@ class VintageButton(QPushButton):
                     background-color: {t.button_primary_bg};
                     border: 1px solid {t.accent_dark};
                     border-radius: 4px;
-                    padding: 6px 16px;
+                    padding: 6px 13px;
                     color: {t.button_primary_text};
                     font-size: 11px;
                     font-weight: bold;
@@ -232,22 +230,21 @@ class VintageButton(QPushButton):
                 }}
             """)
         elif self.button_type == "danger":
-            t = _t()
             self.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: rgba(180, 50, 50, 150);
-                    border: 1px solid rgb(150, 40, 40);
+                    background-color: {t.danger_bg};
+                    border: 1px solid {t.accent_dark};
                     border-radius: 4px;
-                    padding: 6px 16px;
+                    padding: 6px 13px;
                     color: {t.button_primary_text};
                     font-size: 11px;
                 }}
                 QPushButton:hover {{
-                    background-color: rgba(200, 60, 60, 180);
-                    border: 1px solid rgb(180, 50, 50);
+                    background-color: {t.danger_hover};
+                    border: 1px solid {t.accent_dark};
                 }}
                 QPushButton:pressed {{
-                    background-color: rgba(150, 40, 40, 180);
+                    background-color: {t.danger_bg};
                 }}
             """)
         else:  # secondary
@@ -256,7 +253,7 @@ class VintageButton(QPushButton):
                     background-color: {t.button_secondary_bg};
                     border: 1px solid {t.border};
                     border-radius: 4px;
-                    padding: 6px 16px;
+                    padding: 6px 13px;
                     color: {t.button_secondary_text};
                     font-size: 11px;
                 }}
@@ -270,7 +267,7 @@ class VintageButton(QPushButton):
             """)
 
 
-class FormSection(QFrame):
+class ThemedFormSection(QFrame):
     """Card-style section container for grouping form fields."""
 
     def __init__(self, title=None, parent=None):
@@ -294,7 +291,7 @@ class FormSection(QFrame):
     def _setup_style(self):
         t = _t()
         self.setStyleSheet(f"""
-            FormSection {{
+            ThemedFormSection {{
                 background-color: {t.card_bg};
                 border: 1px solid {t.card_border};
                 border-radius: 4px;

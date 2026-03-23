@@ -1,0 +1,1 @@
+- Replace instances of functional programming with efficient ORM queries.

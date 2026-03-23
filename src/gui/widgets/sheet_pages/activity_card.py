@@ -10,22 +10,17 @@ from typing import Optional, Callable
 from .session_item import SessionItem
 from .productivity_progress_bar import ProductivityProgressBar
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.service import HabitService
 from core.util.time import get_friendly_elapsed, get_friendly_datetime, HOUR
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class ActivityCard(QFrame):
     """Expandable card displaying a bucket with individual sessions"""
 
-    def __init__(self, habit, bucket, on_navigate: Optional[Callable] = None, compact: bool = False, parent=None):
+    def __init__(self, habit, bucket, service=None, on_navigate: Optional[Callable] = None, compact: bool = False, parent=None):
         """
         Args:
             habit: Habit object
@@ -37,6 +32,7 @@ class ActivityCard(QFrame):
         super().__init__(parent)
         self.habit = habit
         self.bucket = bucket
+        self.service = service
         self.on_navigate = on_navigate
         self.compact = compact
         self.expanded = False
@@ -159,7 +155,7 @@ class ActivityCard(QFrame):
         self.sessions_widget.setLayout(sessions_layout)
 
         # Query individual sessions (Logs) for this bucket
-        logs = HabitService.get_logs_for_bucket(self.habit, self.bucket)
+        logs = self.service.get_logs_for_bucket(self.habit, self.bucket)
 
         if logs:
             for log in logs:
@@ -198,7 +194,7 @@ class ActivityCard(QFrame):
 
     def _delete_log(self, log):
         """Delete a log entry and refresh the card"""
-        HabitService.delete_log(log)
+        self.service.delete_log(log)
         self._refresh_sessions()
 
     def _refresh_sessions(self):
@@ -214,7 +210,7 @@ class ActivityCard(QFrame):
                 item.widget().deleteLater()
 
         # Re-query logs for this bucket
-        logs = HabitService.get_logs_for_bucket(self.habit, self.bucket)
+        logs = self.service.get_logs_for_bucket(self.habit, self.bucket)
 
         if logs:
             for log in logs:

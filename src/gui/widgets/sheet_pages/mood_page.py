@@ -11,12 +11,10 @@ from core.mood.mood import Mood
 from core.mood.mood_log import MoodLog
 from core.util.time import get_friendly_datetime
 from .base_page import SheetPage
-from .vintage_form_widgets import VintageLineEdit, VintageButton, FormSection
+from ..themed_form_widgets import ThemedLineEdit, ThemedButton, ThemedFormSection
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class MoodPage(SheetPage):
@@ -136,7 +134,7 @@ class MoodPage(SheetPage):
         row.setLayout(row_layout)
 
         # Emoji (editable)
-        emoji_edit = VintageLineEdit("")
+        emoji_edit = ThemedLineEdit("")
         emoji_edit.setText(mood.symbol)
         emoji_edit.setFixedWidth(50)
         emoji_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -144,7 +142,7 @@ class MoodPage(SheetPage):
         row_layout.addWidget(emoji_edit)
 
         # Description (editable)
-        desc_edit = VintageLineEdit("")
+        desc_edit = ThemedLineEdit("")
         desc_edit.setText(mood.description)
         desc_edit.editingFinished.connect(lambda m=mood, d=desc_edit: self._update_mood_description(m, d.text()))
         row_layout.addWidget(desc_edit)
@@ -211,7 +209,7 @@ class MoodPage(SheetPage):
 
     def _build_add_mood_section(self, layout):
         """Build add new mood section"""
-        add_section = FormSection("Add New Mood")
+        add_section = ThemedFormSection("Add New Mood")
 
         # Form container
         form = QWidget()
@@ -221,16 +219,16 @@ class MoodPage(SheetPage):
         form.setLayout(form_layout)
 
         # Emoji input
-        self.emoji_input = VintageLineEdit("Emoji")
+        self.emoji_input = ThemedLineEdit("Emoji")
         self.emoji_input.setFixedWidth(70)
         form_layout.addWidget(self.emoji_input)
 
         # Description input
-        self.description_input = VintageLineEdit("Description")
+        self.description_input = ThemedLineEdit("Description")
         form_layout.addWidget(self.description_input)
 
         # Add button
-        add_btn = VintageButton("Add")
+        add_btn = ThemedButton("Add")
         add_btn.clicked.connect(self._add_mood)
         form_layout.addWidget(add_btn)
 

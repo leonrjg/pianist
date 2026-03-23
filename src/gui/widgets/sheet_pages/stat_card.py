@@ -1,5 +1,5 @@
 """
-Stat Card - Vintage-styled summary statistic card component.
+Stat Card - Wood-styled summary statistic card component.
 """
 
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QLabel
@@ -7,13 +7,11 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class StatCard(QFrame):
-    """Vintage-styled card for displaying a single summary statistic"""
+    """Wood-styled card for displaying a single summary statistic"""
 
     def __init__(self, title: str, value: str, icon: str = "", parent=None):
         """

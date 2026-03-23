@@ -6,6 +6,7 @@ Requires Anki to be running with AnkiConnect add-on installed.
 """
 
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Optional, List, Dict, Tuple
 import random
 import re
@@ -706,23 +707,6 @@ class AnkiService:
             logger.error(f"[RATING] Invalid ease value: {ease}")
             raise ValueError(f"Ease must be between 1 and 4, got {ease}")
 
-        # Get card info for logging purposes
-        try:
-            cards_info = cls._invoke("cardsInfo", {"cards": [card_id]})
-            if cards_info:
-                card_info = cards_info[0]
-                logger.info(f"[RATING] Card info before rating:")
-                logger.info(f"  - Card ID: {card_id}")
-                logger.info(f"  - Deck: {card_info.get('deckName', 'unknown')}")
-                logger.info(f"  - Type: {card_info.get('type', 'unknown')}")
-                logger.info(f"  - Queue: {card_info.get('queue', 'unknown')}")
-                logger.info(f"  - Due: {card_info.get('due', 'unknown')}")
-                logger.info(f"  - Interval: {card_info.get('interval', 'unknown')}")
-                logger.info(f"  - Factor: {card_info.get('factor', 'unknown')}")
-                logger.info(f"  - Reps: {card_info.get('reps', 'unknown')}")
-        except Exception as e:
-            logger.warning(f"[RATING] Could not fetch card info: {e}")
-
         # Set card to be due today to ensure it's in a reviewable state
         logger.info(f"[RATING] Setting card due date to today (preparing for answer)...")
         try:
@@ -747,6 +731,31 @@ class AnkiService:
         else:
             logger.error(f"[RATING] ✗ Rating submission returned False for card {card_id}")
             raise AnkiConnectError(f"Failed to submit rating for card {card_id}")
+
+    @classmethod
+    def get_next_due_date(cls, card_id: int) -> Optional[date]:
+        """
+        Get the next scheduled review date for a card.
+
+        Should be called after submit_rating to show the user when the card will next appear.
+
+        Args:
+            card_id: ID of the card
+
+        Returns:
+            Next review date, or None if it could not be determined
+        """
+        try:
+            cards_info = cls._invoke("cardsInfo", {"cards": [card_id]})
+            if not cards_info:
+                return None
+            interval = cards_info[0].get("interval", 0)
+            if interval <= 0:
+                # Learning step — sub-day interval, due later today
+                return date.today()
+            return date.today() + timedelta(days=interval)
+        except Exception:
+            return None
 
     @classmethod
     def open_in_editor(cls, card_id: int) -> None:

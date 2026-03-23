@@ -17,19 +17,11 @@ from .theme_styles import get_menu_stylesheet
 from ..task_calendar_widget import TaskCalendarWidget
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
-def _qcolor(rgb_str: str, alpha: int = 255) -> QColor:
-    """Parse 'rgb(r, g, b)' theme string into a QColor."""
-    nums = [int(x.strip()) for x in rgb_str[4:-1].split(',')]
-    return QColor(nums[0], nums[1], nums[2], alpha)
+from gui.themes.color import parse_color as _qcolor
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.analytics import get_tasks_in_range
 from core.task.service import TaskService
 
@@ -134,7 +126,7 @@ class TaskPopup(QWidget):
                 border: none;
             }}
             QScrollBar:vertical {{
-                background: {t.wood_dark};
+                background: {t.frame_dark};
                 width: 6px;
                 margin: 2px;
                 border: none;
@@ -335,7 +327,7 @@ class TaskPopup(QWidget):
         path.addRoundedRect(0, 0, self.width(), self.height(), 6, 6)
 
         t = _t()
-        painter.fillPath(path, _qcolor(t.wood_dark, 230))
+        painter.fillPath(path, _qcolor(t.frame_dark, 230))
         painter.setPen(_qcolor(t.accent))
         painter.drawPath(path)
 

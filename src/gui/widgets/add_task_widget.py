@@ -9,11 +9,8 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QDate
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QCursor
 from datetime import datetime
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from core.task.service import TaskService
-from .vintage_date_picker import VintageDatePicker
+from .themed_date_picker import ThemedDatePicker
 
 
 def _c():
@@ -21,9 +18,7 @@ def _c():
     return piano_colors()
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class AddTaskWidget(QWidget):
@@ -94,8 +89,8 @@ class AddTaskWidget(QWidget):
         """)
         date_row.addWidget(date_label)
 
-        # Use custom vintage date picker with TaskCalendarWidget
-        self.date_input = VintageDatePicker()
+        # Use custom wood date picker with TaskCalendarWidget
+        self.date_input = ThemedDatePicker()
         self.date_input.setDate(QDate.currentDate())
         date_row.addWidget(self.date_input)
         date_row.addStretch()

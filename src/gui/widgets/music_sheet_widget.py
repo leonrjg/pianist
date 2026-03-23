@@ -18,26 +18,8 @@ from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
 
-def _theme():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
-
-
-def _qcolor(rgb_str: str, alpha: int = None) -> QColor:
-    """Parse 'rgb(r,g,b)' or 'rgba(r,g,b,a)' into QColor."""
-    s = rgb_str.strip()
-    if s.startswith('rgba('):
-        parts = s[5:-1].split(',')
-        r, g, b = int(parts[0]), int(parts[1]), int(parts[2])
-        a = int(float(parts[3])) if len(parts) > 3 else 255
-    elif s.startswith('rgb('):
-        parts = s[4:-1].split(',')
-        r, g, b, a = int(parts[0]), int(parts[1]), int(parts[2]), 255
-    else:
-        return QColor(s)
-    if alpha is not None:
-        a = alpha
-    return QColor(r, g, b, a)
+from gui.themes import current_theme as _t
+from gui.themes.color import parse_color as _qcolor
 
 
 class DogEarOverlay(QWidget):
@@ -70,11 +52,11 @@ class DogEarOverlay(QWidget):
         # Draw the folded part (darker, shows back of paper)
         fold_triangle = QPolygonF([horizontal_point, vertical_point, fold_corner])
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(_qcolor(_theme().dog_ear_color)))
+        painter.setBrush(QBrush(_qcolor(_t().dog_ear_color)))
         painter.drawPolygon(fold_triangle)
 
         # Draw shadow under the fold
-        painter.setPen(QPen(_qcolor(_theme().sheet_shadow, 80), 3))
+        painter.setPen(QPen(_qcolor(_t().sheet_shadow, 80), 3))
         painter.drawLine(horizontal_point, fold_corner)
         painter.drawLine(fold_corner, vertical_point)
 
@@ -100,8 +82,9 @@ class MusicSheetWidget(QWidget):
     # Signals
     habit_updated = pyqtSignal()  # Emitted when habits are modified
 
-    def __init__(self, parent=None, sound_manager: SoundManager=None):
+    def __init__(self, parent=None, service=None, sound_manager: SoundManager=None):
         super().__init__(parent)
+        self.service = service
         self.sound_manager = sound_manager
         self._page_stack = []  # Navigation history
         self._current_page = None
@@ -178,7 +161,7 @@ class MusicSheetWidget(QWidget):
         """)
 
     def paintEvent(self, event):
-        """Custom paint to draw vintage paper with book aesthetic"""
+        """Custom paint to draw wood paper with book aesthetic"""
         super().paintEvent(event)
 
         painter = QPainter(self)
@@ -186,7 +169,7 @@ class MusicSheetWidget(QWidget):
 
         from PyQt6.QtCore import QRect
 
-        t = _theme()
+        t = _t()
 
         # Dark frame container (background holder)
         widget_rect = self.rect()
@@ -348,13 +331,13 @@ class MusicSheetWidget(QWidget):
             if page_type == PageType.INDEX.value:
                 return IndexPage(self)
             elif page_type == PageType.REPERTOIRE.value:
-                return RepertoirePage(self)
+                return RepertoirePage(service=self.service, parent=self)
             elif page_type == PageType.HABIT_DETAIL.value:
-                return HabitDetailPage(habit_id=data, parent=self)
+                return HabitDetailPage(habit_id=data, service=self.service, parent=self)
             elif page_type == PageType.HABIT_STATS.value:
-                return HabitStatsPage(habit_id=data, parent=self)
+                return HabitStatsPage(habit_id=data, service=self.service, parent=self)
             elif page_type == PageType.STATS.value:
-                return StatsPage(self)
+                return StatsPage(service=self.service, parent=self)
             elif page_type == PageType.SETTINGS.value:
                 return SettingsPage(self)
             elif page_type == PageType.MOOD.value:
@@ -559,7 +542,7 @@ class MusicSheetWidget(QWidget):
     def _draw_music_stand_holder(self, painter, widget_rect):
         """Draw a music stand holder/ledge at the bottom of the container"""
         from PyQt6.QtCore import QRect
-        t = _theme()
+        t = _t()
         frame = _qcolor(t.sheet_frame)
 
         # Derive slightly lighter and darker variants for the ledge

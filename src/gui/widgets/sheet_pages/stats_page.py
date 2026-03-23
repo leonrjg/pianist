@@ -10,26 +10,22 @@ from .stat_card import StatCard
 from .habit_stat_card import HabitStatCard
 from .champion_banner import ChampionBanner
 from .calendar_graph import CalendarGraph
-from .vintage_dropdown import VintageDropdown
+from ..themed_dropdown import ThemedDropdown
 from .activity_card import ActivityCard
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.service import HabitService
 from core.util.time import get_friendly_elapsed, get_friendly_datetime
 from core import analytics
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class StatsPage(SheetPage):
     """Statistics page showing habit analytics"""
 
-    def __init__(self, parent=None):
+    def __init__(self, service=None, parent=None):
+        self.service = service
         self._calendar_graph = None
         self._calendar_container = None
         self._time_range_dropdown = None
@@ -51,7 +47,7 @@ class StatsPage(SheetPage):
         layout.addWidget(title)
 
         try:
-            habits = HabitService.get_all_non_deleted()
+            habits = self.service.get_all_non_deleted()
             self._all_habits = habits
             
             if not habits:
@@ -67,7 +63,7 @@ class StatsPage(SheetPage):
             range_label.setStyleSheet(f"color: {_t().ink_secondary}; font-size: 10px; background: transparent;")
             time_range_layout.addWidget(range_label)
 
-            self._time_range_dropdown = VintageDropdown(["1 month", "6 months", "1 year"], "1 month")
+            self._time_range_dropdown = ThemedDropdown(["1 month", "6 months", "1 year"], "1 month")
             self._time_range_dropdown.selection_changed.connect(self._on_range_changed)
             time_range_layout.addWidget(self._time_range_dropdown)
 
@@ -256,6 +252,7 @@ class StatsPage(SheetPage):
             card = ActivityCard(
                 habit,
                 bucket,
+                service=self.service,
                 on_navigate=self._navigate_to_habit,
                 parent=self
             )

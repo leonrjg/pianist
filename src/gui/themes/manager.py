@@ -1,9 +1,9 @@
 from .theme import Theme
-from .vintage import VINTAGE_THEME
+from .wood import VINTAGE_THEME
 from .sakura import SAKURA_THEME
 
 _REGISTRY: dict[str, Theme] = {
-    'vintage': VINTAGE_THEME,
+    'wood': VINTAGE_THEME,
     'sakura': SAKURA_THEME,
 }
 
@@ -21,9 +21,9 @@ class ThemeManager:
     def current(self) -> Theme:
         try:
             from core.settings.service import SettingsService
-            name = SettingsService.get('theme.active', 'vintage')
+            name = SettingsService.get('theme.active', 'wood')
         except Exception:
-            name = 'vintage'
+            name = 'wood'
         return _REGISTRY.get(name, VINTAGE_THEME)
 
     def apply(self, app) -> None:

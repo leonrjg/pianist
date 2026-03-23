@@ -1,5 +1,5 @@
 """
-Vintage Date Picker - Custom date picker using TaskCalendarWidget.
+Wood Date Picker - Custom date picker using TaskCalendarWidget.
 
 Shows selected date and opens TaskCalendarWidget popup when clicked.
 """
@@ -10,12 +10,10 @@ from PyQt6.QtGui import QCursor
 from .task_calendar_widget import TaskCalendarWidget
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
-class VintageDatePicker(QWidget):
+class ThemedDatePicker(QWidget):
     """Custom date picker widget with TaskCalendarWidget popup"""
 
     date_changed = pyqtSignal(QDate)

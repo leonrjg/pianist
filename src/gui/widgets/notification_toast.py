@@ -42,9 +42,7 @@ from PyQt6.QtGui import (
 from ..constants import piano_colors
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class NotificationToast(QWidget):
@@ -165,7 +163,7 @@ class NotificationToast(QWidget):
         title_palette = self._title_label.palette()
         title_palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 255, 255))
         self._title_label.setPalette(title_palette)
-        self._title_label.setStyleSheet("font-size: 16px; font-weight: 400;")
+        self._title_label.setStyleSheet("font-size: 14px; font-weight: 400;")
         self._title_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         top_layout.addWidget(self._title_label, 1, Qt.AlignmentFlag.AlignVCenter)
         
@@ -212,7 +210,7 @@ class NotificationToast(QWidget):
         msg_palette = self._message_label.palette()
         msg_palette.setColor(QPalette.ColorRole.WindowText, QColor(200, 200, 205))
         self._message_label.setPalette(msg_palette)
-        self._message_label.setStyleSheet("font-size: 12px;")
+        self._message_label.setStyleSheet("font-size: 13px;")
 
         message_container = QWidget()
         message_container.setStyleSheet("background: transparent;")

@@ -62,13 +62,11 @@ class HabitService:
                 return h
         return None
 
-    @classmethod
-    def get_all_non_deleted(cls) -> List[Habit]:
+    def get_all_non_deleted(self) -> List[Habit]:
         """All non-deleted habits including archived, ordered by display_order."""
         return list(Habit.select().where(Habit.deleted_at.is_null()).order_by(Habit.display_order, Habit.name))
 
-    @classmethod
-    def get_non_deleted_by_id(cls, habit_id) -> Optional[Habit]:
+    def get_non_deleted_by_id(self, habit_id) -> Optional[Habit]:
         """Get a non-deleted habit by id, or None if not found."""
         try:
             return Habit.get(Habit.id == habit_id, Habit.deleted_at.is_null())
@@ -143,8 +141,7 @@ class HabitService:
             HabitTracker.deleted_at.is_null()
         ))
 
-    @classmethod
-    def get_window_trackers(cls, habit: Habit) -> List[HabitTracker]:
+    def get_window_trackers(self, habit: Habit) -> List[HabitTracker]:
         """Get enabled WindowTracker records for a habit."""
         return list(HabitTracker.select().where(
             (HabitTracker.habit == habit) &
@@ -177,8 +174,7 @@ class HabitService:
     # Log API
     # ------------------------------------------------------------------
 
-    @classmethod
-    def get_logs_for_bucket(cls, habit: Habit, bucket) -> List[Log]:
+    def get_logs_for_bucket(self, habit: Habit, bucket) -> List[Log]:
         """Get logs for a habit within a bucket's time range, ordered by start."""
         return list(Log.select().where(
             (Log.habit == habit) &
@@ -187,8 +183,7 @@ class HabitService:
             Log.deleted_at.is_null()
         ).order_by(Log.start))
 
-    @classmethod
-    def delete_log(cls, log: Log) -> None:
+    def delete_log(self, log: Log) -> None:
         """Soft-delete a log entry."""
         log.deleted_at = datetime.now()
         log.updated_at = datetime.now()

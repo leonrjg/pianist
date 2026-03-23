@@ -51,7 +51,7 @@ _SCROLLBAR = """
 """
 
 VINTAGE_THEME = Theme(
-    name='vintage',
+    name='wood',
     paper='rgb(255, 252, 245)',
     paper_alt='rgb(252, 248, 235)',
     paper_dark='rgb(245, 240, 225)',
@@ -64,11 +64,11 @@ VINTAGE_THEME = Theme(
     accent='rgb(184, 134, 11)',
     accent_dark='rgb(160, 115, 10)',
     accent_light='rgb(218, 165, 32)',
-    wood_dark='rgb(61, 40, 23)',
-    wood_medium='rgb(92, 61, 46)',
-    wood_light='rgb(122, 80, 64)',
+    frame_dark='rgb(61, 40, 23)',
+    frame_medium='rgb(92, 61, 46)',
+    frame_light='rgb(122, 80, 64)',
     white_key='rgb(253, 252, 248)',
-    black_key='rgb(20, 20, 18)',
+    black_key='rgb(48, 48, 44)',
     status_active='rgb(60, 140, 60)',
     status_inactive='rgb(140, 120, 95)',
     header_font='Luxurious Roman',
@@ -107,6 +107,8 @@ VINTAGE_THEME = Theme(
     button_secondary_bg='rgba(255, 252, 245, 200)',
     button_secondary_hover='rgba(255, 255, 250, 220)',
     button_secondary_text='rgb(70, 50, 35)',
+    danger_bg='rgba(180, 50, 50, 150)',
+    danger_hover='rgba(200, 60, 60, 180)',
     # Piano key colors
     black_key_text_color='rgb(180, 180, 180)',
     key_label_color='rgb(74, 74, 74)',
@@ -117,4 +119,6 @@ VINTAGE_THEME = Theme(
     frame_svg_opacity=0.0,
     keys_overlay='',
     keys_overlay_opacity=0.0,
+    piano_overlay='',
+    piano_overlay_opacity=0.0,
 )

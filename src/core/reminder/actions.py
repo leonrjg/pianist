@@ -215,6 +215,15 @@ class ActionHandler:
                         AnkiService.submit_rating(active_card.card_id, ease)
                         logger.info(f"[ANKI RATING] ✓ submit_rating completed successfully")
 
+                        next_due = AnkiService.get_next_due_date(active_card.card_id)
+                        from datetime import date as _date
+                        if next_due and next_due > _date.today():
+                            due_str = f"next review: {next_due.strftime('%b %-d')}"
+                        elif next_due:
+                            due_str = "next review: later today"
+                        else:
+                            due_str = ""
+
                         AnkiService.clear_cache(reminder.id)
                         logger.info(f"[ANKI RATING] Cache cleared for reminder {reminder.id}")
 
@@ -224,7 +233,7 @@ class ActionHandler:
 
                         toast.update_content(
                             title="✓ Sent to Anki",
-                            message=f"Marked as {label}",
+                            message=f"Marked as {label}" + (f", {due_str}" if due_str else ""),
                             buttons=[{
                                 "label": "Next card",
                                 "callback": fetch_next_card,

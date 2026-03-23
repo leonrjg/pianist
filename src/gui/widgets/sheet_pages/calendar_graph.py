@@ -10,15 +10,7 @@ from typing import List
 
 from .calendar_cell import CalendarCell
 
-# Import database models
-import sys
-
-
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from gui.themes import current_theme as _t
 from core.habit.bucket import Bucket
 
 

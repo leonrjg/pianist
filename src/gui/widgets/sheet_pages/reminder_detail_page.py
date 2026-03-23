@@ -7,22 +7,17 @@ from PyQt6.QtWidgets import QVBoxLayout, QMessageBox, QWidget, QTextEdit
 from PyQt6.QtCore import Qt
 
 from .base_page import SheetPage
-from .vintage_dropdown import VintageDropdown
-from .vintage_form_widgets import (
-    VintageLineEdit, VintageSpinBox, VintageButton,
-    FormSection, VintageCheckBox
+from ..themed_dropdown import ThemedDropdown
+from ..themed_form_widgets import (
+    ThemedLineEdit, ThemedSpinBox, ThemedButton,
+    ThemedFormSection, ThemedCheckBox
 )
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.reminder.service import ReminderService
 from core.schedule.sm2 import SM2Scheduler
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 from core.schedule.stochastic import StochasticScheduler
 from core.schedule.active_window import ActiveWindow
 
@@ -93,27 +88,27 @@ class ReminderDetailPage(SheetPage):
         form_widget.setLayout(form_layout)
 
         # Basic Information Section
-        basic_section = FormSection("Basic Information")
+        basic_section = ThemedFormSection("Basic Information")
 
-        self._name_edit = VintageLineEdit("e.g., Review vocabulary")
+        self._name_edit = ThemedLineEdit("e.g., Review vocabulary")
         if self.reminder:
             self._name_edit.setText(self.reminder.name)
         basic_section.add_field("Name:", self._name_edit)
 
         types = ['sr', 'stochastic']
         default_type = self.reminder.reminder_type if self.reminder else 'sr'
-        self._type_dropdown = VintageDropdown(types, default_type)
+        self._type_dropdown = ThemedDropdown(types, default_type)
         self._type_dropdown.selection_changed.connect(self._on_type_changed)
         basic_section.add_field("Type:", self._type_dropdown)
 
         form_layout.addWidget(basic_section)
 
         # Action Section
-        action_section = FormSection("Action")
+        action_section = ThemedFormSection("Action")
 
         actions = ['open_link', 'random_line', 'show_text', 'anki_card']
         default_action = self.reminder.action_type if self.reminder else 'show_text'
-        self._action_dropdown = VintageDropdown(actions, default_action)
+        self._action_dropdown = ThemedDropdown(actions, default_action)
         action_section.add_field("Action:", self._action_dropdown)
 
         self._payload_edit = QTextEdit()
@@ -135,22 +130,22 @@ class ReminderDetailPage(SheetPage):
 
         notifications = ['desktop', 'none']
         default_notif = self.reminder.notification_method if self.reminder else 'desktop'
-        self._notification_dropdown = VintageDropdown(notifications, default_notif)
+        self._notification_dropdown = ThemedDropdown(notifications, default_notif)
         action_section.add_field("Notification:", self._notification_dropdown)
 
         form_layout.addWidget(action_section)
 
         # SR Schedule Section
-        self._sr_section = FormSection("Spaced Repetition Schedule")
+        self._sr_section = ThemedFormSection("Spaced Repetition Schedule")
 
-        self._ease_spin = VintageSpinBox()
+        self._ease_spin = ThemedSpinBox()
         self._ease_spin.setMinimum(130)
         self._ease_spin.setMaximum(500)
         self._ease_spin.setSingleStep(10)
         self._ease_spin.setValue(int((self.reminder.ease_factor if self.reminder else 2.5) * 100))
         self._sr_section.add_field("Ease Factor (×100):", self._ease_spin)
 
-        self._interval_spin = VintageSpinBox()
+        self._interval_spin = ThemedSpinBox()
         self._interval_spin.setMinimum(1)
         self._interval_spin.setMaximum(365)
         self._interval_spin.setValue(self.reminder.interval_days if self.reminder else 1)
@@ -159,9 +154,9 @@ class ReminderDetailPage(SheetPage):
         form_layout.addWidget(self._sr_section)
 
         # Stochastic Schedule Section
-        self._stochastic_section = FormSection("Stochastic Schedule")
+        self._stochastic_section = ThemedFormSection("Stochastic Schedule")
 
-        self._rate_spin = VintageSpinBox()
+        self._rate_spin = ThemedSpinBox()
         self._rate_spin.setMinimum(1)
         self._rate_spin.setMaximum(10000)
         self._rate_spin.setSingleStep(1)
@@ -169,7 +164,7 @@ class ReminderDetailPage(SheetPage):
         self._rate_spin.setValue(int(rate_val))
         self._stochastic_section.add_field("Rate per week:", self._rate_spin)
 
-        self._weight_spin = VintageSpinBox()
+        self._weight_spin = ThemedSpinBox()
         self._weight_spin.setMinimum(1)
         self._weight_spin.setMaximum(100)
         self._weight_spin.setSingleStep(1)
@@ -180,10 +175,10 @@ class ReminderDetailPage(SheetPage):
         form_layout.addWidget(self._stochastic_section)
 
         # Active Window Section
-        active_section = FormSection("Active Window")
+        active_section = ThemedFormSection("Active Window")
 
-        self._active_start_edit = VintageLineEdit("HH:MM")
-        self._active_end_edit = VintageLineEdit("HH:MM")
+        self._active_start_edit = ThemedLineEdit("HH:MM")
+        self._active_end_edit = ThemedLineEdit("HH:MM")
         start_minutes = self.reminder.active_start_minute if self.reminder else 0
         end_minutes = self.reminder.active_end_minute if self.reminder else 1440
         self._active_start_edit.setText(self._format_minutes(start_minutes))
@@ -195,7 +190,7 @@ class ReminderDetailPage(SheetPage):
         form_layout.addWidget(active_section)
 
         # Habit Link Section
-        habit_section = FormSection("Habit Link (Optional)")
+        habit_section = ThemedFormSection("Habit Link (Optional)")
 
         # Get all habits via service
         _habit_service = getattr(self.window(), 'service', None)
@@ -207,7 +202,7 @@ class ReminderDetailPage(SheetPage):
             if linked:
                 default_habit = linked.name
 
-        self._habit_dropdown = VintageDropdown(habit_names, default_habit)
+        self._habit_dropdown = ThemedDropdown(habit_names, default_habit)
         habit_section.add_field("Linked Habit:", self._habit_dropdown)
 
         form_layout.addWidget(habit_section)
@@ -218,20 +213,20 @@ class ReminderDetailPage(SheetPage):
         button_layout = QVBoxLayout()
         button_layout.setSpacing(8)
 
-        save_btn = VintageButton("Save Reminder", parent=self)
+        save_btn = ThemedButton("Save Reminder", parent=self)
         save_btn.clicked.connect(self._save_reminder)
         button_layout.addWidget(save_btn)
 
         if self.reminder:
-            trigger_btn = VintageButton("Trigger Now", button_type="primary", parent=self)
+            trigger_btn = ThemedButton("Trigger Now", button_type="primary", parent=self)
             trigger_btn.clicked.connect(self._trigger_reminder)
             button_layout.addWidget(trigger_btn)
 
-            delete_btn = VintageButton("Delete", button_type="danger", parent=self)
+            delete_btn = ThemedButton("Delete", button_type="danger", parent=self)
             delete_btn.clicked.connect(self._delete_reminder)
             button_layout.addWidget(delete_btn)
 
-        cancel_btn = VintageButton("Cancel", button_type="secondary", parent=self)
+        cancel_btn = ThemedButton("Cancel", button_type="secondary", parent=self)
         cancel_btn.clicked.connect(lambda: self.navigate_to.emit('reminders', None))
         button_layout.addWidget(cancel_btn)
 

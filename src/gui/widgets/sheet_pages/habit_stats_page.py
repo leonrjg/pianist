@@ -9,28 +9,24 @@ from PyQt6.QtCore import Qt
 from .base_page import SheetPage
 from .calendar_graph import CalendarGraph
 from .stat_card import StatCard
-from .vintage_dropdown import VintageDropdown
+from ..themed_dropdown import ThemedDropdown
 from .activity_card import ActivityCard
 
 # Import database models and analytics
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.service import HabitService
 from core.util.time import get_friendly_elapsed
 from core import analytics
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class HabitStatsPage(SheetPage):
     """Statistics page with calendar graph for individual habit"""
 
-    def __init__(self, habit_id=None, parent=None):
+    def __init__(self, habit_id=None, service=None, parent=None):
         self.habit_id = habit_id
+        self.service = service
         self.habit = None
         self._calendar_graph = None
         self._calendar_container = None
@@ -56,7 +52,7 @@ class HabitStatsPage(SheetPage):
         # Load habit
         if self.habit_id:
             try:
-                self.habit = HabitService.get_non_deleted_by_id(self.habit_id)
+                self.habit = self.service.get_non_deleted_by_id(self.habit_id)
                 if self.habit is None:
                     raise ValueError("not found")
             except:
@@ -97,7 +93,7 @@ class HabitStatsPage(SheetPage):
         range_label.setStyleSheet(f"color: {t.ink_secondary}; font-size: 10px; background: transparent;")
         time_range_layout.addWidget(range_label)
 
-        self._time_range_dropdown = VintageDropdown(["1 month", "6 months", "1 year"], "1 month")
+        self._time_range_dropdown = ThemedDropdown(["1 month", "6 months", "1 year"], "1 month")
         self._time_range_dropdown.selection_changed.connect(self._on_range_changed)
         time_range_layout.addWidget(self._time_range_dropdown)
 
@@ -296,7 +292,7 @@ class HabitStatsPage(SheetPage):
 
         # Show up to 10 most recent buckets
         for bucket in buckets[:10]:
-            card = ActivityCard(self.habit, bucket, compact=True, parent=self)
+            card = ActivityCard(self.habit, bucket, service=self.service, compact=True, parent=self)
             layout.addWidget(card)
 
     def _get_days_back(self, range_str: str) -> int:

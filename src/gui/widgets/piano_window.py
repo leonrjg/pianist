@@ -144,7 +144,7 @@ class PianoFloatingWindow(QWidget):
         self.notes_widget = None
 
         # ===== Music Sheet Widget (Interactive Drawer Content) =====
-        self.music_sheet_widget = MusicSheetWidget(self, sound_manager=self.sound_manager)
+        self.music_sheet_widget = MusicSheetWidget(self, service=self.service, sound_manager=self.sound_manager)
         self.music_sheet_widget.habit_updated.connect(self.on_habit_updated_from_sheet)
         self.music_sheet_widget.hide()  # Initially hidden
         self._position_music_sheet_widget()
@@ -375,13 +375,15 @@ class PianoFloatingWindow(QWidget):
         available_height = self.height() - PianoLayout.FRAME_PADDING_VERTICAL
         num_keys_that_fit = max(1, int(available_height // PianoLayout.KEY_HEIGHT)) + 2
 
-        self.state.scrolling_enabled = num_actual_habits > num_keys_that_fit
+        # In scroll mode, one slot is reserved for a visible trailing padding key (see below).
+        scroll_display_count = num_keys_that_fit - 1
+        self.state.scrolling_enabled = num_actual_habits > scroll_display_count
 
         if self.state.scrolling_enabled:
-            self.state.max_scroll_offset = max(0, num_actual_habits - num_keys_that_fit)
+            self.state.max_scroll_offset = max(0, num_actual_habits - scroll_display_count)
 
             new_keys = []
-            for i in range(num_keys_that_fit):
+            for i in range(scroll_display_count):
                 habit_index = i + self.state.scroll_offset
                 if habit_index < num_actual_habits:
                     habit = all_habits[habit_index]
@@ -395,6 +397,11 @@ class PianoFloatingWindow(QWidget):
                     })
                 else:
                     new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
+
+            # Always append an empty trailing key so:
+            # 1. draw_black_key runs for the last real habit (needs a key below it)
+            # 2. The empty key itself is visible on screen, matching the non-scroll appearance
+            new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
         else:
             self.state.scroll_offset = 0
             self.state.max_scroll_offset = 0
@@ -434,6 +441,20 @@ class PianoFloatingWindow(QWidget):
         # Delegate to painters (window mask controls visibility)
         FramePainter.draw_frame(painter, self.geometry_model)
         KeyPainter.draw_keys(painter, self.geometry_model, self.state, self.keys, self.reorder_mode_manager)
+
+        # Unified overlay spanning fallboard + keys + control panel
+        try:
+            from gui.themes.manager import ThemeManager
+            t = ThemeManager.get_instance().current
+            if t.piano_overlay:
+                x = self.geometry_model.fallboard_rect.x()
+                FramePainter.draw_image_overlay(
+                    painter, x, 0,
+                    self.geometry_model.window_width - x, self.geometry_model.window_height,
+                    t.piano_overlay, t.piano_overlay_opacity,
+                )
+        except Exception:
+            pass
 
         # Draw window controls
         self.draw_window_controls(painter)
@@ -1048,14 +1069,13 @@ class PianoFloatingWindow(QWidget):
     def _control_button_stylesheet(self, border_override: str = None, color_override: str = None) -> str:
         """Return a themed stylesheet for a control panel button."""
         c = piano_colors()
-        bg = c.FRAME_DARK.name()
         border = border_override or c.ACCENT.name()
         hover_border = c.ACCENT_LIGHT.name()
         txt = color_override or c.ACCENT.name()
         hover_txt = c.ACCENT_LIGHT.name()
         return f"""
             QPushButton {{
-                background-color: {bg};
+                background-color: transparent;
                 border: 1px solid {border};
                 border-radius: 10px;
                 color: {txt};
@@ -1118,7 +1138,7 @@ class PianoFloatingWindow(QWidget):
         hover_border = _parse_rgb(t.status_active).lighter(130).name() if active else c.ACCENT.name()
         self.sync_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c.FRAME_DARK.name()};
+                background-color: transparent;
                 border: 1px solid {border};
                 border-radius: 10px;
             }}

@@ -104,11 +104,12 @@ class PianoGeometry:
     def get_key_rect(self, key_index: int) -> QRect:
         """Get rectangle for a white key at given index"""
         y = (key_index * PianoLayout.KEY_HEIGHT)
+        y_offset = 0 if key_index == 0 else 1
         return QRect(
             self.keys_start_x,
-            int(y + 1),
+            int(y + y_offset),
             self.keys_width,
-            int(PianoLayout.KEY_HEIGHT - 1)
+            int(PianoLayout.KEY_HEIGHT - y_offset)
         )
 
     def get_black_key_rect(self, key_index: int) -> QRect:

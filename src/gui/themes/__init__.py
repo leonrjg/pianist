@@ -1,3 +1,8 @@
 from .manager import ThemeManager
 
-__all__ = ['ThemeManager']
+
+def current_theme():
+    return ThemeManager.get_instance().current
+
+
+__all__ = ['ThemeManager', 'current_theme']

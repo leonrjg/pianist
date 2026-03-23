@@ -12,10 +12,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QScrollArea, QWidget
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 # Dimension constants (not theme-sensitive)

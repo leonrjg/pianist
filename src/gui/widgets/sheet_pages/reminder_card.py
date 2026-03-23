@@ -1,5 +1,5 @@
 """
-Reminder Card - Vintage-styled card for displaying reminders.
+Reminder Card - Wood-styled card for displaying reminders.
 """
 
 from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
@@ -7,17 +7,15 @@ from PyQt6.QtGui import QFont, QCursor
 from PyQt6.QtCore import Qt, pyqtSignal
 from typing import Optional, Callable
 
-from .vintage_form_widgets import VintageButton
+from ..themed_form_widgets import ThemedButton
 from ..flow_layout import FlowLayout
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class ReminderCard(QFrame):
-    """Vintage-styled card for displaying a reminder"""
+    """Wood-styled card for displaying a reminder"""
 
     toggle_enabled = pyqtSignal(object)  # Emits reminder
     edit_clicked = pyqtSignal(object)  # Emits reminder
@@ -94,13 +92,13 @@ class ReminderCard(QFrame):
         layout.addWidget(details_label)
 
         # Action buttons
-        btn_layout = FlowLayout(spacing=8)
+        btn_layout = FlowLayout(spacing=4)
 
-        trigger_btn = VintageButton("Trigger Now", button_type="primary", parent=self)
+        trigger_btn = ThemedButton("Trigger", button_type="primary", parent=self)
         trigger_btn.clicked.connect(lambda: self.trigger_now.emit(self.reminder))
         btn_layout.addWidget(trigger_btn)
 
-        toggle_btn = VintageButton(
+        toggle_btn = ThemedButton(
             "Disable" if self.reminder.is_enabled else "Enable",
             button_type="secondary",
             parent=self
@@ -108,7 +106,7 @@ class ReminderCard(QFrame):
         toggle_btn.clicked.connect(lambda: self.toggle_enabled.emit(self.reminder))
         btn_layout.addWidget(toggle_btn)
 
-        edit_btn = VintageButton("Edit", button_type="secondary", parent=self)
+        edit_btn = ThemedButton("Edit", button_type="secondary", parent=self)
         edit_btn.clicked.connect(lambda: self.edit_clicked.emit(self.reminder))
         btn_layout.addWidget(edit_btn)
 

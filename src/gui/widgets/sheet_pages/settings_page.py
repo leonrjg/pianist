@@ -6,12 +6,9 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QSpinBox, QCheckBox, Q
 from PyQt6.QtCore import Qt
 
 from .base_page import SheetPage
-from .vintage_form_widgets import VintageButton
-from .vintage_dropdown import VintageDropdown
+from ..themed_form_widgets import ThemedButton
+from ..themed_dropdown import ThemedDropdown
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.settings.service import SettingsService
 
 
@@ -29,12 +26,14 @@ class SettingsPage(SheetPage):
         layout.addWidget(self._create_section_header("Settings"))
 
         # --- Appearance ---
+        layout.addSpacing(12)
         layout.addWidget(self._create_section_header("Appearance"))
         self._build_theme_row(layout)
         self._build_opacity_row(layout)
         layout.addWidget(self._create_separator())
 
         # --- Index Page ---
+        layout.addSpacing(12)
         layout.addWidget(self._create_section_header("Index Page"))
         self._build_spinbox_row(
             layout,
@@ -51,22 +50,26 @@ class SettingsPage(SheetPage):
         layout.addWidget(self._create_separator())
 
         # --- Sounds ---
+        layout.addSpacing(12)
         layout.addWidget(self._create_section_header("Sounds"))
         self._build_toggle_row(layout, label="Enable sound effects", key='sounds.enabled')
         layout.addWidget(self._create_separator())
 
         # --- Reminders ---
+        layout.addSpacing(12)
         layout.addWidget(self._create_section_header("Reminders"))
         self._build_toggle_row(layout, label="Enable reminders", key='reminders.enabled')
         layout.addWidget(self._create_separator())
 
         # --- Calendar ---
+        layout.addSpacing(12)
         layout.addWidget(self._create_section_header("Calendar"))
         self._build_toggle_row(layout, label="Show ICAL events on calendar", key='calendar.ical_sources_visible')
         self._build_ical_section(layout)
         layout.addWidget(self._create_separator())
 
         # --- Export ---
+        layout.addSpacing(12)
         layout.addWidget(self._create_section_header("Export"))
         csv = self._create_link_label('Export CSV', lambda: self.navigate_to.emit('export', None))
         layout.addWidget(csv)
@@ -79,9 +82,9 @@ class SettingsPage(SheetPage):
         row, h = self._make_row()
         h.addWidget(self._row_label("Theme"))
 
-        themes = ['vintage', 'sakura']
-        current = SettingsService.get('theme.active', 'vintage')
-        dropdown = VintageDropdown(themes, default_item=current if current in themes else themes[0])
+        themes = ['wood', 'sakura']
+        current = SettingsService.get('theme.active', 'wood')
+        dropdown = ThemedDropdown(themes, default_item=current if current in themes else themes[0])
 
         def on_theme_changed(name):
             SettingsService.set('theme.active', name)
@@ -182,12 +185,12 @@ class SettingsPage(SheetPage):
             t = ThemeManager.get_instance().current
             path_lbl.setStyleSheet(f"color: {t.ink_secondary}; font-size: 10px; background: transparent;")
             h.addWidget(path_lbl, 1)
-            remove_btn = VintageButton("Remove")
+            remove_btn = ThemedButton("Remove")
             remove_btn.clicked.connect(lambda checked, s=source: self._remove_ical_source(s))
             h.addWidget(remove_btn)
             layout.addWidget(row)
 
-        add_btn = VintageButton("Add ICAL File...")
+        add_btn = ThemedButton("Add ICAL File...")
         add_btn.clicked.connect(self._add_ical_source)
         layout.addWidget(add_btn)
 

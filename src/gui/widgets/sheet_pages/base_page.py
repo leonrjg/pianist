@@ -8,9 +8,7 @@ from PyQt6.QtCore import pyqtSignal, Qt, QEvent
 from PyQt6.QtGui import QColor
 
 
-def _theme():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 # Resolve metaclass conflict between QWidget and ABC
@@ -32,7 +30,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
 
     def _setup_style(self):
         """Apply paper-like styling to the page using the active theme."""
-        t = _theme()
+        t = _t()
         self.setAutoFillBackground(False)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
 
@@ -96,7 +94,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
 
-        t = _theme()
+        t = _t()
         scroll_area.setStyleSheet(f"""
             QScrollArea {{
                 background: transparent;
@@ -179,7 +177,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         """Create a clickable link-styled label."""
         from PyQt6.QtWidgets import QLabel
         from PyQt6.QtGui import QCursor
-        t = _theme()
+        t = _t()
         label = QLabel(text)
         label.setStyleSheet(f"""
             QLabel {{
@@ -200,7 +198,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
         """Create a section header styled for the active theme."""
         from PyQt6.QtWidgets import QLabel
         from PyQt6.QtGui import QFont
-        t = _theme()
+        t = _t()
         label = QLabel(f'♫ {text}')
         font = QFont(t.header_font, 18)
         font.setBold(True)
@@ -211,7 +209,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
     def _create_text_label(self, text: str, secondary=False) -> 'QLabel':
         """Create a regular text label."""
         from PyQt6.QtWidgets import QLabel
-        t = _theme()
+        t = _t()
         label = QLabel(text)
         label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         if secondary:
@@ -223,7 +221,7 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
     def _create_separator(self) -> 'QFrame':
         """Create a separator line."""
         from PyQt6.QtWidgets import QFrame
-        t = _theme()
+        t = _t()
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setFrameShadow(QFrame.Shadow.Plain)

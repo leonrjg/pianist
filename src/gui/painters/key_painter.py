@@ -11,7 +11,7 @@ Responsible for painting:
 """
 
 from typing import Optional, TYPE_CHECKING
-from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QFontMetrics
+from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QFontMetrics, QPainterPath
 from PyQt6.QtCore import Qt, QRect
 
 from .base_painter import BasePainter
@@ -193,6 +193,21 @@ class KeyPainter(BasePainter):
         width = black_key_rect.width()
         height = black_key_rect.height()
 
+        # Clip path: rounded left corners (exposed end), square right corners (embedded end)
+        corner_r = 3
+        key_clip = QPainterPath()
+        key_clip.moveTo(x + corner_r, y)
+        key_clip.lineTo(x + width, y)
+        key_clip.lineTo(x + width, y + height)
+        key_clip.lineTo(x + corner_r, y + height)
+        key_clip.arcTo(x, y + height - corner_r * 2, corner_r * 2, corner_r * 2, 270, -90)
+        key_clip.lineTo(x, y + corner_r)
+        key_clip.arcTo(x, y, corner_r * 2, corner_r * 2, 180, -90)
+        key_clip.closeSubpath()
+
+        painter.save()
+        painter.setClipPath(key_clip)
+
         # Main black key body with vertical gradient (darker at bottom)
         KeyPainter.draw_gradient_rect(
             painter,
@@ -212,11 +227,8 @@ class KeyPainter(BasePainter):
         edge_shadow = bk.darker(200)
         edge_shadow.setAlpha(180)
         gloss_top = bk.lighter(180)
-        gloss_top.setAlpha(80)
+        gloss_top.setAlpha(130)
         gloss_fade = QColor(gloss_top.red(), gloss_top.green(), gloss_top.blue(), 0)
-        front_edge = bk.lighter(160)
-        front_edge_shadow = bk.darker(150)
-
         # Left edge highlight (simulates light catching the edge)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(edge_highlight))
@@ -226,7 +238,7 @@ class KeyPainter(BasePainter):
         painter.setBrush(QBrush(edge_shadow))
         painter.drawRect(int(x + width - 1), int(y), 1, int(height))
 
-        # Top glossy highlight
+        # Top glossy highlight (vertical fade)
         highlight_height = int(height * 0.25)
         KeyPainter.draw_gradient_rect(
             painter,
@@ -239,18 +251,23 @@ class KeyPainter(BasePainter):
             vertical=True
         )
 
-        # Front edge (left side) - more prominent 3D effect
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(front_edge))
-        painter.drawRect(int(x - 2), int(y), 2, int(height))
+        # Specular gloss band: bright horizontal strip in the upper-left area
+        gloss_specular = bk.lighter(220)
+        gloss_specular.setAlpha(60)
+        gloss_specular_fade = QColor(gloss_specular.red(), gloss_specular.green(), gloss_specular.blue(), 0)
+        KeyPainter.draw_gradient_rect(
+            painter,
+            x,
+            y + 2,
+            x + int(width * 0.55),
+            y + int(height * 0.18),
+            gloss_specular,
+            gloss_specular_fade,
+            vertical=False
+        )
 
-        # Front edge shadow at bottom
-        painter.setBrush(QBrush(front_edge_shadow))
-        painter.drawRect(int(x - 2), int(y + height - 3), 2, 3)
+        painter.restore()
 
-        # Rounded bottom edge effect
-        painter.setPen(QPen(front_edge_shadow, 1))
-        painter.drawLine(int(x), int(y + height - 1), int(x + width), int(y + height - 1))
 
         # Time text on black key
         KeyPainter.draw_time_display(painter, geometry, black_key_rect, state, index, keys_data)

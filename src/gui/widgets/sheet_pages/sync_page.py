@@ -14,9 +14,7 @@ from PyQt6.QtGui import QDesktopServices
 from .base_page import SheetPage
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 def _friendly_dt(dt: Optional[datetime]) -> str:
@@ -184,9 +182,9 @@ class SyncPage(SheetPage):
         return row
 
     def _build_sync_button(self, layout, active_peers: dict):
-        from .vintage_form_widgets import VintageButton
+        from ..themed_form_widgets import ThemedButton
 
-        btn = VintageButton("Sync Now")
+        btn = ThemedButton("Sync Now")
         btn.setEnabled(len(active_peers) > 0)
         btn.setToolTip("Trigger a delta sync with all reachable devices")
 

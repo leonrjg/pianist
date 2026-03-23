@@ -4,16 +4,15 @@ Notes Widget - Notepad that appears below piano window.
 Displays a text editor for taking notes with auto-save functionality.
 """
 
-from PyQt6.QtWidgets import QWidget, QTextEdit, QPushButton, QLabel, QVBoxLayout, QHBoxLayout, QComboBox
+from PyQt6.QtWidgets import QWidget, QTextEdit, QPushButton, QLabel, QVBoxLayout, QHBoxLayout
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer
-from PyQt6.QtGui import QPainter, QColor, QPainterPath, QIcon, QKeyEvent, QTextBlockFormat, QTextCursor
+from PyQt6.QtGui import QPainter, QColor, QKeyEvent, QTextBlockFormat, QTextCursor
 
 from core.notes.service import NoteService
+from core.settings.service import SettingsService
 
-
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
+from gui.widgets.themed_dropdown import ThemedDropdown
 
 
 def _c():
@@ -77,7 +76,6 @@ class NotesWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # Use Window flag but maintain parent relationship for proper lifecycle management
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
@@ -88,6 +86,8 @@ class NotesWidget(QWidget):
         self.setMinimumHeight(self.MIN_HEIGHT)
         self.setMaximumHeight(self.MAX_HEIGHT)
         
+        SettingsService.signals.changed.connect(self._on_setting_changed)
+
         # Auto-save state
         self._note = None
         self._save_timer = QTimer()
@@ -110,45 +110,9 @@ class NotesWidget(QWidget):
         header.setSpacing(8)
 
         # Habit selector dropdown
-        self.habit_selector = QComboBox()
-        self.habit_selector.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.habit_selector = ThemedDropdown([], parent=self)
         self.habit_selector.setMaximumWidth(150)
-        self.habit_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self.habit_selector.currentIndexChanged.connect(self._on_habit_changed)
-        t = _t()
-        c = _c()
-        self.habit_selector.setStyleSheet(f"""
-            QComboBox {{
-                background-color: {c.FRAME_DARK.name()};
-                border: 1px solid {c.ACCENT.name()};
-                border-radius: 3px;
-                color: {c.ACCENT_LIGHT.name()};
-                font-size: 11px;
-                padding: 1px 4px;
-                padding-right: 4px;
-            }}
-            QComboBox:hover {{
-                border-color: {c.ACCENT_LIGHT.name()};
-                background-color: {c.FRAME_MEDIUM.name()};
-            }}
-            QComboBox::drop-down {{
-                border: none;
-                width: 0px;
-            }}
-            QComboBox::down-arrow {{
-                image: none;
-                width: 0px;
-                height: 0px;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {c.FRAME_DARK.name()};
-                border: 1px solid {c.ACCENT.name()};
-                color: {c.ACCENT_LIGHT.name()};
-                selection-background-color: {c.FRAME_MEDIUM.name()};
-                selection-color: {c.ACCENT_LIGHT.name()};
-                padding: 2px;
-            }}
-        """)
+        self.habit_selector.selection_changed.connect(self._on_habit_changed)
         header.addWidget(self.habit_selector)
 
         header.addStretch()
@@ -167,26 +131,11 @@ class NotesWidget(QWidget):
         header.addWidget(self.save_status_label)
 
         # Close button
-        close_button = QPushButton("×")
-        close_button.setFixedSize(20, 20)
-        close_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_button.clicked.connect(self.close)
-        close_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {c.FRAME_DARK.name()};
-                border: 1px solid {c.ACCENT.name()};
-                border-radius: 10px;
-                color: {c.ACCENT_LIGHT.name()};
-                font-size: 16px;
-                font-weight: bold;
-                padding-bottom: 2px;
-            }}
-            QPushButton:hover {{
-                border-color: {c.ACCENT_LIGHT.name()};
-                background-color: {c.FRAME_MEDIUM.name()};
-            }}
-        """)
-        header.addWidget(close_button)
+        self._close_button = QPushButton("×")
+        self._close_button.setFixedSize(20, 20)
+        self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._close_button.clicked.connect(self.close)
+        header.addWidget(self._close_button)
 
         main_layout.addLayout(header)
 
@@ -204,6 +153,44 @@ class NotesWidget(QWidget):
         cursor.select(QTextCursor.SelectionType.Document)
         cursor.setBlockFormat(block_format)
 
+        main_layout.addWidget(self.text_edit)
+        self._setup_style()
+
+    def _setup_style(self):
+        c = _c()
+        self.habit_selector.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {c.ACCENT_LIGHT.name()};
+                text-decoration: underline;
+                border: none;
+                text-align: left;
+                padding: 2px 4px;
+                font-size: 11px;
+            }}
+            QPushButton:hover {{
+                color: {c.WHITE_KEY.name()};
+            }}
+            QPushButton::menu-indicator {{
+                right: 6px;
+                bottom: 2px;
+            }}
+        """)
+        self._close_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c.FRAME_DARK.name()};
+                border: 1px solid {c.ACCENT.name()};
+                border-radius: 10px;
+                color: {c.ACCENT_LIGHT.name()};
+                font-size: 16px;
+                font-weight: bold;
+                padding-bottom: 2px;
+            }}
+            QPushButton:hover {{
+                border-color: {c.ACCENT_LIGHT.name()};
+                background-color: {c.FRAME_MEDIUM.name()};
+            }}
+        """)
         self.text_edit.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {c.FRAME_MEDIUM.name()};
@@ -231,32 +218,20 @@ class NotesWidget(QWidget):
                 height: 0px;
             }}
         """)
-        main_layout.addWidget(self.text_edit)
 
     def _populate_habit_selector(self):
         """Populate the habit selector dropdown with available habits"""
-        # Block signals to prevent triggering _on_habit_changed during population
-        self.habit_selector.blockSignals(True)
-
-        # Clear existing items
-        self.habit_selector.clear()
-
-        # Add "Default note" option (global note with habit = None)
-        self.habit_selector.addItem("Default note", userData=None)
-
-        # Add all non-archived habits via service
         _service = getattr(self.parent(), 'service', None)
         habits = sorted(_service.get_all_habits(), key=lambda h: h.name) if _service else []
-        for habit in habits:
-            self.habit_selector.addItem(habit.name, userData=habit.id)
+        items = [("Default note", None)] + [(h.name, h.id) for h in habits]
 
-        # Re-enable signals
-        self.habit_selector.blockSignals(False)
+        self.habit_selector.selection_changed.disconnect(self._on_habit_changed)
+        self.habit_selector.set_items(items)
+        self.habit_selector.selection_changed.connect(self._on_habit_changed)
 
     def _load_selected_note(self):
         """Load the note for the currently selected habit"""
-        # Get the selected habit ID from the dropdown
-        habit_id = self.habit_selector.currentData()
+        habit_id = self.habit_selector.selected_data
 
         # Load the appropriate note
         if habit_id is None:
@@ -272,7 +247,7 @@ class NotesWidget(QWidget):
         self.text_edit.blockSignals(False)
         self._update_save_status('saved')
 
-    def _on_habit_changed(self, index: int):
+    def _on_habit_changed(self, label: str):
         """Handle habit selection change in dropdown"""
         # Save current note before switching
         if self._note is not None:
@@ -314,12 +289,7 @@ class NotesWidget(QWidget):
         if self.parent() and hasattr(self.parent(), 'session_manager'):
             active_habit_ids = list(self.parent().session_manager._processes.keys())
             if len(active_habit_ids) == 1:
-                active_habit_id = active_habit_ids[0]
-                # Find and select this habit in the dropdown
-                for i in range(self.habit_selector.count()):
-                    if self.habit_selector.itemData(i) == active_habit_id:
-                        self.habit_selector.setCurrentIndex(i)
-                        break
+                self.habit_selector.set_selected_by_data(active_habit_ids[0])
 
         # Load note content for the selected habit (defaults to global note)
         self._load_selected_note()
@@ -327,6 +297,7 @@ class NotesWidget(QWidget):
         # Adjust height based on loaded content
         self._adjust_height()
 
+        self.setWindowOpacity(SettingsService.get('window.opacity', 1.0))
         self.show()
 
         # Re-apply position after show() to fix first-show positioning issue
@@ -444,6 +415,10 @@ class NotesWidget(QWidget):
                     self.show()
         
         super().changeEvent(event)
+
+    def _on_setting_changed(self, key: str, value):
+        if key == 'window.opacity':
+            self.setWindowOpacity(float(value))
 
     def closeEvent(self, event):
         """Handle close event - save before closing"""

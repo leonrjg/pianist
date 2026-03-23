@@ -8,11 +8,8 @@ from PyQt6.QtGui import QFont
 
 from .base_page import SheetPage
 from .habit_card import HabitCard
-from .vintage_form_widgets import VintageButton
+from ..themed_form_widgets import ThemedButton
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.habit.service import HabitService
 from core.util.time import get_friendly_datetime
 
@@ -20,7 +17,8 @@ from core.util.time import get_friendly_datetime
 class RepertoirePage(SheetPage):
     """Repertoire page showing list of all habits"""
 
-    def __init__(self, parent=None):
+    def __init__(self, service=None, parent=None):
+        self.service = service
         self._show_archived_only = False
         self._archived_button = None
         super().__init__(parent)
@@ -41,13 +39,13 @@ class RepertoirePage(SheetPage):
 
         # Archived button
         button_text = "Show Active" if self._show_archived_only else "Show Archived"
-        self._archived_button = VintageButton(button_text, button_type="secondary", parent=self)
+        self._archived_button = ThemedButton(button_text, button_type="secondary", parent=self)
         self._archived_button.clicked.connect(self._toggle_archived_view)
         layout.addWidget(self._archived_button)
 
         # Load habits via service
         try:
-            all_habits = HabitService.get_all_non_deleted()
+            all_habits = self.service.get_all_non_deleted()
 
             # Filter based on archived view mode
             if self._show_archived_only:

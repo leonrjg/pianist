@@ -2,11 +2,20 @@ import json
 from datetime import datetime
 from typing import Any
 
+from PyQt6.QtCore import QObject, pyqtSignal
+
 from core.config import get_device_id
 
 
+class _SettingsSignals(QObject):
+    changed = pyqtSignal(str, object)  # key, value
+
+
+_signals = _SettingsSignals()
+
+
 DEFAULTS = {
-    'theme.active': 'vintage',
+    'theme.active': 'wood',
     'index.past_days': 0,
     'index.future_days': 30,
     'sounds.enabled': True,
@@ -18,6 +27,8 @@ DEFAULTS = {
 
 class SettingsService:
     """Read/write app settings with automatic sync propagation."""
+
+    signals = _signals
 
     @classmethod
     def get(cls, key: str, default: Any = None) -> Any:
@@ -49,6 +60,7 @@ class SettingsService:
             row.save()
 
         live_push_instance(row, 'appsetting')
+        _signals.changed.emit(key, value)
 
     @classmethod
     def get_all(cls) -> dict:

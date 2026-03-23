@@ -11,15 +11,12 @@ from PyQt6.QtCore import Qt, QDate
 from core.tracker.registry import TrackerRegistry
 from . import HabitStatCard
 from .base_page import SheetPage
-from .vintage_dropdown import VintageDropdown
-from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, VintageButton, VintageDateEdit, FormSection
+from ..themed_dropdown import ThemedDropdown
+from ..themed_form_widgets import ThemedLineEdit, ThemedSpinBox, ThemedCheckBox, ThemedButton, ThemedDateEdit, ThemedFormSection
 from .notes_widget import NotesWidget
 from ..tracker_help_widget import TrackerHelpWidget
 
 # Import database models
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.db import db
 from core.habit.habit import Habit
 from core.habit.service import HabitService
@@ -28,8 +25,9 @@ from core.habit.service import HabitService
 class HabitDetailPage(SheetPage):
     """Detail page for viewing/editing a habit"""
 
-    def __init__(self, habit_id=None, parent=None):
+    def __init__(self, habit_id=None, service=None, parent=None):
         self.habit_id = habit_id
+        self.service = service
         self.habit = None
         self._name_edit = None
         self._schedule_dropdown = None
@@ -66,7 +64,7 @@ class HabitDetailPage(SheetPage):
         # Load habit if editing
         if self.habit_id:
             try:
-                self.habit = HabitService.get_non_deleted_by_id(self.habit_id)
+                self.habit = self.service.get_non_deleted_by_id(self.habit_id)
                 if self.habit is None:
                     raise ValueError("not found")
             except:
@@ -80,7 +78,7 @@ class HabitDetailPage(SheetPage):
 
         # Statistics button (if editing)
         if self.habit:
-            stats_button = VintageButton("View Statistics", button_type="secondary", parent=self)
+            stats_button = ThemedButton("View Statistics", button_type="secondary", parent=self)
             stats_button.clicked.connect(lambda: self.navigate_to.emit('habit_stats', self.habit.id))
             layout.addWidget(stats_button)
 
@@ -90,10 +88,10 @@ class HabitDetailPage(SheetPage):
         form_widget.setLayout(form_layout)
 
         # Basic Information Section
-        basic_section = FormSection("Information")
+        basic_section = ThemedFormSection("Information")
 
         # Name field
-        self._name_edit = VintageLineEdit("e.g., Reading")
+        self._name_edit = ThemedLineEdit("e.g., Reading")
         if self.habit:
             self._name_edit.setText(self.habit.name)
         basic_section.add_field("Name:", self._name_edit)
@@ -101,7 +99,7 @@ class HabitDetailPage(SheetPage):
         # Schedule field
         schedules = ['hourly', 'daily', 'weekly', 'monthly', 'exponential_3']
         default_schedule = self.habit.schedule if self.habit else None
-        self._schedule_dropdown = VintageDropdown(schedules, default_schedule)
+        self._schedule_dropdown = ThemedDropdown(schedules, default_schedule)
         basic_section.add_field("Schedule:", self._schedule_dropdown)
 
         # Step field (repeat every N intervals)
@@ -114,7 +112,7 @@ class HabitDetailPage(SheetPage):
         repeat_label.setStyleSheet("color: #666;")
         step_layout.addWidget(repeat_label)
 
-        self._step_spinbox = VintageSpinBox()
+        self._step_spinbox = ThemedSpinBox()
         self._step_spinbox.setMinimum(1)
         self._step_spinbox.setMaximum(999)
         self._step_spinbox.setMaximumWidth(60)
@@ -134,7 +132,7 @@ class HabitDetailPage(SheetPage):
         basic_section.add_widget(step_widget)
 
         # Start date field
-        self._start_date_edit = VintageDateEdit()
+        self._start_date_edit = ThemedDateEdit()
         self._start_date_edit.setMaximumWidth(140)
         if self.habit and self.habit.started_at:
             # Convert datetime to QDate
@@ -146,7 +144,7 @@ class HabitDetailPage(SheetPage):
         basic_section.add_field("Start date:", self._start_date_edit)
 
         # End date field
-        self._end_date_edit = VintageDateEdit()
+        self._end_date_edit = ThemedDateEdit()
         self._end_date_edit.setMaximumWidth(140)
         self._end_date_edit.setSpecialValueText("No end date")
         self._end_date_edit.setMinimumDate(QDate(1900, 1, 1))
@@ -168,10 +166,10 @@ class HabitDetailPage(SheetPage):
         form_layout.addWidget(basic_section)
 
         # Time Settings Section
-        time_section = FormSection("Progress")
+        time_section = ThemedFormSection("Progress")
 
         # Duration field
-        self._duration_spin = VintageSpinBox()
+        self._duration_spin = ThemedSpinBox()
         self._duration_spin.setMinimum(0)
         self._duration_spin.setMaximumWidth(140)
         if self.habit and self.habit.allocated_time:
@@ -179,7 +177,7 @@ class HabitDetailPage(SheetPage):
         time_section.add_field("Minimum time to count towards streak (min):", self._duration_spin)
 
         # Timeout field
-        self._timeout_spin = VintageSpinBox()
+        self._timeout_spin = ThemedSpinBox()
         self._timeout_spin.setMinimum(0)
         self._timeout_spin.setMaximumWidth(140)
         self._timeout_spin.setValue(30)
@@ -190,10 +188,10 @@ class HabitDetailPage(SheetPage):
         form_layout.addWidget(time_section)
 
         # Display Options Section
-        display_section = FormSection("Display Options")
+        display_section = ThemedFormSection("Display Options")
 
         # Show as key checkbox
-        self._visible_checkbox = VintageCheckBox("Show as piano key")
+        self._visible_checkbox = ThemedCheckBox("Show as piano key")
         self._visible_checkbox.setChecked(self.habit.visible if self.habit else True)
         # Disable if habit is archived
         if self.habit and self.habit.archived:
@@ -203,7 +201,7 @@ class HabitDetailPage(SheetPage):
         form_layout.addWidget(display_section)
 
         # Trackers section - dynamically generated from registry
-        trackers_section = FormSection("Tracking")
+        trackers_section = ThemedFormSection("Tracking")
 
         # Get enabled trackers for this habit
         enabled_trackers = {}
@@ -220,7 +218,7 @@ class HabitDetailPage(SheetPage):
             config = TrackerRegistry.get_config_schema(tracker_name)
 
             # Create checkbox for this tracker
-            checkbox = VintageCheckBox(f"{tracker_name}")
+            checkbox = ThemedCheckBox(f"{tracker_name}")
             checkbox.setChecked(tracker_name in enabled_trackers)
             checkbox.stateChanged.connect(lambda state, tn=tracker_name: self._on_tracker_toggled(tn, state))
             self._tracker_checkboxes[tracker_name] = checkbox
@@ -245,7 +243,7 @@ class HabitDetailPage(SheetPage):
                 config_label = self._create_text_label(f"Config:", secondary=True)
                 help_layout.addWidget(config_label)
 
-                config_edit = VintageLineEdit(self._get_config_placeholder(tracker_name))
+                config_edit = ThemedLineEdit(self._get_config_placeholder(tracker_name))
                 if tracker_name in enabled_trackers:
                     config_dict = enabled_trackers[tracker_name]
                     config_edit.setText(self._config_dict_to_string(config_dict))
@@ -279,7 +277,7 @@ class HabitDetailPage(SheetPage):
         layout.addWidget(form_widget)
 
         # Notes section
-        notes_section = FormSection("Notes")
+        notes_section = ThemedFormSection("Notes")
         self._notes_widget = NotesWidget(parent=self)
         if self.habit and self.habit.note:
             self._notes_widget.set_note(self.habit.note)
@@ -295,19 +293,19 @@ class HabitDetailPage(SheetPage):
 
         # Delete button (if editing)
         if self.habit:
-            delete_button = VintageButton("Delete", button_type="danger", parent=self)
+            delete_button = ThemedButton("Delete", button_type="danger", parent=self)
             delete_button.clicked.connect(self._delete_habit)
             button_layout.addWidget(delete_button)
 
         # Archive button (if editing)
         if self.habit:
             archive_text = "Unarchive" if self.habit.archived else "Archive"
-            self._archive_button = VintageButton(archive_text, button_type="secondary", parent=self)
+            self._archive_button = ThemedButton(archive_text, button_type="secondary", parent=self)
             self._archive_button.clicked.connect(self._archive_habit)
             button_layout.addWidget(self._archive_button)
 
         # Save button
-        save_button = VintageButton("Save", button_type="primary", parent=self)
+        save_button = ThemedButton("Save", button_type="primary", parent=self)
         save_button.clicked.connect(self._save_habit)
         button_layout.addWidget(save_button)
 

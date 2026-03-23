@@ -91,7 +91,7 @@ class AutoSessionManager(QObject):
             return False
 
         # Get habit's WindowTracker config
-        trackers = HabitService.get_window_trackers(habit)
+        trackers = self.service.get_window_trackers(habit)
 
         for tracker in trackers:
             config = json.loads(tracker.config)

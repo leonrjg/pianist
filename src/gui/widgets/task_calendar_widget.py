@@ -10,9 +10,7 @@ from PyQt6.QtGui import QPainter, QColor, QTextCharFormat
 from typing import Dict, List
 
 
-def _parse_rgb(s: str, alpha: int = 255) -> QColor:
-    nums = [int(x.strip()) for x in s[4:-1].split(',')]
-    return QColor(nums[0], nums[1], nums[2], alpha)
+from gui.themes.color import parse_color as _parse_rgb
 
 
 class TaskCalendarWidget(QCalendarWidget):

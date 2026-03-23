@@ -13,8 +13,8 @@ from .activity_card import ActivityCard
 from .session_item import SessionItem
 from .calendar_cell import CalendarCell
 from .calendar_graph import CalendarGraph
-from .vintage_dropdown import VintageDropdown
-from .vintage_form_widgets import VintageLineEdit, VintageSpinBox, VintageCheckBox, VintageButton, FormSection
+from ..themed_dropdown import ThemedDropdown
+from ..themed_form_widgets import ThemedLineEdit, ThemedSpinBox, ThemedCheckBox, ThemedButton, ThemedFormSection
 from .notes_widget import NotesWidget
 from .index_page import IndexPage
 from .repertoire_page import RepertoirePage
@@ -39,12 +39,12 @@ __all__ = [
     'SessionItem',
     'CalendarCell',
     'CalendarGraph',
-    'VintageDropdown',
-    'VintageLineEdit',
-    'VintageSpinBox',
-    'VintageCheckBox',
-    'VintageButton',
-    'FormSection',
+    'ThemedDropdown',
+    'ThemedLineEdit',
+    'ThemedSpinBox',
+    'ThemedCheckBox',
+    'ThemedButton',
+    'ThemedFormSection',
     'NotesWidget',
     'IndexPage',
     'RepertoirePage',

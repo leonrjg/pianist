@@ -51,93 +51,97 @@ _SCROLLBAR = """
 """
 
 SAKURA_THEME = Theme(
-    name='sakura',
+    name="sakura",
     # Page / sheet background — whitesmoke
-    paper='rgb(245, 245, 245)',
-    paper_alt='rgb(240, 240, 242)',
-    paper_dark='rgb(228, 228, 232)',
+    paper="rgb(245, 245, 245)",
+    paper_alt="rgb(240, 240, 242)",
+    paper_dark="rgb(228, 228, 232)",
     # Text — deep blue-black ink
-    ink_primary='rgb(20, 25, 40)',
-    ink_secondary='rgb(50, 65, 95)',
-    link='rgb(55, 75, 115)',
-    link_hover='rgb(90, 155, 185)',
+    ink_primary="rgb(20, 25, 40)",
+    ink_secondary="rgb(50, 65, 95)",
+    link="rgb(55, 75, 115)",
+    link_hover="rgb(90, 155, 185)",
     # Borders — blue-grey
-    border='rgb(185, 200, 220)',
-    separator='rgb(195, 208, 225)',
+    border="rgb(185, 200, 220)",
+    separator="rgb(195, 208, 225)",
     # Accent — slate blue
-    accent='rgb(55, 75, 115)',
-    accent_dark='rgb(35, 55, 90)',
-    accent_light='rgb(90, 155, 185)',
-    # Piano frame
-    wood_dark='rgb(200, 210, 228)',
-    wood_medium='rgb(225, 232, 242)',
-    wood_light='rgb(242, 245, 250)',
+    accent="rgb(55, 75, 115)",
+    accent_dark="rgb(35, 55, 90)",
+    accent_light="rgb(90, 155, 185)",
+    # Frame / panel tones
+    frame_dark="rgb(25, 35, 62)",
+    frame_medium="rgb(40, 52, 82)",
+    frame_light="rgb(58, 75, 108)",
     # Piano keys
-    white_key='rgb(250, 250, 250)',
-    black_key='rgb(20, 20, 18)',
+    white_key="rgb(250, 250, 250)",
+    black_key="rgb(48, 48, 44)",
     # Status
-    status_active='rgb(60, 170, 100)',
-    status_inactive='rgb(90, 110, 148)',
+    status_active="rgb(60, 170, 100)",
+    status_inactive="rgb(90, 110, 148)",
     # Typography — Japanese-flavored serif
-    header_font='Hiragino Mincho ProN, Georgia, serif',
+    header_font="Hiragino Mincho ProN, Georgia, serif",
     # Urgency: (overdue, soon, today, future)
     urgency_colors=(
-        'rgb(200, 50, 80)',
-        'rgb(55, 75, 115)',
-        'rgb(70, 100, 140)',
-        'rgb(160, 182, 210)',
+        "rgb(200, 50, 80)",
+        "rgb(55, 75, 115)",
+        "rgb(70, 100, 140)",
+        "rgb(160, 182, 210)",
     ),
     menu_stylesheet=_MENU,
     scrollbar_stylesheet=_SCROLLBAR,
     # Sheet painting
-    sheet_frame='rgb(25, 40, 78)',
-    sheet_bg='rgb(255, 255, 255)',
-    sheet_shadow='rgba(55, 75, 115, 80)',
-    sheet_border='rgb(185, 200, 220)',
-    sheet_binding='rgba(55, 75, 115, 45)',
-    dog_ear_color='rgb(232, 236, 245)',
-    sheet_bg_image='gui/themes/sakura/1697702970869684.jpg',
+    sheet_frame="rgb(25, 40, 78)",
+    sheet_bg="rgb(255, 255, 255)",
+    sheet_shadow="rgba(55, 75, 115, 80)",
+    sheet_border="rgb(185, 200, 220)",
+    sheet_binding="rgba(55, 75, 115, 45)",
+    dog_ear_color="rgb(232, 236, 245)",
+    sheet_bg_image="gui/themes/sakura/mt_fuji_c.jpg",
     sheet_bg_image_opacity=0.35,
-    background_svg='',
+    background_svg="",
     background_svg_opacity=0.0,
     # Cards
-    card_bg='rgba(245, 245, 245, 180)',
-    card_bg_completed='rgba(245, 245, 245, 100)',
-    card_border='rgb(185, 200, 220)',
-    card_hover_border='rgb(55, 75, 115)',
+    card_bg="rgba(245, 245, 245, 180)",
+    card_bg_completed="rgba(245, 245, 245, 100)",
+    card_border="rgb(185, 200, 220)",
+    card_hover_border="rgb(55, 75, 115)",
     # Inputs
-    input_bg='rgba(245, 245, 245, 210)',
-    input_focus_border='rgb(55, 75, 115)',
-    input_selection='rgba(55, 75, 115, 110)',
+    input_bg="rgba(245, 245, 245, 210)",
+    input_focus_border="rgb(55, 75, 115)",
+    input_selection="rgba(55, 75, 115, 110)",
     # Buttons
-    button_primary_bg='rgba(55, 75, 115, 185)',
-    button_primary_hover='rgba(75, 100, 148, 210)',
-    button_primary_text='rgb(245, 245, 245)',
-    button_secondary_bg='rgba(245, 245, 245, 210)',
-    button_secondary_hover='rgba(235, 238, 245, 230)',
-    button_secondary_text='rgb(20, 25, 40)',
+    button_primary_bg="rgba(55, 75, 115, 185)",
+    button_primary_hover="rgba(75, 100, 148, 210)",
+    button_primary_text="rgb(245, 245, 245)",
+    button_secondary_bg="rgba(245, 245, 245, 210)",
+    button_secondary_hover="rgba(235, 238, 245, 230)",
+    button_secondary_text="rgb(20, 25, 40)",
+    danger_bg="rgba(180, 50, 50, 150)",
+    danger_hover="rgba(200, 60, 60, 180)",
     # Piano key colors
-    black_key_text_color='rgb(155, 185, 215)',
-    key_label_color='rgb(20, 25, 40)',
+    black_key_text_color="rgb(155, 185, 215)",
+    key_label_color="rgb(20, 25, 40)",
     # Fallboard / control panel — Mt. Fuji gradient + cherry blossom overlay
     fallboard_gradient=(
-        (0.0,  'rgb(255, 255, 255)'),  # snow-white peak
-        (0.22, 'rgb(255, 255, 255)'),  # snow ends
-        (0.62, 'rgb(55, 75, 115)'),    # slate-blue mountain body
-        (0.74, 'rgb(55, 110, 105)'),    # light teal treeline
-        (1.0,  'rgb(90, 155, 185)'),   # lake blue at bottom
+        (0.0, "rgb(255, 255, 255)"),  # snow-white peak
+        (0.22, "rgb(255, 255, 255)"),  # snow ends
+        (0.62, "rgb(55, 75, 115)"),  # slate-blue mountain body
+        (0.74, "rgb(55, 110, 105)"),  # light teal treeline
+        (1.0, "rgb(90, 155, 185)"),  # lake blue at bottom
     ),
     # Frame (toggleable drawer) — same scene, slightly darker/deeper so the
     # fallboard reads as a lighter foreground strip against it
     frame_gradient=(
-        (0.0,  'rgb(230, 235, 245)'),  # off-white, less bright than snow
-        (0.22, 'rgb(210, 215, 230)'),  # cool grey transition
-        (0.62, 'rgb(38, 55, 90)'),     # deeper navy mountain
-        (0.74, 'rgb(38, 85, 82)'),     # darker teal
-        (1.0,  'rgb(65, 125, 160)'),   # deeper lake blue
+        (0.0, "rgb(230, 235, 245)"),  # off-white, less bright than snow
+        (0.22, "rgb(210, 215, 230)"),  # cool grey transition
+        (0.62, "rgb(38, 55, 90)"),  # deeper navy mountain
+        (0.74, "rgb(38, 85, 82)"),  # darker teal
+        (1.0, "rgb(65, 125, 160)"),  # deeper lake blue
     ),
-    frame_svg='gui/themes/sakura/1553444947.png',
-    frame_svg_opacity=0.22,
-    keys_overlay='gui/themes/sakura/1553444947.png',
-    keys_overlay_opacity=0.18,
+    frame_svg="gui/themes/sakura/1553444947.png",
+    frame_svg_opacity=0.2,
+    keys_overlay="",
+    keys_overlay_opacity=0.0,
+    piano_overlay="",
+    piano_overlay_opacity=0.4,
 )

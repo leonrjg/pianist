@@ -8,13 +8,11 @@ from PyQt6.QtCore import Qt
 from typing import Optional, Callable
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class ChampionBanner(QFrame):
-    """Vintage award-style banner highlighting the champion habit"""
+    """Wood award-style banner highlighting the champion habit"""
 
     def __init__(self, habit, streak: int, completion_rate: float,
                  on_click: Optional[Callable] = None, parent=None):

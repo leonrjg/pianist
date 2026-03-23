@@ -11,9 +11,7 @@ from core.util.time import get_friendly_elapsed, get_friendly_datetime, HOUR
 from .productivity_progress_bar import ProductivityProgressBar
 
 
-def _t():
-    from gui.themes.manager import ThemeManager
-    return ThemeManager.get_instance().current
+from gui.themes import current_theme as _t
 
 
 class SessionItem(QFrame):
