@@ -7,6 +7,22 @@ from PyQt6.QtGui import QColor
 from gui.themes.color import parse_color as _parse_rgb
 
 
+def make_font(family: str, pt: int) -> 'QFont':
+    """Create a QFont with platform-normalised point size and rendering hints.
+
+    Equivalent to QFont(family, pt) but applies font_pt() scaling and, on
+    Windows, PreferNoHinting so the font matches the app-level rendering style
+    (QFont(family, pt) constructs from scratch and does not inherit the app
+    font's hinting preference, unlike the no-arg QFont() constructor).
+    """
+    import sys
+    from PyQt6.QtGui import QFont
+    font = QFont(family, font_pt(pt))
+    if sys.platform == 'win32':
+        font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
+    return font
+
+
 def font_pt(pt: int) -> int:
     """Convert a Mac-native point size to the equivalent size on the current platform.
 
