@@ -139,9 +139,9 @@ class TaskCalendarWidget(QCalendarWidget):
         ical_size = 4
         spacing = 2
         number_height = 14
+        indicator_size = max(dot_size, ical_size)
 
-        row_count = 1 + (1 if has_tasks else 0) + (1 if has_ical else 0)
-        total_height = number_height + (spacing + dot_size if has_tasks else 0) + (spacing + ical_size if has_ical else 0)
+        total_height = number_height + (spacing + indicator_size if (has_tasks or has_ical) else 0)
         top_y = rect.center().y() - total_height // 2
 
         # Day number
@@ -154,32 +154,44 @@ class TaskCalendarWidget(QCalendarWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
 
-        current_y = top_y + number_height + spacing
+        # Horizontal indicator row below number
+        if has_tasks or has_ical:
+            indicator_y = top_y + number_height + spacing
 
-        # Task dot (circle)
-        if has_tasks:
-            task_count = len(self._tasks_by_date[qdate])
-            intensity = task_count / max(self._max_tasks_per_day, 1)
-            alpha = int(20 + 235 * intensity * intensity)
-            painter.setBrush(_parse_rgb(t.accent, min(alpha, 255)))
-            dot_x = rect.center().x()
-            dot_y = current_y + dot_size // 2
-            painter.drawEllipse(int(dot_x - dot_size // 2), int(dot_y - dot_size // 2), dot_size, dot_size)
-            current_y += dot_size + spacing
+            total_width = 0
+            if has_tasks:
+                total_width += dot_size
+            if has_ical:
+                if has_tasks:
+                    total_width += spacing
+                total_width += ical_size
 
-        # ICAL diamond (small rotated square)
-        if has_ical:
-            events = self._ical_by_date[qdate]
-            # Use color of first event's source
-            event_color = events[0].color if events else t.link
-            from PyQt6.QtGui import QPolygon
-            from PyQt6.QtCore import QPoint as QP
-            cx = rect.center().x()
-            cy = int(current_y + ical_size // 2)
-            half = ical_size // 2 + 1
-            diamond = QPolygon([QP(cx, cy - half), QP(cx + half, cy), QP(cx, cy + half), QP(cx - half, cy)])
-            painter.setBrush(_parse_rgb(event_color, 200))
-            painter.drawPolygon(diamond)
+            current_x = rect.center().x() - total_width // 2
+
+            # Task dot (circle)
+            if has_tasks:
+                task_count = len(self._tasks_by_date[qdate])
+                intensity = task_count / max(self._max_tasks_per_day, 1)
+                alpha = int(20 + 235 * intensity * intensity)
+                painter.setBrush(_parse_rgb(t.accent, min(alpha, 255)))
+                dot_cx = current_x + dot_size // 2
+                dot_cy = indicator_y + dot_size // 2
+                painter.drawEllipse(int(dot_cx - dot_size // 2), int(dot_cy - dot_size // 2), dot_size, dot_size)
+                current_x += dot_size + spacing
+
+            # ICAL diamond (small rotated square)
+            if has_ical:
+                events = self._ical_by_date[qdate]
+                # Use color of first event's source
+                event_color = events[0].color if events else t.link
+                from PyQt6.QtGui import QPolygon
+                from PyQt6.QtCore import QPoint as QP
+                cx = current_x + ical_size // 2
+                cy = int(indicator_y + ical_size // 2)
+                half = ical_size // 2 + 1
+                diamond = QPolygon([QP(cx, cy - half), QP(cx + half, cy), QP(cx, cy + half), QP(cx - half, cy)])
+                painter.setBrush(_parse_rgb(event_color, 200))
+                painter.drawPolygon(diamond)
 
         painter.restore()
 
