@@ -51,6 +51,8 @@ def main():
     # Load custom fonts and set default application font
     load_application_fonts()
     default_font = QFont("Rounded Mplus 1c", 12)
+    if sys.platform == 'win32':
+        default_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     app.setFont(default_font)
 
     # Initialize database and data service before creating any UI
