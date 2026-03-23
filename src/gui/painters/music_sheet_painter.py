@@ -133,7 +133,7 @@ class MusicSheetPainter(BasePainter):
         painter.drawText(clef_x, clef_y, "𝄞")  # Treble clef symbol
 
         # Draw some simple note placeholders (circles and stems)
-        note_font = QFont("Arial", 8, QFont.Weight.Bold)
+        note_font = make_font("Arial", 8, QFont.Weight.Bold)
         painter.setFont(note_font)
 
         # First staff notes

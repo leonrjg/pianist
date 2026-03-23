@@ -15,7 +15,7 @@ from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QFontMetrics, QPa
 from PyQt6.QtCore import Qt, QRect
 
 from .base_painter import BasePainter
-from ..constants import piano_colors, PianoLayout, Animations
+from ..constants import piano_colors, PianoLayout, Animations, font_pt, make_font
 from ..models.piano_geometry import PianoGeometry
 from ..models.piano_state import PianoState
 
@@ -303,7 +303,7 @@ class KeyPainter(BasePainter):
 
         font_size = 12 if len(time_text) <= 5 else 11
         painter.setPen(QPen(piano_colors().BLACK_KEY_TEXT))
-        painter.setFont(QFont('Helvetica', font_size))
+        painter.setFont(make_font('Helvetica', font_size))
         painter.drawText(
             text_rect,
             Qt.AlignmentFlag.AlignCenter,
@@ -355,7 +355,7 @@ class KeyPainter(BasePainter):
         painter.drawRect(rect)
 
         painter.setPen(QPen(piano_colors().WHITE_KEY))
-        painter.setFont(QFont('Helvetica', 10, QFont.Weight.Bold))
+        painter.setFont(make_font('Helvetica', 10, QFont.Weight.Bold))
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
 
     @staticmethod
@@ -396,7 +396,7 @@ class KeyPainter(BasePainter):
             painter.drawEllipse(int(checkmark_x), int(checkmark_y), checkmark_size, checkmark_size)
 
             painter.setPen(QPen(piano_colors().WHITE_KEY, 2))
-            painter.setFont(QFont('Arial', 12, QFont.Weight.Bold))
+            painter.setFont(make_font('Arial', 12, QFont.Weight.Bold))
             painter.drawText(
                 QRect(int(checkmark_x), int(checkmark_y), checkmark_size, checkmark_size),
                 Qt.AlignmentFlag.AlignCenter,
