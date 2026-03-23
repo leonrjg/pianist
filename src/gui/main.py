@@ -7,6 +7,14 @@ import os
 import sys
 import multiprocessing
 from pathlib import Path
+
+if sys.platform == 'win32':
+    import ctypes
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except OSError:
+        pass  # Already set by the Python executable manifest; Qt will use whatever was set
+
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QFontDatabase, QFont
