@@ -117,3 +117,7 @@ class Theme:
     black_key_text_color: str
     # Habit name label on white keys
     key_label_color: str
+
+    # --- Toolbar icons ---
+    # Tint color applied to SVG icons; '' = use native icon color (black)
+    icon_tint: str = ""

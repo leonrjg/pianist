@@ -82,7 +82,7 @@ class SettingsPage(SheetPage):
         row, h = self._make_row()
         h.addWidget(self._row_label("Theme"))
 
-        themes = ['wood', 'sakura']
+        themes = ['wood', 'sakura', 'midori']
         current = SettingsService.get('theme.active', 'wood')
         dropdown = ThemedDropdown(themes, default_item=current if current in themes else themes[0])
 

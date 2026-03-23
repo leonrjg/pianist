@@ -1,10 +1,12 @@
 from .theme import Theme
 from .wood import VINTAGE_THEME
 from .sakura import SAKURA_THEME
+from .midori import MIDORI_THEME
 
 _REGISTRY: dict[str, Theme] = {
     'wood': VINTAGE_THEME,
     'sakura': SAKURA_THEME,
+    'midori': MIDORI_THEME,
 }
 
 

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QScrollArea, QWidget
 
 
@@ -42,20 +42,38 @@ class MenuItem:
     data: Optional[object] = None
 
 
+def _tinted_icon(icon_path: str, tint: str, size: int) -> QIcon:
+    """Return a QIcon with all opaque pixels recolored to `tint` (rgb(r,g,b) string).
+    If tint is empty, returns the icon in its native color."""
+    pixmap = QPixmap(icon_path)
+    if not tint:
+        return QIcon(pixmap)
+    result = QPixmap(pixmap.size())
+    result.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(result)
+    painter.drawPixmap(0, 0, pixmap)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    r, g, b = [int(v.strip()) for v in tint[4:-1].split(',')]
+    painter.fillRect(result.rect(), QColor(r, g, b))
+    painter.end()
+    return QIcon(result)
+
+
 class MenuButton(QPushButton):
     """Individual menu button with icon and tooltip."""
 
     def __init__(self, icon_path: Optional[str], tooltip: str, parent=None):
         super().__init__(parent)
+        self._icon_path = icon_path
         self.setToolTip(tooltip)
         self.setFixedSize(_Dim.BUTTON_SIZE, _Dim.BUTTON_SIZE)
-        if icon_path:
-            self.setIcon(QIcon(icon_path))
-            self.setIconSize(QSize(_Dim.ICON_SIZE, _Dim.ICON_SIZE))
         self._setup_style()
 
     def _setup_style(self):
         t = _t()
+        if self._icon_path:
+            self.setIcon(_tinted_icon(self._icon_path, t.icon_tint, _Dim.ICON_SIZE))
+            self.setIconSize(QSize(_Dim.ICON_SIZE, _Dim.ICON_SIZE))
         self.setStyleSheet(f"""
             QPushButton {{
                 background-color: {t.paper_alt};

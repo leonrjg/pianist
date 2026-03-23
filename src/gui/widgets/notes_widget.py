@@ -5,7 +5,7 @@ Displays a text editor for taking notes with auto-save functionality.
 """
 
 from PyQt6.QtWidgets import QWidget, QTextEdit, QPushButton, QLabel, QVBoxLayout, QHBoxLayout
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer, QEvent, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QPainter, QColor, QKeyEvent, QTextBlockFormat, QTextCursor
 
 from core.notes.service import NoteService
@@ -13,6 +13,8 @@ from core.settings.service import SettingsService
 
 from gui.themes import current_theme as _t
 from gui.widgets.themed_dropdown import ThemedDropdown
+from gui.painters.frame_painter import FramePainter
+from gui.painters.base_painter import BasePainter
 
 
 def _c():
@@ -86,6 +88,14 @@ class NotesWidget(QWidget):
         self.setMinimumHeight(self.MIN_HEIGHT)
         self.setMaximumHeight(self.MAX_HEIGHT)
         
+        if parent is not None:
+            parent.installEventFilter(self)
+
+        self._fade_animation = QPropertyAnimation(self, b"windowOpacity")
+        self._fade_animation.setDuration(300)
+        self._fade_animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self._fade_animation.finished.connect(self._on_fade_finished)
+
         SettingsService.signals.changed.connect(self._on_setting_changed)
 
         # Auto-save state
@@ -261,15 +271,26 @@ class NotesWidget(QWidget):
         self._adjust_height()
 
     def paintEvent(self, event):
-        """Draw simple background without border"""
+        """Draw background matching the piano frame style (gradient + SVG overlay)"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw simple rectangle background (no border, no rounded corners)
-        c = _c()
-        bg = QColor(c.FRAME_DARK)
-        bg.setAlpha(240)
-        painter.fillRect(self.rect(), bg)
+        t = _t()
+        r = self.rect()
+        gradient = (t.fallboard_gradient if t else ())
+        if gradient:
+            stops = [(1.0 - pos, color) for pos, color in FramePainter._parse_gradient_stops(gradient)]
+            BasePainter.draw_gradient_rect_stops(
+                painter, r.x(), r.y(), r.right(), r.bottom(), stops, vertical=True
+            )
+        else:
+            c = _c()
+            bg = QColor(c.FRAME_DARK)
+            bg.setAlpha(240)
+            painter.fillRect(r, bg)
+
+        if t and t.frame_svg:
+            BasePainter.draw_image_overlay(painter, r.x(), r.y(), r.width(), r.height(), t.frame_svg, t.frame_svg_opacity)
 
     def show_at_position(self, pos: QPoint, width: int):
         """
@@ -402,19 +423,28 @@ class NotesWidget(QWidget):
         
         super().focusOutEvent(event)
 
-    def changeEvent(self, event):
-        """Handle window state changes - synchronize with parent window"""
-        if event.type() == event.Type.WindowStateChange:
-            # If parent window minimizes/hides, hide notes
-            if self.parent() and hasattr(self.parent(), 'isMinimized'):
-                if self.parent().isMinimized() and self.isVisible():
-                    self._was_visible_before_hide = True
-                    self.hide()
-                elif not self.parent().isMinimized() and self._was_visible_before_hide:
-                    self._was_visible_before_hide = False
-                    self.show()
-        
-        super().changeEvent(event)
+    def eventFilter(self, obj, event):
+        if obj is self.parent():
+            if event.type() == QEvent.Type.Hide and self.isVisible():
+                self._was_visible_before_hide = True
+                self._fade_animation.stop()
+                self._fade_animation.setStartValue(self.windowOpacity())
+                self._fade_animation.setEndValue(0.0)
+                self._fade_animation.start()
+            elif event.type() == QEvent.Type.Show and self._was_visible_before_hide:
+                self._was_visible_before_hide = False
+                self._fade_animation.stop()
+                self.setWindowOpacity(0.0)
+                self.show()
+                self._fade_animation.setStartValue(0.0)
+                self._fade_animation.setEndValue(SettingsService.get('window.opacity', 1.0))
+                self._fade_animation.start()
+        return False
+
+    def _on_fade_finished(self):
+        if self.windowOpacity() == 0.0:
+            self.hide()
+            self.setWindowOpacity(SettingsService.get('window.opacity', 1.0))
 
     def _on_setting_changed(self, key: str, value):
         if key == 'window.opacity':
