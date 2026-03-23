@@ -23,19 +23,34 @@ def make_font(family: str, pt: int) -> 'QFont':
     return font
 
 
+# Maximum bump applied on Windows at DPR=1.0 to compensate for the lower visual
+# weight of 1x rendering vs Mac Retina (2x). Fades linearly to zero as DPR
+# approaches 2.0, so HiDPI Windows displays get no unnecessary inflation.
+_WIN_FONT_BUMP_MAX = 1.15
+
+
 def font_pt(pt: int) -> int:
     """Convert a Mac-native point size to the equivalent size on the current platform.
 
     Qt maps point sizes to pixels using the screen's logical DPI (72 on macOS, 96 on
     Windows), so the same point value renders 33% larger on Windows. This normalises
-    against macOS's 72 DPI baseline so all platforms produce the same physical size.
+    against macOS's 72 DPI baseline so all platforms produce the same physical size,
+    then applies a DPR-proportional bump on Windows to compensate for the lower visual
+    weight of sub-Retina rendering.
     """
+    import sys
     from PyQt6.QtWidgets import QApplication
     app = QApplication.instance()
     if app is None:
         return pt
-    dpi = app.primaryScreen().logicalDotsPerInch()
-    return max(6, round(pt * 72 / dpi))
+    screen = app.primaryScreen()
+    dpi = screen.logicalDotsPerInch()
+    scaled = pt * 72 / dpi
+    if sys.platform == 'win32':
+        dpr = screen.devicePixelRatio()
+        bump = 1.0 + (_WIN_FONT_BUMP_MAX - 1.0) * max(0.0, min(1.0, 2.0 - dpr))
+        scaled *= bump
+    return max(6, round(scaled))
 
 
 _piano_colors_cache: tuple = (None, None)  # (theme, colors_class)
