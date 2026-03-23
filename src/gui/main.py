@@ -16,6 +16,7 @@ if sys.platform == 'win32':
         pass  # Already set by the Python executable manifest; Qt will use whatever was set
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
+from gui.constants import make_font
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QFontDatabase, QFont
 
@@ -50,12 +51,7 @@ def main():
     
     # Load custom fonts and set default application font
     load_application_fonts()
-    logical_dpi = app.primaryScreen().logicalDotsPerInch()
-    font_size = round(12 * 72 / logical_dpi)
-    default_font = QFont("Rounded Mplus 1c", font_size)
-    if sys.platform == 'win32':
-        default_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
-    app.setFont(default_font)
+    app.setFont(make_font("Rounded Mplus 1c", 12))
 
     # Initialize database and data service before creating any UI
     try:
