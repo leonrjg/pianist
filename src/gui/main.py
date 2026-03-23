@@ -50,7 +50,9 @@ def main():
     
     # Load custom fonts and set default application font
     load_application_fonts()
-    default_font = QFont("Rounded Mplus 1c", 12)
+    logical_dpi = app.primaryScreen().logicalDotsPerInch()
+    font_size = round(12 * 72 / logical_dpi)
+    default_font = QFont("Rounded Mplus 1c", font_size)
     if sys.platform == 'win32':
         default_font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     app.setFont(default_font)
