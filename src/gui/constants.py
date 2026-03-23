@@ -26,7 +26,7 @@ def make_font(family: str, pt: int) -> 'QFont':
 # Maximum bump applied on Windows at DPR=1.0 to compensate for the lower visual
 # weight of 1x rendering vs Mac Retina (2x). Fades linearly to zero as DPR
 # approaches 2.0, so HiDPI Windows displays get no unnecessary inflation.
-_WIN_FONT_BUMP_MAX = 1.15
+_WIN_FONT_BUMP_MAX = 1.22
 
 
 def font_pt(pt: int) -> int:
