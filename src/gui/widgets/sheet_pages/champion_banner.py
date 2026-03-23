@@ -9,6 +9,7 @@ from typing import Optional, Callable
 
 
 from gui.themes import current_theme as _t
+from gui.constants import font_pt
 
 
 class ChampionBanner(QFrame):
@@ -80,7 +81,7 @@ class ChampionBanner(QFrame):
         name_label = QLabel(self.habit.name)
         name_font = QFont()
         name_font.setBold(True)
-        name_font.setPointSize(11)
+        name_font.setPointSize(font_pt(11))
         name_label.setFont(name_font)
         name_label.setStyleSheet(f"color: {t.button_primary_text}; background: transparent;")
         info_layout.addWidget(name_label)

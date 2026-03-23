@@ -11,6 +11,7 @@ from core.mood.mood import Mood
 from core.mood.mood_log import MoodLog
 from core.util.time import get_friendly_datetime
 from .base_page import SheetPage
+from gui.constants import font_pt
 from ..themed_form_widgets import ThemedLineEdit, ThemedButton, ThemedFormSection
 
 
@@ -303,7 +304,7 @@ class MoodPage(SheetPage):
         """Create a subsection header"""
         label = QLabel(text)
         font = QFont()
-        font.setPointSize(11)
+        font.setPointSize(font_pt(11))
         font.setBold(True)
         label.setFont(font)
         label.setStyleSheet(f"color: {_t().ink_primary}; padding: 4px 0px 2px 0px;")

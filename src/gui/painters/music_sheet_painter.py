@@ -12,6 +12,7 @@ from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont
 from PyQt6.QtCore import Qt, QRect
 
 from .base_painter import BasePainter
+from gui.constants import font_pt
 
 
 class MusicSheetPainter(BasePainter):
@@ -122,7 +123,7 @@ class MusicSheetPainter(BasePainter):
             sheet_rect: Rectangle defining the sheet area
         """
         # Use a music-like font for symbols
-        font = QFont("Arial", 10)
+        font = QFont("Arial", font_pt(10))
         painter.setFont(font)
         painter.setPen(QPen(MusicSheetPainter.TEXT_COLOR))
 
@@ -153,7 +154,7 @@ class MusicSheetPainter(BasePainter):
         # Draw bass clef on second staff if there's room
         if sheet_rect.height() > 80:
             bass_clef_y = sheet_rect.y() + 65
-            painter.setFont(QFont("Arial", 10))
+            painter.setFont(QFont("Arial", font_pt(10)))
             painter.drawText(clef_x, bass_clef_y, "𝄢")  # Bass clef symbol
 
             # More notes on second staff

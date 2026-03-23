@@ -11,6 +11,7 @@ from .productivity_progress_bar import ProductivityProgressBar
 
 
 from gui.themes import current_theme as _t
+from gui.constants import font_pt
 
 
 class HabitStatCard(QFrame):
@@ -70,7 +71,7 @@ class HabitStatCard(QFrame):
         name_label = QLabel(self.habit.name)
         name_font = QFont()
         name_font.setBold(True)
-        name_font.setPointSize(11)
+        name_font.setPointSize(font_pt(11))
         name_label.setFont(name_font)
         name_label.setStyleSheet(f"color: {t.ink_primary}; background: transparent;")
         name_layout.addWidget(name_label)

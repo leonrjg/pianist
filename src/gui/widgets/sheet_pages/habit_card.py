@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 
 from gui.themes import current_theme as _t
+from gui.constants import font_pt
 
 
 class HabitCard(QFrame):
@@ -121,7 +122,7 @@ class HabitCard(QFrame):
         name_label = QLabel(name_text)
         font = QFont()
         font.setBold(True)
-        font.setPointSize(11)
+        font.setPointSize(font_pt(11))
         name_label.setFont(font)
         text_color = t.ink_secondary if self.completed else t.ink_primary
         name_label.setStyleSheet(f"color: {text_color}; background: transparent;")
