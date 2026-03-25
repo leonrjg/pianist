@@ -79,7 +79,7 @@ MIDORI_THEME = Theme(
     status_active="rgb(80, 200, 80)",
     status_inactive="rgb(55, 100, 50)",
     # Typography
-    header_font="Georgia, serif",
+    header_font="Luxurious Roman",
     # Urgency: (overdue, soon, today, future)
     urgency_colors=(
         "rgb(210, 60, 70)",
