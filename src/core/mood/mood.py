@@ -29,22 +29,13 @@ class Mood(BaseModel):
         return list(Mood.select().where(Mood.deleted_at.is_null()).order_by(Mood.display_order))
     
     @staticmethod
-    def get_current_mood_log() -> Optional['MoodLog']:
-        """
-        Get the currently active mood log (if any).
-        
-        Returns:
-            MoodLog if there's an active mood (end > now), None otherwise.
-        """
-        from datetime import datetime
+    def get_last_mood_log() -> Optional['MoodLog']:
+        """Get the most recently logged mood, or None."""
         from .mood_log import MoodLog
-        
-        now = datetime.now()
-        
         try:
             return (MoodLog
                    .select()
-                   .where((MoodLog.end > now) & MoodLog.deleted_at.is_null())
+                   .where(MoodLog.deleted_at.is_null())
                    .order_by(MoodLog.start.desc())
                    .get())
         except MoodLog.DoesNotExist:

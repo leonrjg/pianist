@@ -18,7 +18,7 @@ from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 from gui.themes.color import parse_color as _qcolor
 
 
@@ -76,7 +76,7 @@ class PageType(Enum):
     SYNC = "sync"
 
 
-class MusicSheetWidget(QWidget):
+class MusicSheetWidget(QWidget, ThemedWidget):
     """Main container for the interactive sheet pages"""
 
     # Signals

@@ -7,10 +7,10 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 
 
-class NotesWidget(QWidget):
+class NotesWidget(QWidget, ThemedWidget):
     """Widget for displaying and editing Markdown notes"""
     
     note_changed = pyqtSignal(str)  # Emitted when note is saved

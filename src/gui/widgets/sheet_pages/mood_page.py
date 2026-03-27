@@ -2,7 +2,7 @@
 Mood Page - Manage moods and view mood logs.
 """
 
-from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget, QPushButton, QLineEdit, QMessageBox, QVBoxLayout
+from PyQt6.QtWidgets import QLabel, QHBoxLayout, QWidget, QPushButton, QMessageBox, QVBoxLayout, QSizePolicy
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
@@ -56,14 +56,13 @@ class MoodPage(SheetPage):
         layout.addStretch()
 
     def _build_current_mood_section(self, layout):
-        """Build current mood display section"""
-        header = self._create_subsection_header("Current Mood")
+        """Build last mood display section"""
+        header = self._create_subsection_header("Last Mood")
         layout.addWidget(header)
 
         current_log = MoodService.get_current_log()
         if current_log:
             t = _t()
-            # Container for current mood
             container = QWidget()
             container.setStyleSheet(f"""
                 QWidget {{
@@ -78,41 +77,19 @@ class MoodPage(SheetPage):
             container_layout.setSpacing(4)
             container.setLayout(container_layout)
 
-            # Mood display
             mood_label = QLabel(f"{current_log.mood.symbol}  {current_log.mood.description}")
             mood_font = QFont()
             mood_font.setBold(True)
             mood_label.setFont(mood_font)
             container_layout.addWidget(mood_label)
 
-            # Time info
-            start_time = get_friendly_datetime(current_log.start)
-            end_time = get_friendly_datetime(current_log.end)
-            time_label = self._create_text_label(f"Started: {start_time} • Ends: {end_time}", secondary=True)
+            logged_time = get_friendly_datetime(current_log.start)
+            time_label = self._create_text_label(f"Logged: {logged_time}", secondary=True)
             container_layout.addWidget(time_label)
-
-            # End button
-            end_btn = QPushButton("End Current Mood")
-            end_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            end_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {t.button_secondary_bg};
-                    border: 1px solid {t.border};
-                    border-radius: 3px;
-                    padding: 4px 8px;
-                    color: {t.button_secondary_text};
-                }}
-                QPushButton:hover {{
-                    background-color: {t.button_secondary_hover};
-                    border-color: {t.accent};
-                }}
-            """)
-            end_btn.clicked.connect(lambda: self._end_current_mood(current_log))
-            container_layout.addWidget(end_btn)
 
             layout.addWidget(container)
         else:
-            no_mood_label = self._create_text_label("No active mood", secondary=True)
+            no_mood_label = self._create_text_label("No mood logged yet", secondary=True)
             layout.addWidget(no_mood_label)
 
     def _build_mood_list_section(self, layout):
@@ -150,7 +127,7 @@ class MoodPage(SheetPage):
 
         # Up button
         up_btn = QPushButton("↑")
-        up_btn.setFixedWidth(30)
+        up_btn.setFixedSize(30, 26)
         up_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         up_btn.setStyleSheet(f"""
             QPushButton {{
@@ -169,7 +146,7 @@ class MoodPage(SheetPage):
 
         # Down button
         down_btn = QPushButton("↓")
-        down_btn.setFixedWidth(30)
+        down_btn.setFixedSize(30, 26)
         down_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         down_btn.setStyleSheet(f"""
             QPushButton {{
@@ -188,7 +165,7 @@ class MoodPage(SheetPage):
 
         # Delete button
         delete_btn = QPushButton("×")
-        delete_btn.setFixedWidth(30)
+        delete_btn.setFixedSize(30, 26)
         delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         delete_btn.setStyleSheet(f"""
             QPushButton {{
@@ -197,7 +174,6 @@ class MoodPage(SheetPage):
                 border-radius: 3px;
                 padding: 2px;
                 color: {t.ink_primary};
-                font-size: 16px;
             }}
             QPushButton:hover {{
                 background-color: rgba(180, 60, 60, 150);
@@ -267,13 +243,12 @@ class MoodPage(SheetPage):
         # Description
         desc_label = QLabel(log.mood.description)
         desc_label.setStyleSheet(f"color: {t.ink_primary};")
-        desc_label.setFixedWidth(200)
+        desc_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         row_layout.addWidget(desc_label)
 
         # Time
         start_time = get_friendly_datetime(log.start)
-        duration = log.get_duration_seconds() // 60  # minutes
-        time_label = self._create_text_label(f"{start_time} • {duration}m", secondary=True)
+        time_label = self._create_text_label(start_time, secondary=True)
         row_layout.addWidget(time_label)
 
         row_layout.addStretch()
@@ -309,12 +284,6 @@ class MoodPage(SheetPage):
         label.setFont(font)
         label.setStyleSheet(f"color: {_t().ink_primary}; padding: 4px 0px 2px 0px;")
         return label
-
-    def _end_current_mood(self, log):
-        """End the current mood"""
-        MoodService.end_mood_log(log)
-        self.refresh()
-        self.content_updated.emit()
 
     def _delete_mood(self, mood):
         """Delete a mood"""

@@ -9,10 +9,10 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QKeyEvent
 
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 
 
-class SearchBarWidget(QFrame):
+class SearchBarWidget(QFrame, ThemedWidget):
     """Browser-style search bar for text search functionality."""
     
     # Signals
@@ -55,7 +55,9 @@ class SearchBarWidget(QFrame):
         self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
         layout.addWidget(self._close_button)
         
-        # Style the widget and children
+        self._setup_style()
+    
+    def _setup_style(self):
         t = _t()
         self.setStyleSheet(f"""
             SearchBarWidget {{
@@ -95,7 +97,7 @@ class SearchBarWidget(QFrame):
                 background-color: {t.input_selection};
             }}
         """)
-    
+
     def _setup_shortcuts(self):
         """Setup keyboard shortcuts."""
         # Install event filter on search input to catch Enter/Escape

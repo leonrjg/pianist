@@ -48,6 +48,29 @@ _SCROLLBAR = """
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
         background: rgb(14, 28, 12);
     }
+    QScrollBar:horizontal {
+        background: rgb(10, 20, 8);
+        height: 8px;
+        margin: 2px 2px 2px 2px;
+        border: none;
+        border-radius: 2px;
+    }
+    QScrollBar::handle:horizontal {
+        background: rgb(55, 120, 45);
+        min-width: 20px;
+        border-radius: 2px;
+        border: 1px solid rgb(45, 100, 38);
+    }
+    QScrollBar::handle:horizontal:hover {
+        background: rgb(90, 170, 75);
+        border: 1px solid rgb(90, 170, 75);
+    }
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+        background: transparent;
+    }
+    QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+        background: rgb(14, 28, 12);
+    }
 """
 
 MIDORI_THEME = Theme(
@@ -122,7 +145,7 @@ MIDORI_THEME = Theme(
     black_key_text_color="rgb(130, 200, 110)",
     key_label_color="rgb(30, 60, 25)",
     # Toolbar icons — light green so they're visible on dark backgrounds
-    icon_tint="rgb(140, 195, 120)",
+    icon_tint="rgb(255, 255, 255)",
     # Fallboard / control panel — deep forest gradient
     fallboard_gradient=(
         (0.0, "rgb(8, 20, 8)"),

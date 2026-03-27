@@ -11,7 +11,7 @@ from PyQt6.QtGui import QPainter, QColor, QKeyEvent, QTextBlockFormat, QTextCurs
 from core.notes.service import NoteService
 from core.settings.service import SettingsService
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 from gui.widgets.themed_dropdown import ThemedDropdown
 from gui.painters.frame_painter import FramePainter
 from gui.painters.base_painter import BasePainter
@@ -67,7 +67,7 @@ class AutoIndentTextEdit(QTextEdit):
         super().keyPressEvent(event)
 
 
-class NotesWidget(QWidget):
+class NotesWidget(QWidget, ThemedWidget):
     """Notepad widget that appears below the piano window"""
 
     closed = pyqtSignal()

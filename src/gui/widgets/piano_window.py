@@ -23,6 +23,7 @@ from PyQt6.QtGui import QPainter, QIcon, QPainterPath
 from core.util.time import get_friendly_elapsed
 from datetime import datetime
 
+from gui.themes import ThemedWidget
 from ..services import HabitService
 from ..constants import PianoLayout, piano_colors, _parse_rgb, Animations, Interactions
 from ..models import PianoGeometry, PianoState
@@ -32,9 +33,10 @@ from .music_sheet_widget import MusicSheetWidget
 from .marquee import Marquee
 from core.reminder.context import ContextEvaluator
 from core.notification.service import NotificationService
+from core.settings.service import SettingsService
 
 
-class PianoFloatingWindow(QWidget):
+class PianoFloatingWindow(QWidget, ThemedWidget):
     """Main piano interface window - orchestrates all components"""
 
     # Session management signals
@@ -149,6 +151,14 @@ class PianoFloatingWindow(QWidget):
         self.music_sheet_widget.hide()  # Initially hidden
         self._position_music_sheet_widget()
 
+        # ===== Keys Cache TTL (30 minutes) =====
+        self._keys_ttl_timer = QTimer(self)
+        self._keys_ttl_timer.setInterval(30 * 60 * 1000)
+        self._keys_ttl_timer.timeout.connect(self.update_keys_for_window_size)
+        self._keys_ttl_timer.timeout.connect(self.update)
+        self._keys_ttl_timer.timeout.connect(self.music_sheet_widget.refresh_current_page)
+        self._keys_ttl_timer.start()
+
         # ===== Tips Marquee (Below music stand holder) =====
         tips = [
             "Tip: rearrange keys by clicking the Reorder button and dragging keys",
@@ -166,7 +176,7 @@ class PianoFloatingWindow(QWidget):
         self.center_window()
 
         # ===== Set Window Opacity =====
-        self.setWindowOpacity(Animations.WINDOW_OPACITY_NORMAL)
+        self.setWindowOpacity(float(SettingsService.get('window.opacity', Animations.WINDOW_OPACITY_NORMAL)))
 
         # ===== Enable Mouse Tracking =====
         self.setMouseTracking(True)
@@ -279,10 +289,6 @@ class PianoFloatingWindow(QWidget):
         self.mood_bar.closed.connect(self.on_mood_bar_closed)
         self.mood_bar.hide()
 
-        # ===== Mood Update Timer =====
-        self.mood_update_timer = QTimer()
-        self.mood_update_timer.timeout.connect(self.update_mood_button_icon)
-        self.mood_update_timer.start(60000)  # Check every minute
         self.update_mood_button_icon()  # Initial update
 
         # ===== Add Task Widget =====
@@ -422,6 +428,14 @@ class PianoFloatingWindow(QWidget):
 
         self.keys = new_keys
         self.reorder_mode_manager.set_num_keys(len(new_keys))
+
+        # Snap window height so the trailing padding key shows at exactly half height.
+        # Clamped to MIN_WINDOW_HEIGHT to prevent an infinite loop if the snap target
+        # ever falls below Qt's size floor.
+        n_full = len(new_keys) - 1
+        target_height = max(self.geometry_model.get_key_rect(n_full).y() + PianoLayout.KEY_HEIGHT // 2, PianoLayout.MIN_WINDOW_HEIGHT)
+        if self.height() != target_height:
+            self.size_manager.set_size_programmatically(self.width(), target_height)
 
     # ===== Painting =====
 
@@ -1234,10 +1248,12 @@ class PianoFloatingWindow(QWidget):
     def update_mood_button_icon(self):
         """Update mood button icon to show current mood or default"""
         from core.mood.service import MoodService
+        from datetime import datetime, timedelta
 
         c = piano_colors()
         current_log = MoodService.get_current_log()
-        if current_log:
+        recent = current_log and (datetime.now() - current_log.start) < timedelta(days=1)
+        if recent:
             self.mood_button.setText(current_log.mood.symbol)
             self.mood_button.setIcon(QIcon())
         else:
@@ -1431,9 +1447,6 @@ class PianoFloatingWindow(QWidget):
 
         if hasattr(self, 'reorder_mode_manager'):
             self.reorder_mode_manager.cleanup()
-
-        if hasattr(self, 'mood_update_timer'):
-            self.mood_update_timer.stop()
 
         if self.management_window is not None:
             self.management_window.close()

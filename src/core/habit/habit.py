@@ -82,7 +82,7 @@ class Habit(BaseModel):
 
         return registry[self.schedule]()
 
-    def get_activity_buckets(self, size: int = None, limit: int = None) -> list[Bucket]:
+    def get_activity_buckets(self, size: int = None, limit: int = None, since: datetime = None) -> list[Bucket]:
         """
             Get log buckets of the given `size` in seconds.
             Returns: Descending list of Buckets ordered by start date.
@@ -100,13 +100,17 @@ class Habit(BaseModel):
         duration = Case(None, [(Log.end.is_null(), 0)],
                         default=(date_to_int(Log.end) - date_to_int(Log.start) - fn.COALESCE(Log.idle_time, 0) + fn.COALESCE(Log.offset, 0)))
 
+        where_clause = (Log.habit == self) & (Log.end.is_null(False)) & Log.deleted_at.is_null()
+        if since:
+            where_clause = where_clause & (Log.start >= since)
+
         rows = (Log.select(
             fn.MIN(Log.start).alias('start'),
             fn.MAX(Log.end).alias('end'),
             fn.SUM(duration).alias('net_duration'),
             fn.COUNT().alias('row_count'))
             .group_by(bucket)
-            .where((Log.habit == self) & (Log.end.is_null(False)) & Log.deleted_at.is_null())
+            .where(where_clause)
             .limit(limit)
             .order_by(fn.MIN(Log.start).desc()))
 
@@ -122,7 +126,7 @@ class Habit(BaseModel):
         Returns:
             Number of consecutive completed periods from present backwards.
         """
-        buckets = self.get_activity_buckets()
+        buckets = self.get_activity_buckets(since=self._schedule.start)
         if not buckets:
             return 0
 
@@ -146,7 +150,7 @@ class Habit(BaseModel):
         Returns:
             Maximum number of consecutive periods completed in habit history.
         """
-        buckets = self.get_activity_buckets()
+        buckets = self.get_activity_buckets(since=self._schedule.start)
         if not buckets:
             return 0
 
@@ -171,7 +175,7 @@ class Habit(BaseModel):
         many tasks avoid N DB queries.
         """
         from core.habit.manual_task import ManualTask
-        buckets = self.get_activity_buckets()
+        buckets = self.get_activity_buckets(since=start)
         manual_completions = set(
             mt.scheduled_at.replace(microsecond=0)
             for mt in ManualTask.select(ManualTask.scheduled_at).where(
@@ -191,6 +195,31 @@ class Habit(BaseModel):
 
         return checker
 
+    def _is_window_completed_by_log(self, min_threshold: datetime, max_threshold: datetime) -> bool:
+        """Check if any tracked session in [min_threshold, max_threshold) meets the completion threshold."""
+        from core.habit.log import Log
+
+        def date_to_int(dt):
+            return fn.strftime('%s', dt).cast('INTEGER')
+
+        duration_expr = Case(None, [(Log.end.is_null(), 0)],
+                             default=(date_to_int(Log.end) - date_to_int(Log.start)
+                                      - fn.COALESCE(Log.idle_time, 0)
+                                      + fn.COALESCE(Log.offset, 0)))
+
+        net = (Log.select(fn.SUM(duration_expr))
+               .where(
+                   (Log.habit == self) &
+                   (Log.start >= min_threshold) &
+                   (Log.start < max_threshold) &
+                   Log.end.is_null(False) &
+                   Log.deleted_at.is_null()
+               )
+               .scalar())
+        if net is None:
+            return False
+        return net >= (self.allocated_time or 0)
+
     def is_task_completed(self, task: datetime) -> bool:
         """
         Check if the habit's task for the given datetime has been completed.
@@ -203,16 +232,15 @@ class Habit(BaseModel):
         Returns:
             True if the task was completed (either tracked or manually), False otherwise.
         """
-        # Check for real tracked session
-        buckets = self.get_activity_buckets()
-        bucket = self._find_bucket_for_task(buckets, task)
-        if bucket is not None and self._qualifies_for_streak(bucket):
+        unit = self._schedule.get_scale()
+        min_threshold = task - timedelta(seconds=int(get_naive_timestamp(task)) % unit)
+        max_threshold = min_threshold + timedelta(seconds=unit)
+
+        if self._is_window_completed_by_log(min_threshold, max_threshold):
             return True
 
-        # Check for manual completion - normalize datetime for comparison
         from core.habit.manual_task import ManualTask
         normalized_task = task.replace(microsecond=0)
-
         return ManualTask.select().where(
             (ManualTask.habit == self) &
             (ManualTask.scheduled_at == normalized_task) &
@@ -235,6 +263,37 @@ class Habit(BaseModel):
             if min_threshold <= bucket.start <= max_threshold:
                 return bucket
         return None
+
+    @staticmethod
+    def completion_rate(completed: int, scheduled: int) -> float:
+        if completed == 0 and scheduled == 0:
+            return 0.0
+        if scheduled == 0:
+            return 1.0
+        return min(completed / scheduled, 1.0)
+
+    @classmethod
+    def with_longest_streak(cls, habits: list['Habit']) -> 'Habit':
+        return max(habits, key=lambda h: h.get_longest_streak())
+
+    @classmethod
+    def grouped_by_schedule(cls, habits: list['Habit']):
+        from itertools import groupby
+        return groupby(
+            sorted(habits, key=lambda h: h.schedule),
+            key=lambda h: h.schedule)
+
+    @classmethod
+    def sorted_by_completion_rate(cls, habits: list['Habit']) -> list[tuple['Habit', float]]:
+        from core.util.time import get_timespan
+        habit_rates = []
+        for habit in habits:
+            schedule = habit.get_schedule()
+            previous_tasks = len(schedule.get_previous_tasks(get_timespan(schedule.start)))
+            buckets = len(habit.get_activity_buckets())
+            rate = Habit.completion_rate(buckets, previous_tasks)
+            habit_rates.append((habit, rate))
+        return sorted(habit_rates, key=lambda x: x[1], reverse=True)
 
     def _qualifies_for_streak(self, bucket: Bucket) -> bool:
         """Check if the given bucket qualifies for streak counting."""

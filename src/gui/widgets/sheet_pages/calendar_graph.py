@@ -4,7 +4,27 @@ Calendar Graph - GitHub-style contribution calendar for habit activity.
 
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QScrollArea, QWidget, QVBoxLayout
 from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
+
+
+class _HScrollArea(QScrollArea):
+    """Horizontal-only scroll area that sizes its height to its inner widget."""
+
+    def _content_height(self, base: int) -> int:
+        sb = self.horizontalScrollBar()
+        return base + (sb.sizeHint().height() if sb else 0)
+
+    def sizeHint(self) -> QSize:
+        hint = super().sizeHint()
+        if self.widget():
+            hint.setHeight(self._content_height(self.widget().sizeHint().height()))
+        return hint
+
+    def minimumSizeHint(self) -> QSize:
+        hint = super().minimumSizeHint()
+        if self.widget():
+            hint.setHeight(self._content_height(self.widget().minimumSizeHint().height()))
+        return hint
 from datetime import datetime, timedelta, date
 from typing import List
 
@@ -105,7 +125,6 @@ class CalendarGraph(QFrame):
 
     def _setup_ui(self):
         """Setup the calendar graph UI"""
-        # Main container with horizontal scroll if needed
         self.setStyleSheet("""
             CalendarGraph {
                 background-color: transparent;
@@ -135,7 +154,25 @@ class CalendarGraph(QFrame):
         # Add calendar cells
         self._add_cells(grid_layout)
 
-        main_layout.addWidget(grid_widget, alignment=Qt.AlignmentFlag.AlignCenter)
+        # Wrap grid in a horizontal scroll area so wide views (6mo/1yr) don't
+        # get squeezed by the base page's content-width clamp.
+        t = _t()
+        scroll = _HScrollArea()
+        scroll.setWidgetResizable(False)  # keep grid at its natural fixed-cell size
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            {t.scrollbar_stylesheet}
+        """)
+        scroll.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+        scroll.setWidget(grid_widget)
+
+        main_layout.addWidget(scroll)
 
         # Add legend
         self._add_legend(main_layout)

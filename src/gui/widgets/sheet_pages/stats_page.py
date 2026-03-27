@@ -14,8 +14,9 @@ from ..themed_dropdown import ThemedDropdown
 from .activity_card import ActivityCard
 
 from core.habit.service import HabitService
-from core.util.time import get_friendly_elapsed, get_friendly_datetime
-from core import analytics
+from core.habit.habit import Habit
+from core.habit.bucket import Bucket
+from core.util.time import get_friendly_elapsed, get_friendly_datetime, get_timespan
 
 
 from gui.themes import current_theme as _t
@@ -47,7 +48,7 @@ class StatsPage(SheetPage):
         layout.addWidget(title)
 
         try:
-            habits = self.service.get_all_non_deleted()
+            habits = self.service.get_all_non_deleted(archived=False)
             self._all_habits = habits
             
             if not habits:
@@ -63,7 +64,7 @@ class StatsPage(SheetPage):
             range_label.setStyleSheet(f"color: {_t().ink_secondary}; font-size: 10px; background: transparent;")
             time_range_layout.addWidget(range_label)
 
-            self._time_range_dropdown = ThemedDropdown(["1 month", "6 months", "1 year"], "1 month")
+            self._time_range_dropdown = ThemedDropdown(["1 month", "3 months", "6 months", "1 year"], "1 month")
             self._time_range_dropdown.selection_changed.connect(self._on_range_changed)
             time_range_layout.addWidget(self._time_range_dropdown)
 
@@ -122,7 +123,7 @@ class StatsPage(SheetPage):
         for habit in habits:
             buckets = habit.get_activity_buckets()
             if buckets:
-                total_time_seconds += analytics.get_time_spent(buckets)
+                total_time_seconds += Bucket.total_net_duration(buckets)
                 total_sessions += len(buckets)
 
         # Create summary cards in a horizontal layout
@@ -143,10 +144,13 @@ class StatsPage(SheetPage):
     def _build_champion_section(self, layout, habits):
         """Build the champion habit spotlight banner"""
         try:
-            champion = analytics.get_habit_with_longest_streak(habits)
+            champion = Habit.with_longest_streak(habits)
             if champion:
                 streak = champion.get_longest_streak()
-                completion_rate = analytics.get_completion_rate(champion)
+                schedule = champion.get_schedule()
+                previous_tasks = len(schedule.get_previous_tasks(get_timespan(schedule.start)))
+                completed_buckets = len(champion.get_activity_buckets())
+                completion_rate = Habit.completion_rate(completed_buckets, previous_tasks)
 
                 banner = ChampionBanner(
                     champion,
@@ -161,8 +165,7 @@ class StatsPage(SheetPage):
 
     def _build_habit_stats_section(self, layout, habits):
         """Build the individual habit statistics cards"""
-        # Sort by completion rate (best first)
-        sorted_habits = analytics.sort_habits_by_completion_rate(habits)
+        sorted_habits = Habit.sorted_by_completion_rate(habits)
 
         for habit, completion_rate in sorted_habits:
             # Gather stats for this habit
@@ -174,7 +177,7 @@ class StatsPage(SheetPage):
             }
 
             if buckets:
-                total_time = analytics.get_time_spent(buckets)
+                total_time = Bucket.total_net_duration(buckets)
                 stats['total_time'] = get_friendly_elapsed(total_time)
                 stats['session_count'] = len(buckets)
 
@@ -198,10 +201,12 @@ class StatsPage(SheetPage):
             self._calendar_graph.deleteLater()
             self._calendar_graph = None
 
-        # Collect all buckets from all habits
+        # Collect all buckets from all habits within the selected time range
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=days_back)
         all_buckets = []
         for habit in self._all_habits:
-            buckets = habit.get_activity_buckets()
+            buckets = habit.get_activity_buckets(since=cutoff_date)
             if buckets:
                 all_buckets.extend(buckets)
 
@@ -223,6 +228,8 @@ class StatsPage(SheetPage):
         """Convert range string to days"""
         if range_str == "1 month":
             return 30
+        elif range_str == "3 months":
+            return 90
         elif range_str == "6 months":
             return 180
         elif range_str == "1 year":
@@ -232,11 +239,9 @@ class StatsPage(SheetPage):
 
     def _build_activity_section(self, layout, habits):
         """Build recent activity list with activity cards"""
-        # Collect all buckets from all habits
         all_buckets = []
         for habit in habits:
-            buckets = habit.get_activity_buckets()
-            for bucket in buckets[:10]:  # Take up to 10 most recent per habit
+            for bucket in habit.get_activity_buckets(limit=10):
                 all_buckets.append((habit, bucket))
 
         if not all_buckets:

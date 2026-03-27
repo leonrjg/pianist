@@ -14,8 +14,8 @@ from .activity_card import ActivityCard
 
 # Import database models and analytics
 from core.habit.service import HabitService
+from core.habit.bucket import Bucket
 from core.util.time import get_friendly_elapsed
-from core import analytics
 
 
 from gui.themes import current_theme as _t
@@ -175,23 +175,21 @@ class HabitStatsPage(SheetPage):
             self._consistency_card.deleteLater()
             self._consistency_card = None
 
-        # Filter buckets by time range
         from datetime import datetime, timedelta
         cutoff_date = datetime.now() - timedelta(days=days_back)
-        
-        buckets = self.habit.get_activity_buckets()
-        filtered_buckets = [b for b in buckets if b.start >= cutoff_date]
-        
+
+        buckets = self.habit.get_activity_buckets(since=cutoff_date)
+
         # Calculate total time
-        if filtered_buckets:
-            total_time = analytics.get_time_spent(filtered_buckets)
+        if buckets:
+            total_time = Bucket.total_net_duration(buckets)
             total_time_str = get_friendly_elapsed(total_time)
         else:
             total_time_str = "00:00"
 
         # Calculate productivity rate (net duration / total time)
-        total_net_duration = sum(b.net_duration for b in filtered_buckets)
-        total_elapsed_time = sum((b.end - b.start).total_seconds() for b in filtered_buckets)
+        total_net_duration = sum(b.net_duration for b in buckets)
+        total_elapsed_time = sum((b.end - b.start).total_seconds() for b in buckets)
         if total_elapsed_time > 0:
             productivity_rate = total_net_duration / total_elapsed_time
             productivity_str = f"{int(productivity_rate * 100)}%"
@@ -223,8 +221,9 @@ class HabitStatsPage(SheetPage):
             self._calendar_graph.deleteLater()
             self._calendar_graph = None
 
-        # Get buckets
-        buckets = self.habit.get_activity_buckets()
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=days_back)
+        buckets = self.habit.get_activity_buckets(since=cutoff_date)
 
         if not buckets:
             no_data_label = self._create_text_label("Start practicing to see your calendar!", secondary=True)
@@ -253,7 +252,7 @@ class HabitStatsPage(SheetPage):
         layout.addWidget(sessions_label)
 
         # Average session duration
-        total_time = analytics.get_time_spent(buckets)
+        total_time = Bucket.total_net_duration(buckets)
         if total_sessions > 0:
             avg_duration = total_time // total_sessions
             avg_str = get_friendly_elapsed(avg_duration)
@@ -283,15 +282,14 @@ class HabitStatsPage(SheetPage):
 
     def _build_activity_section(self, layout):
         """Build recent activity list with compact cards"""
-        buckets = self.habit.get_activity_buckets()
+        buckets = self.habit.get_activity_buckets(limit=10)
 
         if not buckets:
             no_activity_label = self._create_text_label("No activity yet.", secondary=True)
             layout.addWidget(no_activity_label)
             return
 
-        # Show up to 10 most recent buckets
-        for bucket in buckets[:10]:
+        for bucket in buckets:
             card = ActivityCard(self.habit, bucket, service=self.service, compact=True, parent=self)
             layout.addWidget(card)
 

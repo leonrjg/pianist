@@ -5,6 +5,8 @@ Mood Service - owns all mood reads and writes for the GUI.
 from datetime import datetime
 from typing import List, Optional
 
+from peewee import fn
+
 from .mood import Mood
 from .mood_log import MoodLog
 
@@ -18,8 +20,8 @@ class MoodService:
 
     @classmethod
     def get_current_log(cls) -> Optional[MoodLog]:
-        """The currently active mood log, or None."""
-        return Mood.get_current_mood_log()
+        """The most recently logged mood, or None."""
+        return Mood.get_last_mood_log()
 
     @classmethod
     def get_recent_logs(cls, limit: int = 15) -> List[MoodLog]:
@@ -28,19 +30,13 @@ class MoodService:
 
     @classmethod
     def log_mood(cls, mood: Mood) -> MoodLog:
-        """Start a new mood log, ending the current one if any."""
+        """Log a mood beacon."""
         return MoodLog.log_new_mood(mood)
-
-    @classmethod
-    def end_mood_log(cls, log: MoodLog, reason: str = 'manual') -> None:
-        """End an active mood log."""
-        log.end_now(reason)
 
     @classmethod
     def create_mood(cls, symbol: str, description: str) -> Mood:
         """Create a new mood with the next available display_order."""
-        moods = Mood.select().where(Mood.deleted_at.is_null())
-        max_order = max((m.display_order for m in moods), default=0)
+        max_order = Mood.select(fn.MAX(Mood.display_order)).where(Mood.deleted_at.is_null()).scalar() or 0
         return Mood.create(
             symbol=symbol,
             description=description,

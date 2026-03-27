@@ -2,7 +2,7 @@
 Habit Card - Reusable card component for displaying tasks.
 """
 
-from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+from PyQt6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QWidget
 from PyQt6.QtGui import QFont, QCursor
 from PyQt6.QtCore import Qt
 from typing import Optional, Callable, TYPE_CHECKING
@@ -57,46 +57,63 @@ class HabitCard(QFrame):
 
         self._setup_ui()
 
+    def _card_stylesheet(self, completed: bool) -> str:
+        t = _t()
+        bg = t.card_bg_completed if completed else t.card_bg
+        hover_bg = t.card_bg if completed else t.paper
+        return f"""
+            HabitCard {{
+                background-color: {bg};
+                border-left: 4px solid {self.accent_color};
+                border-top: 1px solid {t.card_border};
+                border-right: 1px solid {t.card_border};
+                border-bottom: 1px solid {t.card_border};
+                border-radius: 3px;
+                padding: 8px;
+                margin: 2px 0px;
+            }}
+            HabitCard:hover {{
+                background-color: {hover_bg};
+                border-top: 1px solid {t.card_hover_border};
+                border-right: 1px solid {t.card_hover_border};
+                border-bottom: 1px solid {t.card_hover_border};
+            }}
+        """
+
+    def _btn_stylesheet(self, completed: bool) -> str:
+        t = _t()
+        if completed:
+            return f"""
+                QPushButton {{
+                    background-color: {t.button_primary_bg};
+                    border: 2px solid {t.accent};
+                    border-radius: 12px;
+                    color: {t.button_primary_text};
+                    font-size: 14px;
+                    font-weight: bold;
+                    padding: 0px;
+                }}
+                QPushButton:hover {{
+                    background-color: {t.button_primary_hover};
+                    border-color: {t.accent_light};
+                }}
+            """
+        return f"""
+            QPushButton {{
+                background-color: {t.card_bg};
+                border: 2px solid {t.card_border};
+                border-radius: 12px;
+                padding: 0px;
+            }}
+            QPushButton:hover {{
+                background-color: {t.paper};
+                border-color: {t.card_hover_border};
+            }}
+        """
+
     def _setup_ui(self):
         t = _t()
-        if self.completed:
-            self.setStyleSheet(f"""
-                HabitCard {{
-                    background-color: {t.card_bg_completed};
-                    border-left: 4px solid {self.accent_color};
-                    border-top: 1px solid {t.card_border};
-                    border-right: 1px solid {t.card_border};
-                    border-bottom: 1px solid {t.card_border};
-                    border-radius: 3px;
-                    padding: 8px;
-                    margin: 2px 0px;
-                }}
-                HabitCard:hover {{
-                    background-color: {t.card_bg};
-                    border-top: 1px solid {t.card_hover_border};
-                    border-right: 1px solid {t.card_hover_border};
-                    border-bottom: 1px solid {t.card_hover_border};
-                }}
-            """)
-        else:
-            self.setStyleSheet(f"""
-                HabitCard {{
-                    background-color: {t.card_bg};
-                    border-left: 4px solid {self.accent_color};
-                    border-top: 1px solid {t.card_border};
-                    border-right: 1px solid {t.card_border};
-                    border-bottom: 1px solid {t.card_border};
-                    border-radius: 3px;
-                    padding: 8px;
-                    margin: 2px 0px;
-                }}
-                HabitCard:hover {{
-                    background-color: {t.paper};
-                    border-top: 1px solid {t.card_hover_border};
-                    border-right: 1px solid {t.card_hover_border};
-                    border-bottom: 1px solid {t.card_hover_border};
-                }}
-            """)
+        self.setStyleSheet(self._card_stylesheet(self.completed))
 
         if self.on_click:
             self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -119,14 +136,14 @@ class HabitCard(QFrame):
         name_layout.setSpacing(6)
 
         name_text = f"✓ {self.title}" if self.completed else self.title
-        name_label = QLabel(name_text)
+        self._name_label = QLabel(name_text)
         font = QFont()
         font.setBold(True)
         font.setPointSize(font_pt(11))
-        name_label.setFont(font)
+        self._name_label.setFont(font)
         text_color = t.ink_secondary if self.completed else t.ink_primary
-        name_label.setStyleSheet(f"color: {text_color}; background: transparent;")
-        name_layout.addWidget(name_label)
+        self._name_label.setStyleSheet(f"color: {text_color}; background: transparent;")
+        name_layout.addWidget(self._name_label)
 
         badge_style = f"""
             background-color: {t.paper_dark};
@@ -182,40 +199,12 @@ class HabitCard(QFrame):
             complete_btn.setFixedSize(24, 24)
             complete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
-            if self.completed:
-                complete_btn.setText("✓")
-                complete_btn.setStyleSheet(f"""
-                    QPushButton {{
-                        background-color: {t.button_primary_bg};
-                        border: 2px solid {t.accent};
-                        border-radius: 12px;
-                        color: {t.button_primary_text};
-                        font-size: 14px;
-                        font-weight: bold;
-                        padding: 0px;
-                    }}
-                    QPushButton:hover {{
-                        background-color: {t.button_primary_hover};
-                        border-color: {t.accent_light};
-                    }}
-                """)
-            else:
-                complete_btn.setText("")
-                complete_btn.setStyleSheet(f"""
-                    QPushButton {{
-                        background-color: {t.card_bg};
-                        border: 2px solid {t.card_border};
-                        border-radius: 12px;
-                        padding: 0px;
-                    }}
-                    QPushButton:hover {{
-                        background-color: {t.paper};
-                        border-color: {t.card_hover_border};
-                    }}
-                """)
+            complete_btn.setText("✓" if self.completed else "")
+            complete_btn.setStyleSheet(self._btn_stylesheet(self.completed))
 
             complete_btn.clicked.connect(lambda: self._toggle_completion())
             main_content_layout.addWidget(complete_btn, alignment=Qt.AlignmentFlag.AlignVCenter)
+            self._complete_btn = complete_btn
 
         layout.addLayout(main_content_layout)
 
@@ -223,7 +212,16 @@ class HabitCard(QFrame):
         if self.on_click:
             self.on_click(self.habit)
 
+    def update_state(self, completed: bool):
+        self.completed = completed
+        for child in self.findChildren(QWidget):
+            child.setParent(None)
+        if self.layout():
+            QWidget().setLayout(self.layout())
+        self._setup_ui()
+
     def _toggle_completion(self):
         if self.on_complete:
             new_state = not self.completed
+            self.update_state(new_state)
             self.on_complete(self.habit, self.task_datetime, new_state)

@@ -22,7 +22,6 @@ from gui.themes import current_theme as _t
 
 from gui.themes.color import parse_color as _qcolor
 
-from core.analytics import get_tasks_in_range
 from core.task.service import TaskService
 
 
@@ -405,6 +404,10 @@ class CalendarPage(SheetPage):
         # Install wheel event filter to redirect scrolling to page
         self._wheel_filter = CalendarWheelFilter(self._calendar, self)
 
+        # Attach iCal loader (handles its own month-change reloads)
+        from ..ical_calendar_loader import ICalCalendarLoader
+        ICalCalendarLoader(self._calendar)
+
         # Load tasks for current month
         self._load_tasks()
 
@@ -508,38 +511,10 @@ class CalendarPage(SheetPage):
 
             self._calendar.set_tasks(tasks_by_date)
 
-            # Load ICAL events if enabled
-            try:
-                from core.settings.service import SettingsService
-                from core.ical.service import ICalService
-                if SettingsService.get('calendar.ical_sources_visible', True):
-                    ical_events = ICalService.get_events_in_range(start_date, end_date)
-                    ical_by_date: Dict[QDate, List] = {}
-                    for event in ical_events:
-                        for d in self._dates_in_range(event.start, event.end):
-                            qd = QDate(d.year, d.month, d.day)
-                            if qd not in ical_by_date:
-                                ical_by_date[qd] = []
-                            ical_by_date[qd].append(event)
-                    self._calendar.set_ical_events(ical_by_date)
-                else:
-                    self._calendar.set_ical_events({})
-            except Exception:
-                pass
-
         except Exception as e:
             print(f"Error loading tasks: {e}")
             import traceback
             traceback.print_exc()
-
-    @staticmethod
-    def _dates_in_range(start, end):
-        """Yield each date from start to end inclusive."""
-        from datetime import date as date_type, timedelta
-        d = start
-        while d <= end:
-            yield d
-            d += timedelta(days=1)
 
     def _on_month_changed(self, year: int, month: int):
         """Reload tasks when user navigates to different month"""

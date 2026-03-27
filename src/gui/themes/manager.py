@@ -2,6 +2,7 @@ from .theme import Theme
 from .wood import VINTAGE_THEME
 from .sakura import SAKURA_THEME
 from .midori import MIDORI_THEME
+from .themed_widget import ThemedWidget
 
 _REGISTRY: dict[str, Theme] = {
     'wood': VINTAGE_THEME,
@@ -36,7 +37,7 @@ class ThemeManager:
         if app is None:
             return
         for widget in app.allWidgets():
-            if hasattr(widget, '_setup_style') and callable(widget._setup_style):
+            if isinstance(widget, ThemedWidget):
                 widget._setup_style()
                 widget.update()
             if hasattr(widget, 'refresh') and callable(widget.refresh):

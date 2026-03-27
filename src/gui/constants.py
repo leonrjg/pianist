@@ -99,17 +99,20 @@ class PianoLayout:
     # The hinge is positioned at the right edge of the toggleable drawer
     HINGE_OFFSET = TOGGLEABLE_DRAWER_WIDTH
 
+    # Keys
+    KEY_HEIGHT = 40  # Height of each piano key
+    BLACK_KEY_WIDTH_RATIO = 0.55  # Black key width as ratio of white key width
+    BLACK_KEY_HEIGHT_RATIO = 0.5  # Black key height as ratio of white key height
+
     # Window dimensions
     DEFAULT_WINDOW_WIDTH = 300  # Default width (can be larger than minimum)
     DEFAULT_WINDOW_HEIGHT = 315
     MIN_KEYS_WIDTH = 90
     MIN_WINDOW_WIDTH = int(3 * (FALLBOARD_WIDTH + MIN_KEYS_WIDTH + CONTROL_PANEL_WIDTH))
-    MIN_WINDOW_HEIGHT = 160
-
-    # Keys
-    KEY_HEIGHT = 40  # Height of each piano key
-    BLACK_KEY_WIDTH_RATIO = 0.55  # Black key width as ratio of white key width
-    BLACK_KEY_HEIGHT_RATIO = 0.5  # Black key height as ratio of white key height
+    # Rounded up to the nearest valid half-key snap target (n * KEY_HEIGHT + KEY_HEIGHT // 2 + 1)
+    # so Qt's size floor and the snap formula always agree.
+    _MIN_WINDOW_HEIGHT_RAW = 160
+    MIN_WINDOW_HEIGHT = ((_MIN_WINDOW_HEIGHT_RAW - KEY_HEIGHT // 2 - 1) // KEY_HEIGHT) * KEY_HEIGHT + KEY_HEIGHT // 2 + 1
 
     # Padding
     FRAME_PADDING_VERTICAL = 60  # Top and bottom padding

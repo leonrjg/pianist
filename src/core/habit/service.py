@@ -22,14 +22,13 @@ class HabitService:
     """
     Application data service for the GUI.
 
-    Owns the in-memory habit list and schedule result cache. Provides change
+    Owns the in-memory habit list. Provides change
     notifications to subscribers via a simple observer list so the service
     does not depend on Qt.
     """
 
     def __init__(self):
         self._habits: List[Habit] = []
-        self._schedule_cache: Dict[int, Dict] = {}  # habit_id -> {task_dt, is_completed}
         self._observers: List[Callable] = []
 
     # ------------------------------------------------------------------
@@ -37,12 +36,10 @@ class HabitService:
     # ------------------------------------------------------------------
 
     def load(self) -> None:
-        """Load habits from DB and build the schedule cache. Call once at startup."""
-        self._habits = [
-            h for h in Habit.select().where(Habit.deleted_at.is_null()).order_by(Habit.display_order, Habit.id)
-            if not h.archived
-        ]
-        self._rebuild_schedule_cache()
+        """Load habits from DB. Call once at startup."""
+        self._habits = list(Habit.select()
+            .where(Habit.deleted_at.is_null() & (Habit.archived == False))
+            .order_by(Habit.display_order, Habit.id))
 
     # ------------------------------------------------------------------
     # Read API
@@ -62,9 +59,12 @@ class HabitService:
                 return h
         return None
 
-    def get_all_non_deleted(self) -> List[Habit]:
-        """All non-deleted habits including archived, ordered by display_order."""
-        return list(Habit.select().where(Habit.deleted_at.is_null()).order_by(Habit.display_order, Habit.name))
+    def get_all_non_deleted(self, archived: bool | None = None) -> List[Habit]:
+        """All non-deleted habits, optionally filtered by archived state, ordered by display_order."""
+        q = Habit.select().where(Habit.deleted_at.is_null()).order_by(Habit.display_order, Habit.name)
+        if archived is not None:
+            q = q.where(Habit.archived == archived)
+        return list(q)
 
     def get_non_deleted_by_id(self, habit_id) -> Optional[Habit]:
         """Get a non-deleted habit by id, or None if not found."""
@@ -74,8 +74,18 @@ class HabitService:
             return None
 
     def get_next_task_info(self, habit_id: int) -> Dict:
-        """Return cached {'task_dt': datetime|None, 'is_completed': bool} for a habit."""
-        return self._schedule_cache.get(habit_id, {'task_dt': None, 'is_completed': False})
+        """Return {'task_dt': datetime|None, 'is_completed': bool} for the next upcoming task."""
+        habit = self.get_habit_by_id(habit_id)
+        if not habit:
+            return {'task_dt': None, 'is_completed': False}
+        try:
+            schedule = habit.get_schedule()
+            next_tasks = sorted(schedule.get_next_tasks(30 * 24 * 60 * 60))
+            task_dt = next_tasks[0] if next_tasks else None
+            is_completed = habit.is_task_completed(task_dt) if task_dt else False
+            return {'task_dt': task_dt, 'is_completed': is_completed}
+        except Exception:
+            return {'task_dt': None, 'is_completed': False}
 
     # ------------------------------------------------------------------
     # Mutation API
@@ -91,10 +101,9 @@ class HabitService:
             for i, habit in enumerate(reordered_visible):
                 habit.display_order = i
                 habit.save()
-        self._habits = [
-            h for h in Habit.select().where(Habit.deleted_at.is_null()).order_by(Habit.display_order, Habit.id)
-            if not h.archived
-        ]
+        self._habits = list(Habit.select()
+            .where(Habit.deleted_at.is_null() & (Habit.archived == False))
+            .order_by(Habit.display_order, Habit.id))
         self._notify('reordered')
 
     def toggle_task_completion(self, habit: Habit, task_datetime: datetime) -> None:
@@ -121,11 +130,10 @@ class HabitService:
                     completed_at=normalized_dt,
                 )
 
-        self._rebuild_schedule_cache_for_habit(habit)
         self._notify('task_toggled', habit_id=habit.id)
 
     def refresh(self) -> None:
-        """Reload habits and rebuild schedule cache. Call after external mutations."""
+        """Reload habits. Call after external mutations."""
         self.load()
         self._notify('refreshed')
 
@@ -211,17 +219,3 @@ class HabitService:
             except Exception:
                 pass
 
-    def _rebuild_schedule_cache(self) -> None:
-        self._schedule_cache.clear()
-        for habit in self._habits:
-            self._rebuild_schedule_cache_for_habit(habit)
-
-    def _rebuild_schedule_cache_for_habit(self, habit: Habit) -> None:
-        try:
-            schedule = habit.get_schedule()
-            next_tasks = sorted(schedule.get_next_tasks(30 * 24 * 60 * 60))
-            task_dt = next_tasks[0] if next_tasks else None
-            is_completed = habit.is_task_completed(task_dt) if task_dt else False
-            self._schedule_cache[habit.id] = {'task_dt': task_dt, 'is_completed': is_completed}
-        except Exception:
-            self._schedule_cache[habit.id] = {'task_dt': None, 'is_completed': False}

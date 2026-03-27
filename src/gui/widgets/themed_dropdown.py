@@ -6,10 +6,10 @@ from PyQt6.QtWidgets import QPushButton, QMenu
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QCursor
 from .sheet_pages.theme_styles import get_menu_stylesheet
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 
 
-class ThemedDropdown(QPushButton):
+class ThemedDropdown(QPushButton, ThemedWidget):
     """A dropdown button styled for the active theme.
 
     Items may be plain strings or (label, data) tuples.  When plain strings are
@@ -33,6 +33,16 @@ class ThemedDropdown(QPushButton):
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.setMaximumWidth(100)
 
+        self.menu = QMenu(self)
+        self._setup_style()
+
+        for label, data in self._pairs:
+            action = self.menu.addAction(label)
+            action.triggered.connect(lambda checked, l=label, d=data: self._on_item_selected(l, d))
+
+        self.setMenu(self.menu)
+
+    def _setup_style(self):
         t = _t()
         self.setStyleSheet(f"""
             QPushButton {{
@@ -51,15 +61,7 @@ class ThemedDropdown(QPushButton):
                 bottom: 2px;
             }}
         """)
-
-        self.menu = QMenu(self)
         self.menu.setStyleSheet(get_menu_stylesheet())
-
-        for label, data in self._pairs:
-            action = self.menu.addAction(label)
-            action.triggered.connect(lambda checked, l=label, d=data: self._on_item_selected(l, d))
-
-        self.setMenu(self.menu)
 
     def _on_item_selected(self, label: str, data):
         self.selected_item = label

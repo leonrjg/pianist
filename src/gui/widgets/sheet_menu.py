@@ -9,10 +9,10 @@ from typing import Optional
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
-from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QScrollArea, QWidget
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QPushButton, QScrollArea, QWidget
 
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 
 
 # Dimension constants (not theme-sensitive)
@@ -43,23 +43,28 @@ class MenuItem:
 
 
 def _tinted_icon(icon_path: str, tint: str, size: int) -> QIcon:
-    """Return a QIcon with all opaque pixels recolored to `tint` (rgb(r,g,b) string).
-    If tint is empty, returns the icon in its native color."""
-    pixmap = QPixmap(icon_path)
+    """Return a QIcon rendered sharp at the correct device pixel ratio.
+    If tint is non-empty, all opaque pixels are recolored to that rgb(r,g,b) color."""
+    dpr = QApplication.primaryScreen().devicePixelRatio()
+    target = int(size * dpr)
+    src = QIcon(icon_path).pixmap(QSize(target, target))
     if not tint:
-        return QIcon(pixmap)
-    result = QPixmap(pixmap.size())
+        src.setDevicePixelRatio(dpr)
+        return QIcon(src)
+    src.setDevicePixelRatio(1.0)  # work in physical pixel space so drawPixmap fills the canvas
+    result = QPixmap(src.size())
     result.fill(Qt.GlobalColor.transparent)
     painter = QPainter(result)
-    painter.drawPixmap(0, 0, pixmap)
+    painter.drawPixmap(0, 0, src)
     painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
     r, g, b = [int(v.strip()) for v in tint[4:-1].split(',')]
     painter.fillRect(result.rect(), QColor(r, g, b))
     painter.end()
+    result.setDevicePixelRatio(dpr)
     return QIcon(result)
 
 
-class MenuButton(QPushButton):
+class MenuButton(QPushButton, ThemedWidget):
     """Individual menu button with icon and tooltip."""
 
     def __init__(self, icon_path: Optional[str], tooltip: str, parent=None):
@@ -90,12 +95,12 @@ class MenuButton(QPushButton):
                 background-color: {t.paper_dark};
             }}
             QPushButton[active="true"] {{
-                background-color: {t.accent_light};
-                border-color: {t.accent};
+                background-color: {t.accent};
+                border-color: {t.accent_dark};
                 color: {t.ink_primary};
             }}
             QPushButton[active="true"]:hover {{
-                background-color: {t.accent_light};
+                background-color: {t.accent_dark};
                 border-color: {t.accent_dark};
             }}
             QToolTip {{
@@ -109,7 +114,7 @@ class MenuButton(QPushButton):
         """)
 
 
-class SheetMenu(QWidget):
+class SheetMenu(QWidget, ThemedWidget):
     """Top navigation menu for sheet pages."""
 
     navigate_to = pyqtSignal(str, object)

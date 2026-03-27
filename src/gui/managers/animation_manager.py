@@ -16,6 +16,7 @@ from PyQt6.QtCore import QPropertyAnimation, QEasingCurve, QRect, pyqtSignal, QO
 from PyQt6.QtWidgets import QWidget
 
 from ..constants import Animations
+from core.settings.service import SettingsService
 
 
 class AnimationManager(QObject):
@@ -53,8 +54,10 @@ class AnimationManager(QObject):
         self.fade_animation.setEndValue(target_opacity)
         self.fade_animation.start()
 
-    def fade_in(self, target_opacity: float = Animations.WINDOW_OPACITY_NORMAL):
+    def fade_in(self, target_opacity: float = None):
         """Fade the window in"""
+        if target_opacity is None:
+            target_opacity = float(SettingsService.get('window.opacity', Animations.WINDOW_OPACITY_NORMAL))
         self.fade_animation.setStartValue(self.window.windowOpacity())
         self.fade_animation.setEndValue(target_opacity)
         self.fade_animation.start()

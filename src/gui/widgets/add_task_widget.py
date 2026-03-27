@@ -18,10 +18,10 @@ def _c():
     return piano_colors()
 
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 
 
-class AddTaskWidget(QWidget):
+class AddTaskWidget(QWidget, ThemedWidget):
     """Floating form for adding manual tasks"""
 
     task_created = pyqtSignal()  # Emits when task is created
@@ -36,16 +36,44 @@ class AddTaskWidget(QWidget):
 
     def _setup_ui(self):
         """Setup the UI layout"""
-        c = _c()
-        t = _t()
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(6)
         self.setLayout(layout)
 
-        # Title label
-        title_label = QLabel("Add Task")
-        title_label.setStyleSheet(f"""
+        self._title_label = QLabel("Add Task")
+        layout.addWidget(self._title_label)
+
+        self.title_input = QLineEdit()
+        self.title_input.setPlaceholderText("Task title...")
+        self.title_input.returnPressed.connect(self._on_submit)
+        layout.addWidget(self.title_input)
+
+        date_row = QHBoxLayout()
+        date_row.setSpacing(6)
+
+        self._date_label = QLabel("Date:")
+        date_row.addWidget(self._date_label)
+
+        self.date_input = ThemedDatePicker()
+        self.date_input.setDate(QDate.currentDate())
+        date_row.addWidget(self.date_input)
+        date_row.addStretch()
+
+        layout.addLayout(date_row)
+
+        self.submit_button = QPushButton("Add Task")
+        self.submit_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.submit_button.clicked.connect(self._on_submit)
+        layout.addWidget(self.submit_button)
+
+        self.setFixedWidth(200)
+        self._setup_style()
+
+    def _setup_style(self):
+        c = _c()
+        t = _t()
+        self._title_label.setStyleSheet(f"""
             QLabel {{
                 color: {c.WHITE_KEY.name()};
                 font-size: 11px;
@@ -53,11 +81,6 @@ class AddTaskWidget(QWidget):
                 background: transparent;
             }}
         """)
-        layout.addWidget(title_label)
-
-        # Task title input
-        self.title_input = QLineEdit()
-        self.title_input.setPlaceholderText("Task title...")
         self.title_input.setStyleSheet(f"""
             QLineEdit {{
                 background-color: {t.paper};
@@ -71,35 +94,13 @@ class AddTaskWidget(QWidget):
                 border: 1px solid {t.accent};
             }}
         """)
-        # Connect Enter key to submit
-        self.title_input.returnPressed.connect(self._on_submit)
-        layout.addWidget(self.title_input)
-
-        # Date input
-        date_row = QHBoxLayout()
-        date_row.setSpacing(6)
-
-        date_label = QLabel("Date:")
-        date_label.setStyleSheet(f"""
+        self._date_label.setStyleSheet(f"""
             QLabel {{
                 color: {c.FRAME_LIGHT.name()};
                 font-size: 9px;
                 background: transparent;
             }}
         """)
-        date_row.addWidget(date_label)
-
-        # Use custom wood date picker with TaskCalendarWidget
-        self.date_input = ThemedDatePicker()
-        self.date_input.setDate(QDate.currentDate())
-        date_row.addWidget(self.date_input)
-        date_row.addStretch()
-
-        layout.addLayout(date_row)
-
-        # Submit button
-        self.submit_button = QPushButton("Add Task")
-        self.submit_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.submit_button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {t.button_primary_bg};
@@ -115,11 +116,6 @@ class AddTaskWidget(QWidget):
                 border-color: {t.accent_light};
             }}
         """)
-        self.submit_button.clicked.connect(self._on_submit)
-        layout.addWidget(self.submit_button)
-
-        # Set fixed width
-        self.setFixedWidth(200)
 
     def _on_submit(self):
         """Handle task submission"""
@@ -163,8 +159,16 @@ class AddTaskWidget(QWidget):
         painter.drawPath(path)
 
     def show_at_position(self, pos: QPoint):
-        """Show the widget at the specified position"""
-        self.move(pos)
+        """Show the widget at the specified position, clamped to screen bounds"""
+        self.adjustSize()
+
+        from PyQt6.QtGui import QGuiApplication
+        screen = QGuiApplication.screenAt(pos) or QGuiApplication.primaryScreen()
+        geo = screen.availableGeometry()
+        x = max(geo.left(), min(pos.x(), geo.right() - self.width()))
+        y = max(geo.top(), min(pos.y(), geo.bottom() - self.height()))
+
+        self.move(x, y)
         self.show()
         self.raise_()
         self.activateWindow()

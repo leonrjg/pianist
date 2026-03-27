@@ -10,10 +10,10 @@ from PyQt6.QtGui import QCursor
 from .task_calendar_widget import TaskCalendarWidget
 
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 
 
-class ThemedDatePicker(QWidget):
+class ThemedDatePicker(QWidget, ThemedWidget):
     """Custom date picker widget with TaskCalendarWidget popup"""
 
     date_changed = pyqtSignal(QDate)
@@ -35,6 +35,13 @@ class ThemedDatePicker(QWidget):
         self._date_button = QPushButton()
         self._date_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self._date_button.clicked.connect(self._show_calendar)
+        layout.addWidget(self._date_button)
+        self._setup_style()
+
+        # Update button text
+        self._update_button_text()
+
+    def _setup_style(self):
         t = _t()
         self._date_button.setStyleSheet(f"""
             QPushButton {{
@@ -51,10 +58,6 @@ class ThemedDatePicker(QWidget):
                 background-color: {t.paper_alt};
             }}
         """)
-        layout.addWidget(self._date_button)
-
-        # Update button text
-        self._update_button_text()
 
     def _update_button_text(self):
         """Update the button text with current date"""
@@ -73,10 +76,17 @@ class ThemedDatePicker(QWidget):
         # Set current date
         self._calendar_popup.setSelectedDate(self._current_date)
 
-        # Position below the button
+        # Position below the button, clamped to screen bounds
         button_pos = self._date_button.mapToGlobal(self._date_button.rect().bottomLeft())
         popup_x = button_pos.x()
         popup_y = button_pos.y() + 2
+
+        self._calendar_popup.adjustSize()
+        from PyQt6.QtGui import QGuiApplication
+        screen = QGuiApplication.screenAt(button_pos) or QGuiApplication.primaryScreen()
+        geo = screen.availableGeometry()
+        popup_x = max(geo.left(), min(popup_x, geo.right() - self._calendar_popup.width()))
+        popup_y = max(geo.top(), min(popup_y, geo.bottom() - self._calendar_popup.height()))
 
         self._calendar_popup.move(popup_x, popup_y)
         self._calendar_popup.show()

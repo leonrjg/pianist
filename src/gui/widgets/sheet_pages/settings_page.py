@@ -32,20 +32,20 @@ class SettingsPage(SheetPage):
         self._build_opacity_row(layout)
         layout.addWidget(self._create_separator())
 
-        # --- Index Page ---
+        # --- Sessions ---
         layout.addSpacing(12)
-        layout.addWidget(self._create_section_header("Index Page"))
+        layout.addWidget(self._create_section_header("Sessions"))
         self._build_spinbox_row(
             layout,
-            label="Show past days",
-            key='index.past_days',
-            min_val=0, max_val=90,
+            label="Session timeout (s)",
+            key='session.timeout_seconds',
+            min_val=0, max_val=86400,
         )
         self._build_spinbox_row(
             layout,
-            label="Show future days",
-            key='index.future_days',
-            min_val=1, max_val=365,
+            label="Min session duration (s)",
+            key='session.min_duration_seconds',
+            min_val=0, max_val=3600,
         )
         layout.addWidget(self._create_separator())
 

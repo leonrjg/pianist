@@ -48,6 +48,29 @@ _SCROLLBAR = """
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
         background: rgb(92, 61, 46);
     }
+    QScrollBar:horizontal {
+        background: rgb(61, 40, 23);
+        height: 8px;
+        margin: 2px 2px 2px 2px;
+        border: none;
+        border-radius: 2px;
+    }
+    QScrollBar::handle:horizontal {
+        background: rgb(184, 134, 11);
+        min-width: 20px;
+        border-radius: 2px;
+        border: 1px solid rgb(184, 134, 11);
+    }
+    QScrollBar::handle:horizontal:hover {
+        background: rgb(218, 165, 32);
+        border: 1px solid rgb(218, 165, 32);
+    }
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+        background: transparent;
+    }
+    QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+        background: rgb(92, 61, 46);
+    }
 """
 
 VINTAGE_THEME = Theme(

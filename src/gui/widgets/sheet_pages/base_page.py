@@ -2,22 +2,17 @@
 Base SheetPage - Abstract base class for all music sheet pages.
 """
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QScrollArea, QSizePolicy
 from PyQt6.QtCore import pyqtSignal, Qt, QEvent
 from PyQt6.QtGui import QColor
 
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 from gui.constants import font_pt, make_font
 
 
-# Resolve metaclass conflict between QWidget and ABC
-class CombinedMeta(type(QWidget), ABCMeta):
-    pass
-
-
-class SheetPage(QWidget, metaclass=CombinedMeta):
+class SheetPage(QWidget, ThemedWidget):
     """Abstract base class for all sheet pages"""
 
     # Signals
@@ -160,6 +155,14 @@ class SheetPage(QWidget, metaclass=CombinedMeta):
 
     def refresh(self):
         """Refresh page content (can be overridden)"""
+        t = _t()
+        self._scroll_area.setStyleSheet(f"""
+            QScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            {t.scrollbar_stylesheet}
+        """)
         # Clear and rebuild content layout
         layout = self.layout()
         while layout.count():

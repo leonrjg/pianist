@@ -6,14 +6,13 @@ from PyQt6.QtWidgets import QLineEdit, QSpinBox, QCheckBox, QFrame, QVBoxLayout,
 from PyQt6.QtGui import QFont, QCursor, QIcon
 from PyQt6.QtCore import Qt, QDate, QTimer
 from pathlib import Path
-from .sheet_pages.theme_styles import get_menu_stylesheet as _get_menu_stylesheet
 
 
-from gui.themes import current_theme as _t
+from gui.themes import current_theme as _t, ThemedWidget
 from gui.constants import font_pt
 
 
-class ThemedLineEdit(QLineEdit):
+class ThemedLineEdit(QLineEdit, ThemedWidget):
     """Line edit styled with the active theme."""
 
     def __init__(self, placeholder="", parent=None):
@@ -44,7 +43,7 @@ class ThemedLineEdit(QLineEdit):
         """)
 
 
-class ThemedSpinBox(QSpinBox):
+class ThemedSpinBox(QSpinBox, ThemedWidget):
     """Spin box styled with the active theme."""
 
     def __init__(self, suffix="", parent=None):
@@ -74,7 +73,7 @@ class ThemedSpinBox(QSpinBox):
         pass
 
 
-class ThemedCheckBox(QCheckBox):
+class ThemedCheckBox(QCheckBox, ThemedWidget):
     """Checkbox styled with the active theme."""
 
     def __init__(self, text="", parent=None):
@@ -107,19 +106,22 @@ class ThemedCheckBox(QCheckBox):
         """)
 
 
-class ThemedDateEdit(QDateEdit):
+class ThemedDateEdit(QDateEdit, ThemedWidget):
     """Date edit styled with the active theme."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        from .task_calendar_widget import TaskCalendarWidget
+        from .ical_calendar_loader import ICalCalendarLoader
         self.setCalendarPopup(True)
+        self.setCalendarWidget(TaskCalendarWidget())
+        ICalCalendarLoader(self.calendarWidget())
         self.setDisplayFormat("yyyy-MM-dd")
         self.setButtonSymbols(QDateEdit.ButtonSymbols.NoButtons)
         self._setup_style()
 
     def _setup_style(self):
         t = _t()
-        menu_style = _get_menu_stylesheet().replace("QMenu", "QCalendarWidget QMenu")
         self.setStyleSheet(f"""
             QDateEdit {{
                 background-color: {t.input_bg};
@@ -145,62 +147,13 @@ class ThemedDateEdit(QDateEdit):
             QDateEdit::drop-down:hover {{
                 background-color: {t.input_selection};
             }}
-            QCalendarWidget {{
-                background-color: {t.paper};
-                border: 2px solid {t.accent};
-                border-radius: 4px;
-            }}
-            QCalendarWidget QWidget#qt_calendar_navigationbar {{
-                background-color: {t.accent};
-                border-bottom: 1px solid {t.accent_dark};
-            }}
-            QCalendarWidget QToolButton {{
-                color: {t.button_primary_text};
-                font-size: 11px;
-                font-weight: bold;
-                padding: 4px;
-                border: none;
-                border-radius: 3px;
-            }}
-            QCalendarWidget QToolButton:hover {{
-                background-color: {t.accent_light};
-            }}
-            QCalendarWidget QToolButton:pressed {{
-                background-color: {t.accent_dark};
-            }}
-            QCalendarWidget QToolButton::menu-indicator {{
-                image: none;
-            }}
-            QCalendarWidget QWidget {{
-                alternate-background-color: {t.paper_alt};
-            }}
-            QCalendarWidget QAbstractItemView:enabled {{
-                background-color: {t.paper};
-                color: {t.ink_primary};
-                font-size: 10px;
-                selection-background-color: {t.input_selection};
-                selection-color: {t.ink_primary};
-            }}
-            QCalendarWidget QAbstractItemView {{
-                gridline-color: {t.separator};
-            }}
-            QCalendarWidget QHeaderView::section {{
-                background-color: {t.paper_dark};
-                color: {t.ink_primary};
-                font-size: 9px;
-                font-weight: bold;
-                padding: 4px;
-                border: none;
-                border-bottom: 1px solid {t.border};
-            }}
-            {menu_style}
         """)
 
     def stepBy(self, steps):
         pass
 
 
-class ThemedButton(QPushButton):
+class ThemedButton(QPushButton, ThemedWidget):
     """Button styled with the active theme."""
 
     def __init__(self, text="", button_type="primary", parent=None):
@@ -268,7 +221,7 @@ class ThemedButton(QPushButton):
             """)
 
 
-class ThemedFormSection(QFrame):
+class ThemedFormSection(QFrame, ThemedWidget):
     """Card-style section container for grouping form fields."""
 
     def __init__(self, title=None, parent=None):

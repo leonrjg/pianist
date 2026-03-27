@@ -11,9 +11,10 @@ from typing import Dict, List
 
 
 from gui.themes.color import parse_color as _parse_rgb
+from gui.themes import ThemedWidget
 
 
-class TaskCalendarWidget(QCalendarWidget):
+class TaskCalendarWidget(QCalendarWidget, ThemedWidget):
     """Custom calendar widget with task indicators"""
 
     day_clicked = pyqtSignal(QDate)

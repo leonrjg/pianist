@@ -5,9 +5,9 @@ from datetime import datetime
 import click
 from peewee import DoesNotExist
 
-from core import analytics
 from core.db import db, initialize_database
 from core.habit.habit import Habit
+from core.habit.bucket import Bucket
 from core.habit.habit_tracker import HabitTracker
 from core.session import Session, SessionStatus
 from core.tracker import TrackerRegistry
@@ -241,13 +241,13 @@ def _display_habit_stats(habit):
     click.secho(f"\n=== Milestones ===", bold=True)
     click.echo(f"• Current streak: {habit.get_streak()}")
     click.echo(f"• Longest streak: {habit.get_longest_streak()}")
-    click.echo(f"• Total time spent: {get_friendly_elapsed(analytics.get_time_spent(buckets))}")
+    click.echo(f"• Total time spent: {get_friendly_elapsed(Bucket.total_net_duration(buckets))}")
 
     total_buckets = len(buckets)
     click.echo(f"• Tasks done: {total_buckets}")
 
     previous_tasks = len(schedule.get_previous_tasks(get_timespan(schedule.start)))
-    task_vs_schedule_ratio = analytics.get_completion_rate(total_buckets, previous_tasks)
+    task_vs_schedule_ratio = Habit.completion_rate(total_buckets, previous_tasks)
     click.echo(f"• Completion rate (all time): {total_buckets}/{previous_tasks + 1} ({task_vs_schedule_ratio * 100:.2f}%)")
 
 def _display_all_habits_stats(habits):
@@ -259,16 +259,16 @@ def _display_all_habits_stats(habits):
                    f'   - Started: {get_friendly_datetime(habit.started_at, habit.get_schedule().get_scale())}')
 
     click.secho(f"\n=== Habits by periodicity ===", bold=True)
-    for schedule, group in analytics.group_habits_by_schedule(habits):
+    for schedule, group in Habit.grouped_by_schedule(habits):
         click.echo(f'- {schedule.capitalize()}: {",".join(h.name for h in group)}')
 
     click.secho(f"\n=== Habits by completion rate (least struggle to most) ===", bold=True)
-    sorted_habits = analytics.sort_habits_by_completion_rate(habits)
+    sorted_habits = Habit.sorted_by_completion_rate(habits)
     for habit, rate in sorted_habits:
         click.echo(f'- {habit.name}: {rate * 100:.2f}%')
     
     click.secho(f"\n=== Milestones ===", bold=True)
-    longest_streak_habit = analytics.get_habit_with_longest_streak(habits)
+    longest_streak_habit = Habit.with_longest_streak(habits)
     click.echo(f"Longest streak of all habits: {longest_streak_habit.get_longest_streak()} ({longest_streak_habit.name})")
 
 def _get_habit(name) -> Habit:

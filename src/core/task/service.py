@@ -130,27 +130,15 @@ def get_upcoming_tasks(
                 if include_completed or not task.completed:
                     tasks.append(task)
 
-    # Get manual tasks
     if include_manual:
-        # Use date comparison to match habit task behavior
-        # Manual tasks are created at midnight, so we filter by date not exact time
-        today = now.date()
-        cutoff_date = cutoff.date()
-
-        query = ManualTask.select().where(ManualTask.deleted_at.is_null())
-
-        # Only get custom tasks (has title) or incomplete habit completions
-        query = query.where(
-            (ManualTask.title.is_null(False)) |
-            (ManualTask.completed_at.is_null())
-        )
-
-        for manual_task in query:
-            task_date = manual_task.scheduled_at.date()
-            # Include tasks from today onwards, within the timespan
-            if today <= task_date <= cutoff_date:
-                task = Task.from_manual_task(manual_task)
-                if include_completed or not task.completed:
-                    tasks.append(task)
+        for manual_task in ManualTask.select().where(
+            ManualTask.deleted_at.is_null() &
+            (ManualTask.scheduled_at >= start_of_today) &
+            (ManualTask.scheduled_at <= cutoff) &
+            (ManualTask.title.is_null(False) | ManualTask.completed_at.is_null())
+        ):
+            task = Task.from_manual_task(manual_task)
+            if include_completed or not task.completed:
+                tasks.append(task)
 
     return sorted(tasks, key=lambda t: t.scheduled_at)

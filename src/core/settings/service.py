@@ -16,12 +16,12 @@ _signals = _SettingsSignals()
 
 DEFAULTS = {
     'theme.active': 'wood',
-    'index.past_days': 0,
-    'index.future_days': 30,
     'sounds.enabled': True,
     'window.opacity': 1.0,
     'calendar.ical_sources_visible': True,
     'reminders.enabled': True,
+    'session.timeout_seconds': 1800,
+    'session.min_duration_seconds': 0,
 }
 
 

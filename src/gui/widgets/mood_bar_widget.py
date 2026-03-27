@@ -102,6 +102,8 @@ class MoodBarWidget(QWidget):
 
     def show_at_position(self, pos: QPoint):
         """Show the mood bar at the specified position"""
+        self._load_moods()
+        self.adjustSize()
         self.move(pos)
         self.show()
         self.raise_()

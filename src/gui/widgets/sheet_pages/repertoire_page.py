@@ -45,13 +45,7 @@ class RepertoirePage(SheetPage):
 
         # Load habits via service
         try:
-            all_habits = self.service.get_all_non_deleted()
-
-            # Filter based on archived view mode
-            if self._show_archived_only:
-                habits = [h for h in all_habits if h.archived]
-            else:
-                habits = [h for h in all_habits if not h.archived]
+            habits = self.service.get_all_non_deleted(archived=self._show_archived_only)
 
             if habits:
                 for habit in habits:

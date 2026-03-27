@@ -48,6 +48,29 @@ _SCROLLBAR = """
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
         background: rgb(28, 38, 65);
     }
+    QScrollBar:horizontal {
+        background: rgb(18, 25, 48);
+        height: 8px;
+        margin: 2px 2px 2px 2px;
+        border: none;
+        border-radius: 2px;
+    }
+    QScrollBar::handle:horizontal {
+        background: rgb(55, 75, 115);
+        min-width: 20px;
+        border-radius: 2px;
+        border: 1px solid rgb(35, 55, 90);
+    }
+    QScrollBar::handle:horizontal:hover {
+        background: rgb(90, 130, 175);
+        border: 1px solid rgb(90, 130, 175);
+    }
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+        background: transparent;
+    }
+    QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+        background: rgb(28, 38, 65);
+    }
 """
 
 SAKURA_THEME = Theme(
@@ -78,8 +101,7 @@ SAKURA_THEME = Theme(
     # Status
     status_active="rgb(60, 170, 100)",
     status_inactive="rgb(90, 110, 148)",
-    # Typography — Japanese-flavored serif
-    header_font="Hiragino Mincho ProN, Georgia, serif",
+    header_font="Luxurious Roman",
     # Urgency: (overdue, soon, today, future)
     urgency_colors=(
         "rgb(200, 50, 80)",
