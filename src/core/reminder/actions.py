@@ -235,9 +235,14 @@ class ActionHandler:
                             title="✓ Sent to Anki",
                             message=f"Marked as {label}" + (f", {due_str}" if due_str else ""),
                             buttons=[{
+                                "label": "Undo",
+                                "callback": undo,
+                                "color": "rgba(90, 90, 110, 160)",
+                            }, {
                                 "label": "Next card",
                                 "callback": fetch_next_card,
                                 "color": "rgba(100, 140, 180, 200)",
+                                "primary": True,
                             }],
                             key_bindings={(Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier): undo},
                             auto_close_after=5000
