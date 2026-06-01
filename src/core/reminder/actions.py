@@ -39,6 +39,10 @@ class ActionHandler:
         action_type = reminder.action_type
         payload = reminder.action_payload
 
+        if getattr(reminder, 'habit_id', None):
+            from core.reminder.service import ReminderService
+            return ReminderService.get_habit_message(reminder)
+
         if action_type == 'open_link':
             return f"Opening: {payload}"
         elif action_type == 'random_line':
@@ -60,6 +64,9 @@ class ActionHandler:
         """
         action_type = reminder.action_type
         payload = reminder.action_payload
+
+        if getattr(reminder, 'habit_id', None):
+            return
 
         if action_type == 'open_link':
             cls._execute_open_link(payload)
@@ -178,7 +185,6 @@ class ActionHandler:
 
         Handles different interaction patterns:
         - anki_card: Two-phase (show front → reveal back → rate)
-        - SR reminders: Single-phase with feedback buttons
         - Others: Simple notification
 
         Args:
@@ -190,6 +196,63 @@ class ActionHandler:
         from core.integrations.anki_service import AnkiService
 
         notification_service = NotificationService.get_instance()
+
+        if getattr(reminder, 'habit_id', None):
+            from core.reminder.service import ReminderService
+
+            task_dt = ReminderService.get_habit_task_datetime(reminder)
+            toast = None
+
+            def mark_done():
+                try:
+                    ReminderService.mark_habit_task_done(reminder, task_dt)
+                    toast.update_content(
+                        title="Done",
+                        message=f"Marked {reminder.habit.name} as done",
+                        buttons=[],
+                        auto_close_after=1500
+                    )
+                except Exception as e:
+                    logger.exception("Error marking habit reminder done")
+                    toast.update_content(
+                        title="Error",
+                        message=f"Failed to mark done: {str(e)}",
+                        buttons=[],
+                        auto_close_after=3000
+                    )
+
+            def skip_occurrence():
+                try:
+                    ReminderService.skip_occurrence(reminder)
+                    toast.update_content(
+                        title="Skipped",
+                        message=f"Reminder skipped until next occurrence",
+                        buttons=[],
+                        auto_close_after=1500
+                    )
+                except Exception as e:
+                    logger.exception("Error skipping reminder occurrence")
+
+            toast = notification_service.show_toast(
+                reminder.habit.name,
+                message,
+                urgency=urgency,
+                buttons=[
+                    {
+                        "label": "Skip",
+                        "callback": skip_occurrence,
+                        "color": "rgba(90, 90, 110, 160)",
+                    },
+                    {
+                        "label": "Mark as done",
+                        "callback": mark_done,
+                        "color": "rgba(100, 180, 120, 200)",
+                        "primary": True,
+                    },
+                ],
+                key_bindings={Qt.Key.Key_Return: mark_done}
+            )
+            return
 
         # Anki card: Two-phase interaction (single toast, updated in-place)
         if reminder.action_type == 'anki_card':
@@ -215,14 +278,8 @@ class ActionHandler:
                         AnkiService.submit_rating(active_card.card_id, ease)
                         logger.info(f"[ANKI RATING] ✓ submit_rating completed successfully")
 
-                        next_due = AnkiService.get_next_due_date(active_card.card_id)
-                        from datetime import date as _date
-                        if next_due and next_due > _date.today():
-                            due_str = f"next review: {next_due.strftime('%b %-d')}"
-                        elif next_due:
-                            due_str = "next review: later today"
-                        else:
-                            due_str = ""
+                        next_review = AnkiService.get_next_review_summary(active_card.card_id)
+                        due_str = f"next review: {next_review.label}" if next_review else ""
 
                         AnkiService.clear_cache(reminder.id)
                         logger.info(f"[ANKI RATING] Cache cleared for reminder {reminder.id}")
@@ -368,38 +425,38 @@ class ActionHandler:
                 key_bindings={Qt.Key.Key_Space: lambda: show_answer(card)}
             )
 
-        # SR reminder: Single-phase with feedback
-        elif reminder.reminder_type == 'sr':
-            from core.reminder.service import ReminderService
+        # Simple notification — fixed reminders get a snooze button
+        elif reminder.reminder_type == 'fixed':
+            if urgency == 'high':
+                duration = 15000
+            elif urgency == 'low':
+                duration = 5000
+            else:
+                duration = 12000
 
-            # Build buttons first (closure will capture toast after creation)
-            toast = None  # Will be set below
+            toast = None
 
-            def feedback(quality: int, label: str):
-                ReminderService.apply_feedback(reminder, quality)
-                # Update to confirmation
+            def snooze_1h():
+                from core.reminder.service import ReminderService
+                ReminderService.snooze(reminder, hours=1)
                 toast.update_content(
-                    title=f"✓ {label}",
-                    message="Feedback recorded",
+                    title="Snoozed",
+                    message="Reminder snoozed for 1 hour",
                     buttons=[],
-                    auto_close_after=1000
+                    auto_close_after=1500
                 )
 
-            buttons = [
-                {"label": "Again", "callback": lambda: feedback(0, "Again"), "color": "rgba(160, 50, 50, 200)"},
-                {"label": "Hard", "callback": lambda: feedback(1, "Hard"), "color": "rgba(184, 134, 11, 200)"},
-                {"label": "Good", "callback": lambda: feedback(2, "Good"), "color": "rgba(140, 170, 90, 200)"},
-                {"label": "Easy", "callback": lambda: feedback(3, "Easy"), "color": "rgba(100, 180, 120, 200)"}
-            ]
-
-            # Create toast with buttons already set - no timers start
             toast = notification_service.show_toast(
                 reminder.name,
                 message,
-                urgency=urgency,
-                buttons=buttons
+                duration,
+                urgency,
+                buttons=[{
+                    "label": "Snooze 1h",
+                    "callback": snooze_1h,
+                    "color": "rgba(90, 90, 110, 160)",
+                }]
             )
 
-        # Simple notification
         else:
             notification_service.show_reminder_notification(reminder.name, message, urgency)

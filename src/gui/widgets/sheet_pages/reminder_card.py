@@ -12,6 +12,7 @@ from ..flow_layout import FlowLayout
 
 
 from gui.themes import current_theme as _t
+from core.reminder.service import ReminderService
 
 
 class ReminderCard(QFrame):
@@ -118,18 +119,26 @@ class ReminderCard(QFrame):
         lines = []
 
         # Schedule info
-        if r.reminder_type == 'sr':
-            lines.append(f"Interval: {r.interval_days} days (ease: {r.ease_factor:.2f})")
-        elif r.reminder_type == 'stochastic':
-            lines.append(f"Rate: {r.target_rate_per_week}/week (weight: {r.weight:.1f})")
+        if ReminderService.is_reminder_outside_global_window(r):
+            lines.append("Warning: outside global reminder window")
 
-        # Action info
-        action_map = {
-            'open_link': '🔗 Open Link',
-            'random_line': '📄 Random Line',
-            'show_text': '💬 Show Text'
-        }
-        lines.append(f"Action: {action_map.get(r.action_type, r.action_type)}")
+        if r.reminder_type == 'stochastic':
+            lines.append(f"Rate: {r.target_rate_per_week}/week (weight: {r.weight:.1f})")
+        elif r.reminder_type == 'fixed':
+            fixed_time = getattr(r, "fixed_time_minute", None)
+            if fixed_time is not None:
+                lines.append(f"Fixed time: {self._format_minutes(fixed_time)}")
+
+        if getattr(r, 'habit_id', None):
+            lines.append("Action: Mark habit done")
+        else:
+            action_map = {
+                'open_link': '🔗 Open Link',
+                'random_line': '📄 Random Line',
+                'show_text': '💬 Show Text',
+                'anki_card': '🃏 Anki Card'
+            }
+            lines.append(f"Action: {action_map.get(r.action_type, r.action_type)}")
 
         # Next fire
         if r.next_fire_at:
@@ -138,7 +147,9 @@ class ReminderCard(QFrame):
         # Active window
         start_minute = getattr(r, "active_start_minute", 0)
         end_minute = getattr(r, "active_end_minute", 1440)
-        if start_minute == end_minute:
+        if r.reminder_type == 'fixed':
+            pass
+        elif start_minute == end_minute:
             lines.append("Window: All day")
         else:
             lines.append(f"Window: {self._format_minutes(start_minute)}–{self._format_minutes(end_minute)}")

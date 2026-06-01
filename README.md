@@ -14,7 +14,7 @@ Your habits appear as piano keys. Click a key to log a session. A slide-out pane
 
 **Activity tracking** — Optionally attach a tracker to a habit so sessions pause automatically during inactivity and resume when you're active again. Trackers can monitor keyboard/mouse activity or watch for a specific window title (e.g. a particular app or browser tab).
 
-**Reminders** — Reminders fire toast notifications on a schedule. They can open a link, show a piece of text, pick a random line from a file, or show an Anki flashcard. Scheduling can be spaced repetition (interval adjusts based on your rating) or randomized at a target frequency. Reminders can be limited to specific hours and to when a particular window is active.
+**Reminders** — Reminders fire toast notifications on a schedule. They can open a link, show a piece of text, pick a random line from a file, or show an Anki flashcard. Scheduling can be stochastic at a target frequency or fixed at a specific time. Reminders can be limited to specific hours and to when a particular window is active.
 
 **Anki integration** — Anki flashcards can be surfaced as reminders. Requires [Anki](https://apps.ankiweb.net) running with the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on.
 

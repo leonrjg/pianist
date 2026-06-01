@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, QDate
 from core.tracker.registry import TrackerRegistry
 from . import HabitStatCard
 from .base_page import SheetPage
+from .reminder_card import ReminderCard
 from ..themed_dropdown import ThemedDropdown
 from ..themed_form_widgets import ThemedLineEdit, ThemedSpinBox, ThemedCheckBox, ThemedButton, ThemedDateEdit, ThemedFormSection
 from .notes_widget import NotesWidget
@@ -20,6 +21,7 @@ from ..tracker_help_widget import TrackerHelpWidget
 from core.db import db
 from core.habit.habit import Habit
 from core.habit.service import HabitService
+from core.reminder.service import ReminderService
 
 
 class HabitDetailPage(SheetPage):
@@ -39,6 +41,7 @@ class HabitDetailPage(SheetPage):
         self._visible_checkbox = None
         self._archive_button = None
         self._notes_widget = None
+        self._create_default_reminder_checkbox = None
 
         # Dynamic tracker widgets - populated during build_content
         self._tracker_checkboxes = {}  # {tracker_name: QCheckBox}
@@ -200,6 +203,13 @@ class HabitDetailPage(SheetPage):
 
         form_layout.addWidget(display_section)
 
+        if not self.habit:
+            reminder_section = ThemedFormSection("Reminder")
+            self._create_default_reminder_checkbox = ThemedCheckBox("Create a stochastic reminder")
+            self._create_default_reminder_checkbox.setChecked(True)
+            reminder_section.add_widget(self._create_default_reminder_checkbox)
+            form_layout.addWidget(reminder_section)
+
         # Trackers section - dynamically generated from registry
         trackers_section = ThemedFormSection("Tracking")
 
@@ -283,6 +293,28 @@ class HabitDetailPage(SheetPage):
             self._notes_widget.set_note(self.habit.note)
         notes_section.add_widget(self._notes_widget)
         form_layout.addWidget(notes_section)
+
+        # Reminders section
+        reminders_section = ThemedFormSection("Reminders")
+        if self.habit:
+            new_reminder_btn = ThemedButton("+ New Reminder", button_type="secondary", parent=self)
+            new_reminder_btn.clicked.connect(self._create_reminder)
+            reminders_section.add_widget(new_reminder_btn)
+
+            reminders = ReminderService.get_for_habit(self.habit.id)
+            if reminders:
+                for reminder in reminders:
+                    card = ReminderCard(reminder, self)
+                    card.toggle_enabled.connect(self._toggle_reminder)
+                    card.edit_clicked.connect(self._edit_reminder)
+                    card.trigger_now.connect(self._trigger_reminder)
+                    reminders_section.add_widget(card)
+            else:
+                reminders_section.add_widget(self._create_text_label("No reminders for this habit.", secondary=True))
+        else:
+            reminders_section.add_widget(self._create_text_label("Save this habit before adding reminders.", secondary=True))
+
+        form_layout.addWidget(reminders_section)
 
         # Action buttons at bottom
         layout.addWidget(self._create_separator())
@@ -373,6 +405,30 @@ class HabitDetailPage(SheetPage):
                     config_dict = self._parse_config_string(config_edit.text())
                     help_widget.set_tracker(tracker_name, config_dict)
 
+    def _create_reminder(self):
+        self.navigate_to.emit('reminder_detail', {
+            'default_habit_id': self.habit.id,
+            'return_page': 'habit_detail',
+            'return_data': self.habit.id,
+        })
+
+    def _edit_reminder(self, reminder):
+        self.navigate_to.emit('reminder_detail', {
+            'reminder_id': reminder.id,
+            'return_page': 'habit_detail',
+            'return_data': self.habit.id,
+        })
+
+    def _toggle_reminder(self, reminder):
+        ReminderService.toggle_enabled(reminder)
+        self.content_updated.emit()
+        self.refresh()
+
+    def _trigger_reminder(self, reminder):
+        fresh_reminder = ReminderService.get_by_id(reminder.id)
+        ReminderService.fire_reminder(fresh_reminder, record_fire=False)
+        self.content_updated.emit()
+
     def _save_habit(self):
         """Save the habit"""
         name = self._name_edit.text().strip()
@@ -410,6 +466,23 @@ class HabitDetailPage(SheetPage):
                 else:
                     # Create new
                     self.habit = Habit.create(name=name, schedule=schedule, schedule_step=schedule_step, started_at=start_date, ended_at=end_date)
+                    if self._create_default_reminder_checkbox and self._create_default_reminder_checkbox.isChecked():
+                        from core.reminder.service import ReminderService
+                        reminder = ReminderService.create(
+                            name=f"{self.habit.name} reminder",
+                            reminder_type='stochastic',
+                            habit=self.habit,
+                            action_type='show_text',
+                            action_payload=f"It's time for {self.habit.name}",
+                            notification_method='desktop',
+                            target_rate_per_week=1,
+                            weight=1,
+                            active_start_minute=0,
+                            active_end_minute=1440,
+                            created_at=datetime.now(),
+                            updated_at=datetime.now()
+                        )
+                        ReminderService.reschedule(reminder)
 
                 if duration > 0:
                     self.habit.allocated_time = duration * 60

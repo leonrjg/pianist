@@ -295,6 +295,7 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         from .add_task_widget import AddTaskWidget
         self.add_task_widget = AddTaskWidget(self)
         self.add_task_widget.task_created.connect(self.on_task_created)
+        self.add_task_widget.thought_created.connect(self.on_thought_created)
         self.add_task_widget.closed.connect(self.on_add_task_closed)
         self.add_task_widget.hide()
 
@@ -1241,6 +1242,11 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         if hasattr(self, 'music_sheet_widget') and self.music_sheet_widget:
             self.music_sheet_widget.refresh_current_page()
 
+    def on_thought_created(self):
+        """Handle thought creation - refresh the current sheet page if it's the thoughts page."""
+        if hasattr(self, 'music_sheet_widget') and self.music_sheet_widget:
+            self.music_sheet_widget.refresh_current_page()
+
     def on_add_task_closed(self):
         """Handle add task widget closed"""
         pass
@@ -1274,8 +1280,17 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         
         # Handle notes widget drag events - forward to piano window
         if self.notes_widget is not None and obj == self.notes_widget:
+            if hasattr(self.notes_widget, 'is_resizing_height') and self.notes_widget.is_resizing_height():
+                return False
+
             if event.type() == event.Type.MouseButtonPress:
                 if event.button() == Qt.MouseButton.LeftButton:
+                    if (
+                        hasattr(self.notes_widget, 'is_on_resize_handle')
+                        and self.notes_widget.is_on_resize_handle(event.position().toPoint())
+                    ):
+                        return False
+
                     # Calculate relative position in piano window coordinates
                     from PyQt6.QtCore import QPointF
                     notes_global_pos = self.notes_widget.mapToGlobal(event.position().toPoint())

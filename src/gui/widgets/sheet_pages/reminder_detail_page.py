@@ -3,30 +3,30 @@ Reminder Detail Page - Create/edit reminder with full configuration.
 """
 
 from datetime import datetime
-from PyQt6.QtWidgets import QVBoxLayout, QMessageBox, QWidget, QTextEdit
-from PyQt6.QtCore import Qt
+from types import SimpleNamespace
+from PyQt6.QtWidgets import QVBoxLayout, QMessageBox, QWidget, QTextEdit, QLabel
+from PyQt6.QtCore import Qt, QDate
 
 from .base_page import SheetPage
 from ..themed_dropdown import ThemedDropdown
 from ..themed_form_widgets import (
     ThemedLineEdit, ThemedSpinBox, ThemedButton,
-    ThemedFormSection, ThemedCheckBox
+    ThemedFormSection, ThemedCheckBox, ThemedDateEdit
 )
 
 from core.reminder.service import ReminderService
-from core.schedule.sm2 import SM2Scheduler
-
-
 from gui.themes import current_theme as _t
 from core.schedule.stochastic import StochasticScheduler
-from core.schedule.active_window import ActiveWindow
 
 
 class ReminderDetailPage(SheetPage):
     """Detail page for creating/editing a reminder"""
 
-    def __init__(self, reminder_id=None, parent=None):
+    def __init__(self, reminder_id=None, default_habit_id=None, return_page='reminders', return_data=None, parent=None):
         self.reminder_id = reminder_id
+        self.default_habit_id = default_habit_id
+        self.return_page = return_page
+        self.return_data = return_data
         self.reminder = None
 
         # Form fields
@@ -35,25 +35,31 @@ class ReminderDetailPage(SheetPage):
         self._action_dropdown = None
         self._payload_edit = None
         self._notification_dropdown = None
-
-        # SR fields
-        self._ease_spin = None
-        self._interval_spin = None
+        self._action_section = None
 
         # Stochastic fields
         self._rate_spin = None
         self._weight_spin = None
 
+        # Fixed fields
+        self._fixed_date_edit = None
+        self._fixed_time_edit = None
+
         # Active window fields
+        self._active_section = None
         self._active_start_edit = None
         self._active_end_edit = None
+        self._global_window_warning = None
+
+        # Options
+        self._bypass_anti_spam_checkbox = None
 
         # Habit link
         self._habit_dropdown = None
 
         # Dynamic sections
-        self._sr_section = None
         self._stochastic_section = None
+        self._fixed_section = None
 
         super().__init__(parent)
 
@@ -95,8 +101,8 @@ class ReminderDetailPage(SheetPage):
             self._name_edit.setText(self.reminder.name)
         basic_section.add_field("Name:", self._name_edit)
 
-        types = ['sr', 'stochastic']
-        default_type = self.reminder.reminder_type if self.reminder else 'sr'
+        types = ['stochastic', 'fixed']
+        default_type = self.reminder.reminder_type if self.reminder and self.reminder.reminder_type in types else 'stochastic'
         self._type_dropdown = ThemedDropdown(types, default_type)
         self._type_dropdown.selection_changed.connect(self._on_type_changed)
         basic_section.add_field("Type:", self._type_dropdown)
@@ -104,12 +110,12 @@ class ReminderDetailPage(SheetPage):
         form_layout.addWidget(basic_section)
 
         # Action Section
-        action_section = ThemedFormSection("Action")
+        self._action_section = ThemedFormSection("Action")
 
         actions = ['open_link', 'random_line', 'show_text', 'anki_card']
         default_action = self.reminder.action_type if self.reminder else 'show_text'
         self._action_dropdown = ThemedDropdown(actions, default_action)
-        action_section.add_field("Action:", self._action_dropdown)
+        self._action_section.add_field("Action:", self._action_dropdown)
 
         self._payload_edit = QTextEdit()
         self._payload_edit.setMaximumHeight(80)
@@ -126,32 +132,19 @@ class ReminderDetailPage(SheetPage):
         """)
         if self.reminder:
             self._payload_edit.setPlainText(self.reminder.action_payload)
-        action_section.add_field("Payload:", self._payload_edit)
+        self._action_section.add_field("Payload:", self._payload_edit)
 
         notifications = ['desktop', 'none']
         default_notif = self.reminder.notification_method if self.reminder else 'desktop'
         self._notification_dropdown = ThemedDropdown(notifications, default_notif)
-        action_section.add_field("Notification:", self._notification_dropdown)
+        self._action_section.add_field("Notification:", self._notification_dropdown)
 
-        form_layout.addWidget(action_section)
+        self._bypass_anti_spam_checkbox = ThemedCheckBox("Bypass anti-spam filter")
+        if self.reminder:
+            self._bypass_anti_spam_checkbox.setChecked(bool(self.reminder.bypass_anti_spam))
+        self._action_section.add_field("Options:", self._bypass_anti_spam_checkbox)
 
-        # SR Schedule Section
-        self._sr_section = ThemedFormSection("Spaced Repetition Schedule")
-
-        self._ease_spin = ThemedSpinBox()
-        self._ease_spin.setMinimum(130)
-        self._ease_spin.setMaximum(500)
-        self._ease_spin.setSingleStep(10)
-        self._ease_spin.setValue(int((self.reminder.ease_factor if self.reminder else 2.5) * 100))
-        self._sr_section.add_field("Ease Factor (×100):", self._ease_spin)
-
-        self._interval_spin = ThemedSpinBox()
-        self._interval_spin.setMinimum(1)
-        self._interval_spin.setMaximum(365)
-        self._interval_spin.setValue(self.reminder.interval_days if self.reminder else 1)
-        self._sr_section.add_field("Interval (days):", self._interval_spin)
-
-        form_layout.addWidget(self._sr_section)
+        form_layout.addWidget(self._action_section)
 
         # Stochastic Schedule Section
         self._stochastic_section = ThemedFormSection("Stochastic Schedule")
@@ -174,8 +167,29 @@ class ReminderDetailPage(SheetPage):
 
         form_layout.addWidget(self._stochastic_section)
 
+        # Fixed Schedule Section
+        self._fixed_section = ThemedFormSection("Fixed Schedule")
+
+        self._fixed_date_edit = ThemedDateEdit()
+        fixed_dt = self.reminder.next_fire_at if self.reminder and self.reminder.next_fire_at else datetime.now()
+        self._fixed_date_edit.setDate(QDate(fixed_dt.year, fixed_dt.month, fixed_dt.day))
+        self._fixed_section.add_field("Date (one-off):", self._fixed_date_edit)
+
+        self._fixed_time_edit = ThemedLineEdit("HH:MM")
+        if self.reminder and self.reminder.fixed_time_minute is not None:
+            fixed_minutes = self.reminder.fixed_time_minute
+        elif self.reminder and self.reminder.next_fire_at:
+            fixed_minutes = self.reminder.next_fire_at.hour * 60 + self.reminder.next_fire_at.minute
+        else:
+            fixed_minutes = 9 * 60
+        self._fixed_time_edit.setText(self._format_minutes(fixed_minutes))
+        self._fixed_section.add_field("Time:", self._fixed_time_edit)
+        self._fixed_time_edit.editingFinished.connect(self._refresh_global_window_warning)
+
+        form_layout.addWidget(self._fixed_section)
+
         # Active Window Section
-        active_section = ThemedFormSection("Active Window")
+        self._active_section = ThemedFormSection("Active Window")
 
         self._active_start_edit = ThemedLineEdit("HH:MM")
         self._active_end_edit = ThemedLineEdit("HH:MM")
@@ -183,11 +197,24 @@ class ReminderDetailPage(SheetPage):
         end_minutes = self.reminder.active_end_minute if self.reminder else 1440
         self._active_start_edit.setText(self._format_minutes(start_minutes))
         self._active_end_edit.setText(self._format_minutes(end_minutes))
+        self._active_start_edit.editingFinished.connect(self._refresh_global_window_warning)
+        self._active_end_edit.editingFinished.connect(self._refresh_global_window_warning)
 
-        active_section.add_field("Start:", self._active_start_edit)
-        active_section.add_field("End:", self._active_end_edit)
+        self._active_section.add_field("Start:", self._active_start_edit)
+        self._active_section.add_field("End:", self._active_end_edit)
 
-        form_layout.addWidget(active_section)
+        form_layout.addWidget(self._active_section)
+
+        self._global_window_warning = QLabel("Warning: this reminder is outside the global reminder window.")
+        self._global_window_warning.setWordWrap(True)
+        self._global_window_warning.setStyleSheet(f"""
+            color: {_t().danger_bg};
+            background: transparent;
+            font-size: 11px;
+            font-weight: bold;
+        """)
+        self._global_window_warning.setVisible(False)
+        form_layout.addWidget(self._global_window_warning)
 
         # Habit Link Section
         habit_section = ThemedFormSection("Habit Link (Optional)")
@@ -197,12 +224,14 @@ class ReminderDetailPage(SheetPage):
         habits = _habit_service.get_all_habits() if _habit_service else []
         habit_names = ['None'] + [h.name for h in habits]
         default_habit = None
-        if self.reminder and self.reminder.habit_id:
-            linked = next((h for h in habits if h.id == self.reminder.habit_id), None)
+        selected_habit_id = self.reminder.habit_id if self.reminder and self.reminder.habit_id else self.default_habit_id
+        if selected_habit_id:
+            linked = next((h for h in habits if h.id == selected_habit_id), None)
             if linked:
                 default_habit = linked.name
 
         self._habit_dropdown = ThemedDropdown(habit_names, default_habit)
+        self._habit_dropdown.selection_changed.connect(lambda _: self._refresh_action_visibility())
         habit_section.add_field("Linked Habit:", self._habit_dropdown)
 
         form_layout.addWidget(habit_section)
@@ -227,7 +256,7 @@ class ReminderDetailPage(SheetPage):
             button_layout.addWidget(delete_btn)
 
         cancel_btn = ThemedButton("Cancel", button_type="secondary", parent=self)
-        cancel_btn.clicked.connect(lambda: self.navigate_to.emit('reminders', None))
+        cancel_btn.clicked.connect(self._navigate_back)
         button_layout.addWidget(cancel_btn)
 
         layout.addLayout(button_layout)
@@ -235,31 +264,72 @@ class ReminderDetailPage(SheetPage):
 
         # Update visibility based on type
         self._on_type_changed(self._type_dropdown.get_selected())
+        self._refresh_action_visibility()
 
     def _on_type_changed(self, reminder_type: str):
         """Show/hide sections based on reminder type."""
-        if self._sr_section and self._stochastic_section:
-            self._sr_section.setVisible(reminder_type == 'sr')
-            self._stochastic_section.setVisible(reminder_type == 'stochastic')
+        if self._stochastic_section and self._fixed_section:
+            self._stochastic_section.setVisible(reminder_type == 'stochastic' and not self._is_habit_linked())
+            self._fixed_section.setVisible(reminder_type == 'fixed')
+        if self._active_section:
+            self._active_section.setVisible(reminder_type != 'fixed')
+        self._refresh_global_window_warning()
+
+    def _refresh_action_visibility(self):
+        if self._action_section:
+            self._action_section.setVisible(not self._is_habit_linked())
+        if self._stochastic_section and self._type_dropdown:
+            self._stochastic_section.setVisible(
+                self._type_dropdown.get_selected() == 'stochastic' and not self._is_habit_linked()
+            )
+
+    def _is_habit_linked(self) -> bool:
+        return self._habit_dropdown is not None and self._habit_dropdown.get_selected() != 'None'
+
+    def _refresh_global_window_warning(self):
+        if not self._global_window_warning:
+            return
+
+        try:
+            reminder_type = self._type_dropdown.get_selected()
+            if reminder_type == 'fixed':
+                fixed_minute = self._parse_time(self._fixed_time_edit.text(), allow_24=False)
+                active_start = 0
+                active_end = 1440
+            else:
+                fixed_minute = None
+                active_start = self._parse_time(self._active_start_edit.text(), allow_24=False)
+                active_end = self._parse_time(self._active_end_edit.text(), allow_24=True)
+        except ValueError:
+            self._global_window_warning.setVisible(False)
+            return
+
+        reminder = SimpleNamespace(
+            reminder_type=reminder_type,
+            fixed_time_minute=fixed_minute,
+            next_fire_at=None,
+            active_start_minute=active_start,
+            active_end_minute=active_end,
+        )
+        self._global_window_warning.setVisible(ReminderService.is_reminder_outside_global_window(reminder))
 
     def _save_reminder(self):
         """Save the reminder to database."""
         name = self._name_edit.text().strip()
-        if not name:
+        is_habit_linked = self._is_habit_linked()
+        if not name and not is_habit_linked:
             QMessageBox.warning(self, "Validation Error", "Name is required")
             return
 
         payload = self._payload_edit.toPlainText().strip()
-        if not payload:
+        if not is_habit_linked and not payload:
             QMessageBox.warning(self, "Validation Error", "Action payload is required")
             return
 
         reminder_type = self._type_dropdown.get_selected()
-        action_type = self._action_dropdown.get_selected()
+        action_type = 'show_text' if is_habit_linked else self._action_dropdown.get_selected()
         notification_method = self._notification_dropdown.get_selected()
 
-        ease_factor = self._ease_spin.value() / 100.0
-        interval_days = self._interval_spin.value()
         target_rate = self._rate_spin.value()
         weight = self._weight_spin.value()
 
@@ -270,6 +340,27 @@ class ReminderDetailPage(SheetPage):
             QMessageBox.warning(self, "Validation Error", str(e))
             return
 
+        fixed_time_minute = None
+        fixed_fire_at = None
+        if reminder_type == 'fixed':
+            try:
+                fixed_time_minute = self._parse_time(self._fixed_time_edit.text(), allow_24=False)
+            except ValueError as e:
+                QMessageBox.warning(self, "Validation Error", str(e))
+                return
+
+            qdate = self._fixed_date_edit.date()
+            fixed_fire_at = datetime(
+                qdate.year(),
+                qdate.month(),
+                qdate.day(),
+                fixed_time_minute // 60,
+                fixed_time_minute % 60,
+                0
+            )
+            active_start = 0
+            active_end = 1440
+
         # Get habit ID
         habit_id = None
         habit_name = self._habit_dropdown.get_selected()
@@ -279,9 +370,17 @@ class ReminderDetailPage(SheetPage):
                 matched = next((h for h in _habit_service.get_all_habits() if h.name == habit_name), None)
                 if matched:
                     habit_id = matched.id
+                    if is_habit_linked:
+                        name = name or f"{matched.name} reminder"
+                        payload = f"It's time for {matched.name}"
+
+        if is_habit_linked and habit_id is None:
+            QMessageBox.warning(self, "Validation Error", "Linked habit is required")
+            return
 
         now = datetime.now()
-        window = ActiveWindow(active_start, active_end)
+
+        bypass_anti_spam = self._bypass_anti_spam_checkbox.isChecked()
 
         if self.reminder:
             # Update existing
@@ -291,25 +390,29 @@ class ReminderDetailPage(SheetPage):
             self.reminder.action_type = action_type
             self.reminder.action_payload = payload
             self.reminder.notification_method = notification_method
-            self.reminder.ease_factor = ease_factor
-            self.reminder.interval_days = interval_days
             self.reminder.target_rate_per_week = target_rate
             self.reminder.weight = weight
+            self.reminder.fixed_time_minute = fixed_time_minute
             self.reminder.active_start_minute = active_start
             self.reminder.active_end_minute = active_end
+            self.reminder.bypass_anti_spam = bypass_anti_spam
 
             # Recalculate next_fire_at
             last_fire = self.reminder.last_fired_at or self.reminder.created_at
-            if reminder_type == 'sr':
-                next_time = SM2Scheduler.get_next_fire_time(last_fire, interval_days)
-                self.reminder.next_fire_at = window.clamp(next_time)
-            elif reminder_type == 'stochastic':
-                self.reminder.next_fire_at = StochasticScheduler.get_next_fire_time(
-                    last_fire,
-                    target_rate,
-                    active_start,
-                    active_end
-                )
+            if reminder_type == 'stochastic':
+                if habit_id is not None:
+                    self.reminder.next_fire_at = ReminderService.get_next_habit_stochastic_fire_time(self.reminder, now)
+                else:
+                    self.reminder.next_fire_at = StochasticScheduler.get_next_fire_time(
+                        last_fire,
+                        target_rate,
+                        active_start,
+                        active_end
+                    )
+            elif reminder_type == 'fixed':
+                self.reminder.next_fire_at = fixed_fire_at
+                if habit_id is not None:
+                    self.reminder.next_fire_at = ReminderService.get_next_fixed_fire_time(self.reminder, now)
 
             ReminderService.save(self.reminder)
         else:
@@ -321,32 +424,35 @@ class ReminderDetailPage(SheetPage):
                 action_type=action_type,
                 action_payload=payload,
                 notification_method=notification_method,
-                ease_factor=ease_factor,
-                interval_days=interval_days,
                 target_rate_per_week=target_rate,
                 weight=weight,
+                fixed_time_minute=fixed_time_minute,
+                next_fire_at=fixed_fire_at if reminder_type == 'fixed' else None,
                 active_start_minute=active_start,
                 active_end_minute=active_end,
+                bypass_anti_spam=bypass_anti_spam,
                 created_at=now,
                 updated_at=now
             )
 
             # Set initial next_fire_at
-            if reminder_type == 'sr':
-                next_time = SM2Scheduler.get_next_fire_time(now, interval_days)
-                reminder.next_fire_at = window.clamp(next_time)
-            elif reminder_type == 'stochastic':
-                reminder.next_fire_at = StochasticScheduler.get_next_fire_time(
-                    now,
-                    target_rate,
-                    active_start,
-                    active_end
-                )
+            if reminder_type == 'stochastic':
+                if habit_id is not None:
+                    reminder.next_fire_at = ReminderService.get_next_habit_stochastic_fire_time(reminder, now)
+                else:
+                    reminder.next_fire_at = StochasticScheduler.get_next_fire_time(
+                        now,
+                        target_rate,
+                        active_start,
+                        active_end
+                    )
+            elif reminder_type == 'fixed' and habit_id is not None:
+                reminder.next_fire_at = ReminderService.get_next_fixed_fire_time(reminder, now)
 
             ReminderService.save(reminder)
 
         self.content_updated.emit()
-        self.navigate_to.emit('reminders', None)
+        self._navigate_back()
 
     def _trigger_reminder(self):
         """Manually trigger the reminder now."""
@@ -368,7 +474,10 @@ class ReminderDetailPage(SheetPage):
         if reply == QMessageBox.StandardButton.Yes:
             ReminderService.delete(self.reminder)
             self.content_updated.emit()
-            self.navigate_to.emit('reminders', None)
+            self._navigate_back()
+
+    def _navigate_back(self):
+        self.navigate_to.emit(self.return_page, self.return_data)
 
     @staticmethod
     def _format_minutes(total_minutes: int) -> str:

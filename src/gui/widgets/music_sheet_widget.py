@@ -13,7 +13,7 @@ from PyQt6.QtCore import pyqtSignal, Qt, QPointF
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QLinearGradient, QPolygonF
 
 from .page_turn_animation import PageTurnAnimation
-from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, SettingsPage, MoodPage, CalendarPage, ReminderPage, ReminderDetailPage, SyncPage
+from .sheet_pages import IndexPage, RepertoirePage, HabitDetailPage, HabitStatsPage, StatsPage, SettingsPage, MoodPage, CalendarPage, ReminderPage, ReminderDetailPage, SyncPage, ThoughtsPage
 from .sheet_menu import SheetMenu
 from ..managers import SoundManager
 
@@ -74,6 +74,7 @@ class PageType(Enum):
     REMINDERS = "reminders"
     REMINDER_DETAIL = "reminder_detail"
     SYNC = "sync"
+    THOUGHTS = "thoughts"
 
 
 class MusicSheetWidget(QWidget, ThemedWidget):
@@ -347,9 +348,19 @@ class MusicSheetWidget(QWidget, ThemedWidget):
             elif page_type == PageType.REMINDERS.value:
                 return ReminderPage(self)
             elif page_type == PageType.REMINDER_DETAIL.value:
+                if isinstance(data, dict):
+                    return ReminderDetailPage(
+                        reminder_id=data.get('reminder_id'),
+                        default_habit_id=data.get('default_habit_id'),
+                        return_page=data.get('return_page', 'reminders'),
+                        return_data=data.get('return_data'),
+                        parent=self
+                    )
                 return ReminderDetailPage(reminder_id=data, parent=self)
             elif page_type == PageType.SYNC.value:
                 return SyncPage(self)
+            elif page_type == PageType.THOUGHTS.value:
+                return ThoughtsPage(self)
             else:
                 print(f"Unknown page type: {page_type}")
                 return None

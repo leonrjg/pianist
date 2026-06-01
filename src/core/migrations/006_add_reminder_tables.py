@@ -1,7 +1,7 @@
 """
 Migration 006: Add reminder and reminder_log tables
 
-This migration adds reminder system with SR and stochastic scheduling.
+This migration adds reminder system tables.
 """
 
 from core.db import db

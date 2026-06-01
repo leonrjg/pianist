@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCalendarWidget,
 from PyQt6.QtCore import Qt, QDate, QPoint, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QTextCharFormat, QFont, QCursor
 from datetime import datetime, timedelta
+import logging
 from typing import Dict, List
 
 from .base_page import SheetPage
@@ -23,6 +24,8 @@ from gui.themes import current_theme as _t
 from gui.themes.color import parse_color as _qcolor
 
 from core.task.service import TaskService
+
+logger = logging.getLogger(__name__)
 
 
 class TaskPopup(QWidget):
@@ -83,6 +86,13 @@ class TaskPopup(QWidget):
         # Connect Enter key to submit
         self._task_input.returnPressed.connect(self._on_add_task)
         input_layout.addWidget(self._task_input)
+
+        self._reminder_input = QLineEdit()
+        self._reminder_input.setPlaceholderText("HH:MM")
+        self._reminder_input.setFixedWidth(48)
+        self._reminder_input.setStyleSheet(self._task_input.styleSheet())
+        self._reminder_input.returnPressed.connect(self._on_add_task)
+        input_layout.addWidget(self._reminder_input)
 
         # Add button
         add_btn = QPushButton("+")
@@ -240,26 +250,43 @@ class TaskPopup(QWidget):
             return
 
         try:
-            # Convert QDate to datetime at start of day
+            reminder_minutes = self._parse_optional_time(self._reminder_input.text())
+            hour = reminder_minutes // 60 if reminder_minutes is not None else 0
+            minute = reminder_minutes % 60 if reminder_minutes is not None else 0
             scheduled_dt = datetime(
                 self._current_date.year(),
                 self._current_date.month(),
                 self._current_date.day(),
-                0, 0, 0
+                hour, minute, 0
             )
+            reminder_at = scheduled_dt if reminder_minutes is not None else None
 
-            TaskService.create_standalone_task(title, scheduled_dt)
+            TaskService.create_standalone_task(title, scheduled_dt, reminder_at=reminder_at)
 
             # Clear input
             self._task_input.clear()
+            self._reminder_input.clear()
 
             # Emit signal to refresh calendar
             self.task_created.emit()
 
         except Exception as e:
             print(f"Error creating manual task: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("Error creating manual task")
+
+    @staticmethod
+    def _parse_optional_time(value: str):
+        text = value.strip()
+        if not text:
+            return None
+        parts = text.split(":")
+        if len(parts) != 2:
+            raise ValueError("Reminder time must be in HH:MM format")
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        if hours < 0 or hours > 23 or minutes < 0 or minutes > 59:
+            raise ValueError("Reminder time must be between 00:00 and 23:59")
+        return hours * 60 + minutes
 
     def _create_task_widget(self, task: dict) -> QWidget:
         """Create a widget for a single task"""

@@ -4,7 +4,20 @@ Notes Widget - Notepad that appears below piano window.
 Displays a text editor for taking notes with auto-save functionality.
 """
 
-from PyQt6.QtWidgets import QWidget, QTextEdit, QPushButton, QLabel, QVBoxLayout, QHBoxLayout
+import logging
+
+from PyQt6.QtWidgets import (
+    QWidget,
+    QTextEdit,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFrame,
+    QInputDialog,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+)
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer, QEvent, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QPainter, QColor, QKeyEvent, QTextBlockFormat, QTextCursor
 
@@ -12,7 +25,6 @@ from core.notes.service import NoteService
 from core.settings.service import SettingsService
 
 from gui.themes import current_theme as _t, ThemedWidget
-from gui.widgets.themed_dropdown import ThemedDropdown
 from gui.painters.frame_painter import FramePainter
 from gui.painters.base_painter import BasePainter
 
@@ -20,6 +32,9 @@ from gui.painters.base_painter import BasePainter
 def _c():
     from gui.constants import piano_colors
     return piano_colors()
+
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -74,7 +89,10 @@ class NotesWidget(QWidget, ThemedWidget):
     
     # Height bounds
     MIN_HEIGHT = 100   # ~3 lines of text
-    MAX_HEIGHT = 300  # Maximum height
+    AUTO_MAX_HEIGHT = 300  # Maximum automatic content-driven height
+    MAX_HEIGHT = 700  # Maximum height
+    RESIZE_MARGIN = 8
+    NOTE_RESULTS_MAX_HEIGHT = 180
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -83,10 +101,15 @@ class NotesWidget(QWidget, ThemedWidget):
         
         # Track if notes were visible before parent state change
         self._was_visible_before_hide = False
+        self._is_resizing_height = False
+        self._resize_start_y = 0
+        self._resize_start_height = 0
+        self._user_resized_height = False
         
         # Dynamic height between min and max
         self.setMinimumHeight(self.MIN_HEIGHT)
         self.setMaximumHeight(self.MAX_HEIGHT)
+        self.setMouseTracking(True)
         
         if parent is not None:
             parent.installEventFilter(self)
@@ -100,6 +123,9 @@ class NotesWidget(QWidget, ThemedWidget):
 
         # Auto-save state
         self._note = None
+        self._note_items = []
+        self._selected_note_data = None
+        self._updating_note_search = False
         self._save_timer = QTimer()
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self._save_content)
@@ -114,31 +140,27 @@ class NotesWidget(QWidget, ThemedWidget):
         main_layout.setSpacing(0)
         self.setLayout(main_layout)
 
-        # Header with habit selector, save indicator, and close button
+        # Header with searchable note selector and controls
         header = QHBoxLayout()
         header.setContentsMargins(2, 0, 2, 4)
         header.setSpacing(8)
 
-        # Habit selector dropdown
-        self.habit_selector = ThemedDropdown([], parent=self)
-        self.habit_selector.setMaximumWidth(150)
-        self.habit_selector.selection_changed.connect(self._on_habit_changed)
-        header.addWidget(self.habit_selector)
+        self.note_search = QLineEdit()
+        self.note_search.setMaximumWidth(240)
+        self.note_search.setPlaceholderText("Search notes")
+        self.note_search.setClearButtonEnabled(True)
+        self.note_search.textChanged.connect(self._on_note_search_changed)
+        self.note_search.installEventFilter(self)
+        header.addWidget(self.note_search)
+
+        self._add_note_button = QPushButton("+")
+        self._add_note_button.setFixedSize(20, 20)
+        self._add_note_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._add_note_button.setToolTip("Add note")
+        self._add_note_button.clicked.connect(self._on_add_note_clicked)
+        header.addWidget(self._add_note_button)
 
         header.addStretch()
-
-        # Save status indicator
-        self.save_status_label = QLabel("✓")
-        self.save_status_label.setFixedSize(16, 16)
-        self.save_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.save_status_label.setStyleSheet("""
-            QLabel {
-                color: rgb(34, 139, 34);
-                font-size: 14px;
-            }
-        """)
-        self.save_status_label.setToolTip("Saved")
-        header.addWidget(self.save_status_label)
 
         # Close button
         self._close_button = QPushButton("×")
@@ -149,12 +171,23 @@ class NotesWidget(QWidget, ThemedWidget):
 
         main_layout.addLayout(header)
 
+        self._note_results = QListWidget()
+        self._note_results.setMaximumHeight(self.NOTE_RESULTS_MAX_HEIGHT)
+        self._note_results.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._note_results.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self._note_results.itemClicked.connect(self._on_note_result_clicked)
+        self._note_results.installEventFilter(self)
+        self._note_results.hide()
+        main_layout.addWidget(self._note_results)
+
         # Text editor with auto-indent
         self.text_edit = AutoIndentTextEdit()
         self.text_edit.setAcceptRichText(False)
         self.text_edit.setPlaceholderText("What are you doing now?")
         self.text_edit.textChanged.connect(self._on_text_changed)
         self.text_edit.setTabStopDistance(10)  # Reduce tab width from default ~80px to 30px
+        self.text_edit.setMouseTracking(True)
+        self.text_edit.installEventFilter(self)
 
         # Set line height for better readability
         block_format = QTextBlockFormat()
@@ -164,26 +197,102 @@ class NotesWidget(QWidget, ThemedWidget):
         cursor.setBlockFormat(block_format)
 
         main_layout.addWidget(self.text_edit)
+
+        self._resize_handle = QFrame()
+        self._resize_handle.setFixedHeight(6)
+        self._resize_handle.setCursor(Qt.CursorShape.SizeVerCursor)
+        self._resize_handle.installEventFilter(self)
+        main_layout.addWidget(self._resize_handle)
+
         self._setup_style()
+
+    def is_on_resize_handle(self, pos: QPoint) -> bool:
+        """Return True when a point is in the bottom resize strip."""
+        return pos.y() >= self.height() - self.RESIZE_MARGIN
+
+    def is_resizing_height(self) -> bool:
+        """Return True while the user is dragging the vertical resize edge."""
+        return self._is_resizing_height
+
+    def _set_resize_cursor_for_position(self, pos: QPoint):
+        if self.is_on_resize_handle(pos):
+            self.setCursor(Qt.CursorShape.SizeVerCursor)
+        else:
+            self.unsetCursor()
+
+    def mousePressEvent(self, event):
+        """Start vertical resizing from the bottom edge."""
+        if event.button() == Qt.MouseButton.LeftButton and self.is_on_resize_handle(event.position().toPoint()):
+            self._start_height_resize(event.globalPosition().toPoint().y())
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """Resize vertically while dragging the bottom edge."""
+        if self._is_resizing_height:
+            self._resize_height_to(event.globalPosition().toPoint().y())
+            event.accept()
+            return
+
+        self._set_resize_cursor_for_position(event.position().toPoint())
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        """Finish vertical resizing."""
+        if event.button() == Qt.MouseButton.LeftButton and self._is_resizing_height:
+            self._finish_height_resize(event.position().toPoint())
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def _start_height_resize(self, global_y: int):
+        self._is_resizing_height = True
+        self._resize_start_y = global_y
+        self._resize_start_height = self.height()
+        self._user_resized_height = True
+
+    def _resize_height_to(self, global_y: int):
+        dy = global_y - self._resize_start_y
+        new_height = max(self.MIN_HEIGHT, min(self._resize_start_height + dy, self.MAX_HEIGHT))
+        self.resize(self.width(), new_height)
+
+    def _finish_height_resize(self, pos: QPoint):
+        self._is_resizing_height = False
+        self._set_resize_cursor_for_position(pos)
 
     def _setup_style(self):
         c = _c()
-        self.habit_selector.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
+        self.note_search.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {c.FRAME_MEDIUM.name()};
                 color: {c.ACCENT_LIGHT.name()};
-                text-decoration: underline;
-                border: none;
+                border: 1px solid {c.ACCENT.name()};
+                border-radius: 3px;
                 text-align: left;
                 padding: 2px 4px;
                 font-size: 11px;
+                selection-background-color: {c.ACCENT.name()};
+                selection-color: {c.BACKGROUND.name()};
             }}
-            QPushButton:hover {{
+            QLineEdit:focus {{
                 color: {c.WHITE_KEY.name()};
+                border-color: {c.ACCENT_LIGHT.name()};
             }}
-            QPushButton::menu-indicator {{
-                right: 6px;
-                bottom: 2px;
+        """)
+        self._note_results.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {c.FRAME_DARK.name()};
+                color: {c.ACCENT_LIGHT.name()};
+                border: 1px solid {c.ACCENT.name()};
+                font-size: 11px;
+            }}
+            QListWidget::item {{
+                padding: 4px 6px;
+            }}
+            QListWidget::item:selected {{
+                background-color: {c.ACCENT.name()};
+                color: {c.BACKGROUND.name()};
             }}
         """)
         self._close_button.setStyleSheet(f"""
@@ -195,6 +304,21 @@ class NotesWidget(QWidget, ThemedWidget):
                 font-size: 16px;
                 font-weight: bold;
                 padding-bottom: 2px;
+            }}
+            QPushButton:hover {{
+                border-color: {c.ACCENT_LIGHT.name()};
+                background-color: {c.FRAME_MEDIUM.name()};
+            }}
+        """)
+        self._add_note_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c.FRAME_DARK.name()};
+                border: 1px solid {c.ACCENT.name()};
+                border-radius: 10px;
+                color: {c.ACCENT_LIGHT.name()};
+                font-size: 15px;
+                font-weight: bold;
+                padding-bottom: 1px;
             }}
             QPushButton:hover {{
                 border-color: {c.ACCENT_LIGHT.name()};
@@ -228,37 +352,137 @@ class NotesWidget(QWidget, ThemedWidget):
                 height: 0px;
             }}
         """)
+        self._resize_handle.setStyleSheet(f"""
+            QFrame {{
+                background-color: {c.FRAME_MEDIUM.name()};
+                border-top: 1px solid {c.ACCENT.name()};
+            }}
+            QFrame:hover {{
+                border-top-color: {c.ACCENT_LIGHT.name()};
+            }}
+        """)
 
-    def _populate_habit_selector(self):
-        """Populate the habit selector dropdown with available habits"""
+    def _populate_note_selector(self, default_note_id=None):
+        """Populate the searchable note selector with available notes."""
         _service = getattr(self.parent(), 'service', None)
         habits = sorted(_service.get_all_habits(), key=lambda h: h.name) if _service else []
-        items = [("Default note", None)] + [(h.name, h.id) for h in habits]
+        items = []
 
-        self.habit_selector.selection_changed.disconnect(self._on_habit_changed)
-        self.habit_selector.set_items(items)
-        self.habit_selector.selection_changed.connect(self._on_habit_changed)
+        for note in NoteService.list_global_notes() or [NoteService.get_global_note()]:
+            items.append((note.title, {'habit_id': None, 'note_id': note.id}))
+
+        for habit in habits:
+            notes = NoteService.list_habit_notes(habit)
+            if not notes:
+                notes = [NoteService.get_habit_note(habit)]
+
+            for note in notes:
+                items.append((f"{note.title} / {habit.name}", {'habit_id': habit.id, 'note_id': note.id}))
+
+        if not items:
+            note = NoteService.get_global_note()
+            items.append((note.title, {'habit_id': None, 'note_id': note.id}))
+
+        self._note_items = items
+        selected_data = self._selector_data_for_note(default_note_id) or (items[0][1] if items else None)
+        selected_label = self._label_for_note_data(selected_data)
+        self._set_selected_note(selected_label, selected_data, load=False)
+
+    def _selector_data_for_note(self, note_id):
+        if note_id is None:
+            return None
+        return next((data for _, data in self._note_items if data['note_id'] == note_id), None)
+
+    def _label_for_note_data(self, data):
+        if data is None:
+            return ''
+        return next((label for label, item_data in self._note_items if item_data == data), '')
+
+    def _filtered_note_items(self):
+        query = self.note_search.text().strip().lower()
+        if not query or self._updating_note_search:
+            return self._note_items
+        return [(label, data) for label, data in self._note_items if query in label.lower()]
+
+    def _show_note_results(self):
+        self._refresh_note_results()
+        self._note_results.show()
+        self._adjust_height()
+
+    def _hide_note_results(self):
+        was_visible = self._note_results.isVisible()
+        self._note_results.hide()
+        if was_visible:
+            self._adjust_height()
+
+    def _refresh_note_results(self):
+        self._note_results.clear()
+        filtered_items = self._filtered_note_items()
+
+        if filtered_items:
+            for label, data in filtered_items:
+                item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, data)
+                self._note_results.addItem(item)
+            self._note_results.setCurrentRow(0)
+        else:
+            item = QListWidgetItem("No notes")
+            item.setFlags(Qt.ItemFlag.NoItemFlags)
+            self._note_results.addItem(item)
+
+        row_height = self._note_results.sizeHintForRow(0)
+        if row_height <= 0:
+            row_height = 24
+        height = min(row_height * self._note_results.count() + 4, self.NOTE_RESULTS_MAX_HEIGHT)
+        self._note_results.setFixedHeight(max(row_height + 4, height))
+
+    def _set_selected_note(self, label: str, data, load: bool = True):
+        self._selected_note_data = data
+        self._updating_note_search = True
+        self.note_search.clear()
+        self.note_search.setPlaceholderText(label or "Search notes")
+        self.note_search.setCursorPosition(0)
+        self._updating_note_search = False
+        if load:
+            self._on_note_changed()
 
     def _load_selected_note(self):
-        """Load the note for the currently selected habit"""
-        habit_id = self.habit_selector.selected_data
-
-        # Load the appropriate note
-        if habit_id is None:
-            self._note = NoteService.get_global_note()
-        else:
-            _service = getattr(self.parent(), 'service', None)
-            habit = _service.get_habit_by_id(habit_id) if _service else None
-            self._note = NoteService.get_habit_note(habit) if habit else NoteService.get_global_note()
+        """Load the currently selected note."""
+        selected_data = self._selected_note_data or {}
+        note_id = selected_data.get('note_id')
+        self._note = NoteService.get_note_by_id(note_id) if note_id else NoteService.get_global_note()
 
         # Update text editor without triggering save
         self.text_edit.blockSignals(True)
         self.text_edit.setPlainText(self._note.content)
         self.text_edit.blockSignals(False)
-        self._update_save_status('saved')
 
-    def _on_habit_changed(self, label: str):
-        """Handle habit selection change in dropdown"""
+    def _on_note_selected(self, label: str, data):
+        """Handle note selection from the search results."""
+        self._hide_note_results()
+        self._set_selected_note(label, data)
+
+    def _on_note_result_clicked(self, item: QListWidgetItem):
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if data is not None:
+            self._on_note_selected(item.text(), data)
+
+    def _on_note_search_changed(self, text: str):
+        """Filter the note result list as the user types."""
+        if self._updating_note_search:
+            return
+        self._show_note_results()
+
+    def _select_first_filtered_note(self) -> bool:
+        filtered_items = self._filtered_note_items()
+        if not filtered_items:
+            return False
+        label, data = filtered_items[0]
+        self._on_note_selected(label, data)
+        return True
+
+    def _on_note_changed(self):
+        """Handle note selection change."""
         # Save current note before switching
         if self._note is not None:
             self._save_timer.stop()
@@ -269,6 +493,39 @@ class NotesWidget(QWidget, ThemedWidget):
 
         # Adjust height for new content
         self._adjust_height()
+
+    def _on_add_note_clicked(self):
+        """Create a named note in the selected scope."""
+        if self._note is not None:
+            self._save_timer.stop()
+            self._save_content()
+
+        selected_data = self._selected_note_data or {}
+        habit_id = selected_data.get('habit_id')
+
+        title, accepted = QInputDialog.getText(self, "New note", "Name")
+        if not accepted:
+            return
+
+        title = title.strip()
+        if not title:
+            title = None
+
+        try:
+            if habit_id is None:
+                note = NoteService.create_global_note(title=title)
+            else:
+                _service = getattr(self.parent(), 'service', None)
+                habit = _service.get_habit_by_id(habit_id) if _service else None
+                note = NoteService.create_habit_note(habit, title=title) if habit else NoteService.create_global_note(title=title)
+
+            self._populate_note_selector(default_note_id=note.id)
+            self._load_selected_note()
+            self._user_resized_height = False
+            self._adjust_height()
+            self.text_edit.setFocus()
+        except Exception:
+            logger.exception("Failed to create note")
 
     def paintEvent(self, event):
         """Draw background matching the piano frame style (gradient + SVG overlay)"""
@@ -303,19 +560,24 @@ class NotesWidget(QWidget, ThemedWidget):
         self.setFixedWidth(width)
         self.move(pos)
 
-        # Populate habit selector
-        self._populate_habit_selector()
-
         # Auto-select habit if exactly one session is running
+        default_note_id = None
         if self.parent() and hasattr(self.parent(), 'session_manager'):
             active_habit_ids = list(self.parent().session_manager._processes.keys())
             if len(active_habit_ids) == 1:
-                self.habit_selector.set_selected_by_data(active_habit_ids[0])
+                _service = getattr(self.parent(), 'service', None)
+                habit = _service.get_habit_by_id(active_habit_ids[0]) if _service else None
+                if habit:
+                    default_note_id = NoteService.get_habit_note(habit).id
+
+        # Populate note selector
+        self._populate_note_selector(default_note_id=default_note_id)
 
         # Load note content for the selected habit (defaults to global note)
         self._load_selected_note()
 
         # Adjust height based on loaded content
+        self._user_resized_height = False
         self._adjust_height()
 
         self.setWindowOpacity(SettingsService.get('window.opacity', 1.0))
@@ -334,9 +596,6 @@ class NotesWidget(QWidget, ThemedWidget):
         # Cancel existing timer
         self._save_timer.stop()
         
-        # Update status to indicate unsaved changes
-        self._update_save_status('saving')
-        
         # Start new timer (500ms debounce)
         self._save_timer.start(500)
         
@@ -352,12 +611,14 @@ class NotesWidget(QWidget, ThemedWidget):
             content = self.text_edit.toPlainText()
             if content and content.strip():
                 self._note.update_content(content)
-                self._update_save_status('saved')
         except Exception as e:
-            self._update_save_status('error', str(e))
+            logger.exception("Failed to save note")
 
     def _adjust_height(self):
         """Adjust widget height based on text content"""
+        if self._user_resized_height and not self._note_results.isVisible():
+            return
+
         # Get content height from document
         doc = self.text_edit.document()
         
@@ -368,50 +629,17 @@ class NotesWidget(QWidget, ThemedWidget):
         content_height = doc.size().height()
         
         # Add padding for header and margins (header ~30px + margins ~12px)
-        total_height = int(content_height + 42)
+        result_height = self._note_results.height() + 4 if self._note_results.isVisible() else 0
+        total_height = int(content_height + 42 + result_height)
         
-        # Clamp between min and max
-        new_height = max(self.MIN_HEIGHT, min(total_height, self.MAX_HEIGHT))
+        # Clamp automatic sizing so long saved notes open with scrolling.
+        new_height = max(self.MIN_HEIGHT, min(total_height, self.AUTO_MAX_HEIGHT))
 
-        # Update height
-        old_height = self.height()
-        self.setFixedHeight(new_height)
+        if self._user_resized_height:
+            new_height = max(self.height(), new_height)
 
-    def _update_save_status(self, status: str, error_msg: str = ''):
-        """
-        Update the save status indicator.
-        
-        Args:
-            status: One of 'saved', 'saving', 'error'
-            error_msg: Error message if status is 'error'
-        """
-        if status == 'saved':
-            self.save_status_label.setText("✓")
-            self.save_status_label.setStyleSheet("""
-                QLabel {
-                    color: rgb(34, 139, 34);
-                    font-size: 14px;
-                }
-            """)
-            self.save_status_label.setToolTip("Saved")
-        elif status == 'saving':
-            self.save_status_label.setText("⏳")
-            self.save_status_label.setStyleSheet(f"""
-                QLabel {{
-                    color: {_c().ACCENT_LIGHT.name()};
-                    font-size: 14px;
-                }}
-            """)
-            self.save_status_label.setToolTip("Saving...")
-        elif status == 'error':
-            self.save_status_label.setText("✗")
-            self.save_status_label.setStyleSheet("""
-                QLabel {
-                    color: rgb(220, 20, 60);
-                    font-size: 14px;
-                }
-            """)
-            self.save_status_label.setToolTip(f"Error: {error_msg}")
+        # Update height without preventing manual vertical resizing
+        self.resize(self.width(), new_height)
 
     def focusOutEvent(self, event):
         """Handle focus loss - immediately save"""
@@ -424,6 +652,55 @@ class NotesWidget(QWidget, ThemedWidget):
         super().focusOutEvent(event)
 
     def eventFilter(self, obj, event):
+        if obj == getattr(self, 'note_search', None):
+            if event.type() in (QEvent.Type.FocusIn, QEvent.Type.MouseButtonPress):
+                QTimer.singleShot(0, self._show_note_results)
+                return False
+            if event.type() == QEvent.Type.FocusOut:
+                QTimer.singleShot(0, self._hide_note_results_if_focus_left_selector)
+                return False
+            if event.type() == QEvent.Type.KeyPress:
+                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    return self._select_first_filtered_note()
+                if event.key() == Qt.Key.Key_Down:
+                    self._show_note_results()
+                    self._note_results.setFocus()
+                    return True
+                if event.key() == Qt.Key.Key_Escape:
+                    self._hide_note_results()
+                    return True
+
+        if obj == getattr(self, '_note_results', None):
+            if event.type() == QEvent.Type.KeyPress:
+                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    item = self._note_results.currentItem()
+                    if item is not None:
+                        self._on_note_result_clicked(item)
+                    return True
+                if event.key() == Qt.Key.Key_Escape:
+                    self._hide_note_results()
+                    self.note_search.setFocus()
+                    return True
+            if event.type() == QEvent.Type.FocusOut:
+                QTimer.singleShot(0, self._hide_note_results_if_focus_left_selector)
+                return False
+
+        if obj == getattr(self, 'text_edit', None):
+            if event.type() == QEvent.Type.FocusIn:
+                self._hide_note_results()
+                return False
+
+        if obj == getattr(self, '_resize_handle', None):
+            if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                self._start_height_resize(event.globalPosition().toPoint().y())
+                return True
+            if event.type() == QEvent.Type.MouseMove and self._is_resizing_height:
+                self._resize_height_to(event.globalPosition().toPoint().y())
+                return True
+            if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+                self._finish_height_resize(self.mapFromGlobal(event.globalPosition().toPoint()))
+                return True
+
         if obj is self.parent():
             if event.type() == QEvent.Type.Hide and self.isVisible():
                 self._was_visible_before_hide = True
@@ -439,7 +716,14 @@ class NotesWidget(QWidget, ThemedWidget):
                 self._fade_animation.setStartValue(0.0)
                 self._fade_animation.setEndValue(SettingsService.get('window.opacity', 1.0))
                 self._fade_animation.start()
+            elif event.type() == QEvent.Type.WindowDeactivate:
+                self._hide_note_results()
         return False
+
+    def _hide_note_results_if_focus_left_selector(self):
+        focused = self.focusWidget()
+        if focused not in (self.note_search, self._note_results):
+            self._hide_note_results()
 
     def _on_fade_finished(self):
         if self.windowOpacity() == 0.0:

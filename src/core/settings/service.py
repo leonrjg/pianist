@@ -20,6 +20,10 @@ DEFAULTS = {
     'window.opacity': 1.0,
     'calendar.ical_sources_visible': True,
     'reminders.enabled': True,
+    'reminders.global_window_enabled': False,
+    'reminders.global_window_start_minute': 0,
+    'reminders.global_window_end_minute': 1440,
+    'reminders.show_habit_linked_on_page': False,
     'session.timeout_seconds': 1800,
     'session.min_duration_seconds': 0,
 }

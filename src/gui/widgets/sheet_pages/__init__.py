@@ -28,6 +28,7 @@ from .reminder_page import ReminderPage
 from .reminder_detail_page import ReminderDetailPage
 from .reminder_card import ReminderCard
 from .sync_page import SyncPage
+from .thoughts_page import ThoughtsPage
 
 __all__ = [
     'SheetPage',
@@ -58,4 +59,5 @@ __all__ = [
     'ReminderDetailPage',
     'ReminderCard',
     'SyncPage',
+    'ThoughtsPage',
 ]

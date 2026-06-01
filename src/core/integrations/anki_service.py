@@ -6,8 +6,8 @@ Requires Anki to be running with AnkiConnect add-on installed.
 """
 
 from dataclasses import dataclass
-from datetime import date, timedelta
-from typing import Optional, List, Dict, Tuple
+from datetime import date, datetime, timedelta
+from typing import Optional, List, Dict, Tuple, Any
 import random
 import re
 import io
@@ -33,6 +33,15 @@ class AnkiCard:
     back: str
 
 
+@dataclass
+class AnkiNextReview:
+    """Display summary for a card's next scheduled review."""
+    label: str
+    due_at: Optional[datetime] = None
+    due_date: Optional[date] = None
+    is_intraday: bool = False
+
+
 class AnkiConnectError(Exception):
     """Exception raised for AnkiConnect API errors."""
     pass
@@ -54,7 +63,9 @@ class AnkiService:
     _card_cache = {}  # Maps reminder_id -> AnkiCard
     _shown_card_ids: set = set()  # Card IDs currently displayed but not yet answered/dismissed
     _template_cache = {}  # Maps model_name -> template info (performance optimization)
+    _deck_config_cache = {}  # Maps deck_name -> deck config (performance optimization)
     _media_dir = None  # Cached media directory path
+    CANDIDATE_BATCH_SIZE = 100
 
     @classmethod
     def _invoke(cls, action: str, params: Optional[dict] = None) -> any:
@@ -588,7 +599,8 @@ class AnkiService:
         """
         Get a card from the specified deck.
 
-        Prioritizes cards due today. If no cards are due, selects randomly from all cards.
+        Prioritizes cards Anki considers due. If no due cards are available,
+        selects from new cards. Does not show not-due review cards.
 
         Args:
             deck_name: Name of the Anki deck
@@ -600,32 +612,197 @@ class AnkiService:
         Raises:
             AnkiConnectError: If connection fails or deck is empty
         """
-        # Check which cards are due today
+        # First show due learning/review cards. If all due candidates are
+        # already displayed in this app session, fall through to new cards.
         query = f'deck:"{deck_name}" is:due -is:suspended'
         due_card_ids = cls._invoke("findCards", {"query": query})
+        card_info = cls._select_due_card(deck_name, due_card_ids)
 
-        if due_card_ids:
-            # Exclude cards already shown to avoid duplicates; fall back if none remain
-            available = [cid for cid in due_card_ids if cid not in cls._shown_card_ids] or due_card_ids
-            cards_info = cls._invoke("cardsInfo", {"cards": available})
-            if not cards_info:
-                raise AnkiConnectError(f"Could not retrieve card info for deck '{deck_name}'")
-            cards_info.sort(key=lambda c: c.get("due", 0))
-            card_info = cards_info[0]
-        else:
-            logger.debug("No due cards found, selecting from all cards")
+        if card_info is None:
+            logger.debug("No due Anki cards found for deck '%s', checking new cards", deck_name)
+            query = f'deck:"{deck_name}" is:new -is:suspended'
+            new_card_ids = cls._invoke("findCards", {"query": query})
+            card_info = cls._select_new_card(deck_name, new_card_ids)
 
-            query = f'deck:"{deck_name}" -is:suspended'
-            card_ids = cls._invoke("findCards", {"query": query})
-            if not card_ids:
-                raise AnkiConnectError(f"No cards found in deck '{deck_name}'")
+        if card_info is None:
+            raise AnkiConnectError(f"You've finished deck '{deck_name}' for today")
 
-            available = [cid for cid in card_ids if cid not in cls._shown_card_ids] or card_ids
-            selected_card_id = random.choice(available)
-            cards_info = cls._invoke("cardsInfo", {"cards": [selected_card_id]})
-            if not cards_info:
-                raise AnkiConnectError(f"Could not retrieve card info for ID {selected_card_id}")
-            card_info = cards_info[0]
+        return cls._card_from_info(card_info, reminder_id)
+
+    @classmethod
+    def _select_due_card(cls, deck_name: str, card_ids: List[int]) -> Optional[Dict[str, Any]]:
+        """Select the next due candidate using Anki-like queue/review ordering."""
+        if not card_ids:
+            return None
+
+        available = cls._available_card_ids(card_ids, deck_name, "due")
+        if not available:
+            return None
+
+        cards_info = cls._get_candidate_cards_info(deck_name, available)
+        if not cards_info:
+            raise AnkiConnectError(f"Could not retrieve due card info for deck '{deck_name}'")
+
+        config = cls._get_deck_config(deck_name)
+        cards_info.sort(key=lambda card: cls._due_card_sort_key(card, config))
+        return cards_info[0]
+
+    @classmethod
+    def _select_new_card(cls, deck_name: str, card_ids: List[int]) -> Optional[Dict[str, Any]]:
+        """Select a new candidate using exposed deck display-order settings."""
+        if not card_ids:
+            return None
+
+        available = cls._available_card_ids(card_ids, deck_name, "new")
+        if not available:
+            return None
+
+        cards_info = cls._get_candidate_cards_info(deck_name, available)
+        if not cards_info:
+            raise AnkiConnectError(f"Could not retrieve new card info for deck '{deck_name}'")
+
+        config = cls._get_deck_config(deck_name)
+        cards_info.sort(key=lambda card: cls._new_card_sort_key(card, config))
+        return cards_info[0]
+
+    @classmethod
+    def _available_card_ids(cls, card_ids: List[int], deck_name: str, candidate_type: str) -> List[int]:
+        """Return candidate IDs not already displayed in this app session."""
+        available = [cid for cid in card_ids if cid not in cls._shown_card_ids]
+        if card_ids and not available:
+            logger.info(
+                "All %s Anki candidates for deck '%s' are already displayed; not showing another card",
+                candidate_type,
+                deck_name
+            )
+        return available
+
+    @classmethod
+    def _get_candidate_cards_info(cls, deck_name: str, card_ids: List[int]) -> List[Dict[str, Any]]:
+        """Fetch a bounded batch of candidate card metadata."""
+        candidate_ids = card_ids[:cls.CANDIDATE_BATCH_SIZE]
+        cards_info = cls._invoke("cardsInfo", {"cards": candidate_ids})
+        if not cards_info:
+            return []
+        expected = set(candidate_ids)
+        return [
+            card
+            for card in cards_info
+            if card.get("cardId") in expected
+        ]
+
+    @classmethod
+    def _get_deck_config(cls, deck_name: str) -> Dict[str, Any]:
+        """Fetch and cache deck config used for display-order approximations."""
+        if deck_name not in cls._deck_config_cache:
+            try:
+                cls._deck_config_cache[deck_name] = cls._invoke("getDeckConfig", {"deck": deck_name})
+            except AnkiConnectError:
+                raise
+            except Exception as e:
+                logger.exception("Unexpected error fetching Anki deck config for '%s'", deck_name)
+                raise AnkiConnectError(f"Could not retrieve deck config for '{deck_name}': {e}")
+        return cls._deck_config_cache[deck_name] or {}
+
+    @classmethod
+    def _due_card_sort_key(cls, card_info: Dict[str, Any], config: Dict[str, Any]) -> Tuple:
+        """
+        Approximate Anki's due-card order.
+
+        Anki gathers intraday learning, then interday learning, then review
+        cards before introducing new cards. Review sort order is approximated
+        from the exposed deck config where possible.
+        """
+        queue_priority = cls._queue_priority(card_info)
+        return (queue_priority, cls._review_sort_key(card_info, config), card_info.get("cardId", 0))
+
+    @classmethod
+    def _queue_priority(cls, card_info: Dict[str, Any]) -> int:
+        """Return broad Anki queue priority for due candidates."""
+        queue = card_info.get("queue")
+        card_type = card_info.get("type")
+
+        if queue == 1:
+            return 0  # intraday learning
+        if queue == 3:
+            return 1  # interday learning
+        if card_type in (1, 3):
+            return 1
+        if queue == 2 or card_type == 2:
+            return 2  # review
+        return 3
+
+    @classmethod
+    def _review_sort_key(cls, card_info: Dict[str, Any], config: Dict[str, Any]) -> Tuple:
+        """Approximate the configured review sort order using cardsInfo fields."""
+        review_order = config.get("reviewOrder", 0)
+        due = card_info.get("due", 0)
+        interval = card_info.get("interval", 0)
+        factor = card_info.get("factor")
+
+        if review_order == 2:
+            return (-interval, due)
+        if review_order == 3 and factor is not None:
+            return (factor, due)
+        if review_order == 4 and factor is not None:
+            return (-factor, due)
+        if review_order == 5:
+            return (cls._relative_overdueness(card_info), due)
+
+        # reviewOrder 0/1 are both due-date based in Anki's UI; 1 also uses
+        # deck as a tiebreaker, which matters only when subdecks are present.
+        if review_order == 1:
+            return (due, card_info.get("deckName", ""))
+        return (due,)
+
+    @classmethod
+    def _relative_overdueness(cls, card_info: Dict[str, Any]) -> float:
+        """Approximate relative overdueness from exposed due/interval fields."""
+        interval = card_info.get("interval") or 0
+        due = card_info.get("due") or 0
+        if interval <= 0:
+            return 0.0
+        return -(abs(min(due, 0)) / interval)
+
+    @classmethod
+    def _new_card_sort_key(cls, card_info: Dict[str, Any], config: Dict[str, Any]) -> Tuple:
+        """Approximate configured new-card gather/sort order."""
+        sort_order = config.get("newSortOrder", 1)
+        gather_priority = config.get("newGatherPriority", 1)
+        gathered_key = cls._new_gather_key(card_info, gather_priority)
+        card_type = card_info.get("ord", 0)
+
+        if sort_order == 0:
+            return (card_type, gathered_key)
+        if sort_order == 2:
+            return (card_type, random.random())
+        if sort_order == 3:
+            return (random.random(), card_type)
+        if sort_order == 4:
+            return (random.random(),)
+        return (gathered_key,)
+
+    @classmethod
+    def _new_gather_key(cls, card_info: Dict[str, Any], gather_priority: int) -> Tuple:
+        """Approximate new-card gather order from deck/order metadata."""
+        due = card_info.get("due", 0)
+        deck_name = card_info.get("deckName", "")
+        note_id = card_info.get("note", 0)
+        card_id = card_info.get("cardId", 0)
+
+        if gather_priority == 2:
+            return (due, deck_name, card_id)
+        if gather_priority == 3:
+            return (-due, deck_name, card_id)
+        if gather_priority == 4:
+            return (random.random(), note_id, card_id)
+        if gather_priority == 5:
+            return (random.random(), card_id)
+        return (deck_name, due, card_id)
+
+    @classmethod
+    def _card_from_info(cls, card_info: Dict[str, Any], reminder_id: Optional[int] = None) -> AnkiCard:
+        """Build an AnkiCard from cardsInfo output and cache it if requested."""
 
         # Extract front and back using template-based strategy
         model_name = card_info.get("modelName", "")
@@ -707,16 +884,19 @@ class AnkiService:
             logger.error(f"[RATING] Invalid ease value: {ease}")
             raise ValueError(f"Ease must be between 1 and 4, got {ease}")
 
-        # Set card to be due today to ensure it's in a reviewable state
-        logger.info(f"[RATING] Setting card due date to today (preparing for answer)...")
-        try:
-            cls._invoke("setDueDate", {
-                "cards": [card_id],
-                "days": "0"  # 0 = today
-            })
-            logger.info(f"[RATING] ✓ Card due date set to today")
-        except Exception as e:
-            logger.warning(f"[RATING] Could not set due date (continuing anyway): {e}")
+        # AnkiConnect's answerCards delegates to Anki's scheduler.answerCard(),
+        # which can reject otherwise due/new cards when they are not the
+        # scheduler's current top card. Move the card to the front of the due
+        # order without changing its type/queue; setDueDate would convert new
+        # cards to review cards and alter their learning progression.
+        logger.info(f"[RATING] Moving card to front of Anki due order before answerCards...")
+        cls._invoke("setSpecificValueOfCard", {
+            "card": card_id,
+            "keys": ["due"],
+            "newValues": [0],
+            "warning_check": True
+        })
+        logger.info(f"[RATING] Card due order prepared")
 
         logger.info(f"[RATING] Calling answerCards API...")
         result = cls._invoke("answerCards", {
@@ -733,29 +913,83 @@ class AnkiService:
             raise AnkiConnectError(f"Failed to submit rating for card {card_id}")
 
     @classmethod
-    def get_next_due_date(cls, card_id: int) -> Optional[date]:
+    def get_next_review_summary(cls, card_id: int, now: Optional[datetime] = None) -> Optional[AnkiNextReview]:
         """
-        Get the next scheduled review date for a card.
+        Get a display summary for the next scheduled review.
 
         Should be called after submit_rating to show the user when the card will next appear.
 
         Args:
             card_id: ID of the card
+            now: Current datetime, injectable for tests
 
         Returns:
-            Next review date, or None if it could not be determined
+            Display summary, or None if it could not be determined
         """
         try:
+            now = now or datetime.now()
             cards_info = cls._invoke("cardsInfo", {"cards": [card_id]})
             if not cards_info:
                 return None
-            interval = cards_info[0].get("interval", 0)
+            card_info = cards_info[0]
+            queue = card_info.get("queue")
+            due = card_info.get("due")
+            interval = card_info.get("interval", 0)
+
+            if queue == 1 and due:
+                due_at = datetime.fromtimestamp(due)
+                return cls._intraday_next_review(due_at, now)
+
             if interval <= 0:
-                # Learning step — sub-day interval, due later today
-                return date.today()
-            return date.today() + timedelta(days=interval)
+                return AnkiNextReview("later today", due_date=now.date(), is_intraday=True)
+
+            due_date = now.date() + timedelta(days=interval)
+            return AnkiNextReview(cls._format_due_date_label(due_date, now.date()), due_date=due_date)
         except Exception:
+            logger.exception("Could not determine next Anki review for card %s", card_id)
             return None
+
+    @classmethod
+    def _intraday_next_review(cls, due_at: datetime, now: datetime) -> AnkiNextReview:
+        """Format an intraday learning due timestamp."""
+        if due_at <= now:
+            return AnkiNextReview("now", due_at=due_at, due_date=due_at.date(), is_intraday=True)
+
+        delta = due_at - now
+        if due_at.date() == now.date():
+            total_seconds = int(delta.total_seconds())
+            if total_seconds < 90:
+                label = "in 1 min"
+            elif total_seconds < 3600:
+                label = f"in {round(total_seconds / 60)} min"
+            else:
+                hours = round(total_seconds / 3600)
+                label = f"in {hours} hr" if hours == 1 else f"in {hours} hrs"
+            return AnkiNextReview(label, due_at=due_at, due_date=due_at.date(), is_intraday=True)
+
+        tomorrow = now.date() + timedelta(days=1)
+        if due_at.date() == tomorrow:
+            label = f"tomorrow at {due_at.strftime('%H:%M')}"
+        else:
+            label = due_at.strftime("%b %-d at %H:%M")
+        return AnkiNextReview(label, due_at=due_at, due_date=due_at.date(), is_intraday=True)
+
+    @classmethod
+    def _format_due_date_label(cls, due_date: date, today: date) -> str:
+        """Format an interday due date."""
+        if due_date <= today:
+            return "later today"
+        if due_date == today + timedelta(days=1):
+            return "tomorrow"
+        return due_date.strftime("%b %-d")
+
+    @classmethod
+    def get_next_due_date(cls, card_id: int) -> Optional[date]:
+        """
+        Backward-compatible date-only wrapper for next review information.
+        """
+        summary = cls.get_next_review_summary(card_id)
+        return summary.due_date if summary else None
 
     @classmethod
     def open_in_editor(cls, card_id: int) -> None:
@@ -865,3 +1099,8 @@ class AnkiService:
         Useful if note types are modified during runtime.
         """
         cls._template_cache.clear()
+
+    @classmethod
+    def clear_deck_config_cache(cls):
+        """Clear cached deck configs."""
+        cls._deck_config_cache.clear()

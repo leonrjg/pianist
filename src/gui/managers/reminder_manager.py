@@ -30,7 +30,7 @@ class ReminderManager(QThread):
     notification_requested = pyqtSignal(object, str, str)  # reminder_id, message, urgency
 
     CHECK_INTERVAL_MS = 30_000  # 30 seconds
-    ANTI_SPAM_GAP_MINUTES = 10  # Minimum gap between any notifications
+    ANTI_SPAM_GAP_MINUTES = 9  # Minimum gap between any notifications
 
     def __init__(self, context_evaluator: ContextEvaluator):
         """
@@ -98,13 +98,24 @@ class ReminderManager(QThread):
         """Check for overdue reminders when app starts."""
         now = datetime.now()
 
-        for reminder in ReminderService.get_overdue_sr(now):
-            logger.info(f"Overdue SR reminder on startup: {reminder.name}")
-            self._fire_reminder(reminder, is_overdue=True)
-
         for reminder in ReminderService.get_overdue_stochastic(now):
+            if ReminderService.is_habit_stochastic(reminder):
+                if ReminderService.defer_until_global_window(reminder, now):
+                    logger.info(f"Deferring overdue habit stochastic reminder outside global window: {reminder.name}")
+                    continue
+                logger.info(f"Overdue habit stochastic reminder on startup: {reminder.name}")
+                self._fire_reminder(reminder, is_overdue=True)
+                continue
             logger.info(f"Rescheduling overdue stochastic reminder: {reminder.name}")
             ReminderService.reschedule(reminder)
+
+        for reminder in ReminderService.get_overdue_fixed(now):
+            if ReminderService.defer_until_global_window(reminder, now):
+                logger.info(f"Deferring overdue fixed reminder outside global window: {reminder.name}")
+                continue
+            if ReminderService.should_fire_fixed(reminder):
+                logger.info(f"Overdue fixed reminder on startup: {reminder.name}")
+                self._fire_reminder(reminder, is_overdue=True)
 
     def _check_and_fire_reminders(self):
         """Check all enabled reminders and fire if due."""
@@ -115,8 +126,9 @@ class ReminderManager(QThread):
 
         reminders = ReminderService.get_all_enabled()
 
-        sr_due = []
         stochastic_due = []
+        habit_stochastic_due = []
+        fixed_due = []
 
         for reminder in reminders:
             if not reminder.next_fire_at:
@@ -125,14 +137,24 @@ class ReminderManager(QThread):
                 continue
 
             if reminder.next_fire_at <= now:
-                if reminder.reminder_type == 'sr':
-                    sr_due.append(reminder)
-                elif reminder.reminder_type == 'stochastic':
-                    stochastic_due.append(reminder)
+                if ReminderService.defer_until_global_window(reminder, now):
+                    logger.info(f"Deferring reminder outside global window: {reminder.name}")
+                    continue
+                if reminder.reminder_type == 'stochastic':
+                    if ReminderService.is_habit_stochastic(reminder):
+                        habit_stochastic_due.append(reminder)
+                    else:
+                        stochastic_due.append(reminder)
+                elif reminder.reminder_type == 'fixed':
+                    fixed_due.append(reminder)
 
-        # Fire all due SR reminders (guaranteed)
-        for reminder in sr_due:
-            self._fire_reminder(reminder)
+        for reminder in fixed_due:
+            if ReminderService.should_fire_fixed(reminder):
+                self._fire_reminder(reminder)
+
+        for reminder in habit_stochastic_due:
+            if ReminderService.should_fire_habit_reminder(reminder):
+                self._fire_reminder(reminder)
 
         # Fire one stochastic reminder (weight-based competition)
         if stochastic_due:
@@ -155,8 +177,12 @@ class ReminderManager(QThread):
             logger.info(f"Reminders muted — skipping {reminder.name}")
             return
 
-        # Check anti-spam gap
-        if self.last_notification_time:
+        # Check anti-spam gap — fixed reminders and reminders with bypass_anti_spam are always exempt
+        anti_spam_exempt = (
+            reminder.reminder_type == 'fixed'
+            or getattr(reminder, 'bypass_anti_spam', False)
+        )
+        if not anti_spam_exempt and self.last_notification_time:
             time_since_last = (now - self.last_notification_time).total_seconds()
             if time_since_last < self.ANTI_SPAM_GAP_MINUTES * 60:
                 logger.info(f"{datetime.now()} - Anti-spam: Skipping {reminder.name} (too soon)")

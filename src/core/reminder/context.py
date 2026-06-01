@@ -16,7 +16,6 @@ class ContextEvaluator:
     - idle_boost: ×1.5 after returning from idle (>5 min)
     - sustained_boost: ×1.3 after sustained activity (>30 min)
     - startup_reduce: ×0.3 during first 2 minutes after app start
-    - overdue_urgency: +20% per overdue day for SR reminders, max ×2
     """
 
     IDLE_THRESHOLD_SECONDS = 5 * 60  # 5 minutes
@@ -86,14 +85,6 @@ class ContextEvaluator:
         if time_in_session > self.SUSTAINED_THRESHOLD_SECONDS:
             if context_config.get('sustained_boost', True):
                 modifier *= 1.3
-
-        # Overdue urgency (SR only)
-        if reminder.reminder_type == 'sr' and reminder.next_fire_at:
-            if now > reminder.next_fire_at:
-                days_overdue = (now - reminder.next_fire_at).days
-                if context_config.get('overdue_urgency', True):
-                    urgency_boost = min(1.0, days_overdue * 0.2)  # +20% per day, max +100%
-                    modifier *= (1.0 + urgency_boost)
 
         # Cap modifier at 2.0
         return min(2.0, max(0.0, modifier))

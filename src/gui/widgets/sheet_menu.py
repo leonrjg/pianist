@@ -124,6 +124,7 @@ class SheetMenu(QWidget, ThemedWidget):
         MenuItem("repertoire", "Repertoire", "gui/icons/list.svg"),
         MenuItem("reminders", "Reminders", "gui/icons/bell.svg"),
         MenuItem("calendar", "Calendar", "gui/icons/calendar.svg"),
+        MenuItem("thoughts", "Thoughts", "gui/icons/edit.svg"),
         MenuItem("habit_detail", "New Habit", "gui/icons/new.svg"),
         MenuItem("stats", "Stats", "gui/icons/stats.svg"),
         MenuItem("settings", "Settings", "gui/icons/settings.svg"),

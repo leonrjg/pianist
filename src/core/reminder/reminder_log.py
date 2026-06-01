@@ -17,7 +17,7 @@ class ReminderLog(BaseModel):
     fired_at = DateTimeField(default=datetime.now, index=True)
     action_executed = CharField()
     notification_sent = BooleanField(default=False)
-    feedback_rating = IntegerField(null=True)  # Future: 0-3 for again/hard/good/easy
+    feedback_rating = IntegerField(null=True)  # Legacy reminder feedback rating
     context_modifier = FloatField(default=1.0)
     was_overdue = BooleanField(default=False)
     device_id = CharField(default='')

@@ -24,15 +24,24 @@ class TaskService:
         ))
 
     @classmethod
-    def create_standalone_task(cls, title: str, scheduled_at: datetime) -> ManualTask:
-        """Create a standalone (habit=None) manual task."""
+    def create_standalone_task(
+        cls,
+        title: str,
+        scheduled_at: datetime,
+        reminder_at: Optional[datetime] = None
+    ) -> ManualTask:
+        """Create a standalone (habit=None) manual task, optionally with a fixed reminder."""
         with db.atomic():
-            return ManualTask.create(
+            task = ManualTask.create(
                 habit=None,
                 title=title,
                 scheduled_at=scheduled_at,
                 completed_at=None
             )
+            if reminder_at is not None:
+                from core.reminder.service import ReminderService
+                ReminderService.create_fixed_for_manual_task(task, reminder_at)
+            return task
 
     @classmethod
     def toggle_standalone_task_completion(cls, scheduled_at: datetime, completed: bool) -> None:

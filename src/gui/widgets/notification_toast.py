@@ -54,8 +54,8 @@ class NotificationToast(QWidget):
     
     # Dimensions
     WIDTH = 350
-    MIN_HEIGHT = 44
-    MAX_HEIGHT = 400
+    HEIGHT = 160
+    MESSAGE_MAX_HEIGHT = 44
     MARGIN = 30
     SHADOW_SIZE = 6
     BORDER_RADIUS = 12
@@ -126,7 +126,7 @@ class NotificationToast(QWidget):
     
     def _setup_ui(self):
         """Set up the notification layout."""
-        self.setFixedWidth(self.WIDTH)
+        self.setFixedSize(self.WIDTH, self.HEIGHT)
         
         # Main layout with shadow padding
         main_layout = QHBoxLayout(self)
@@ -141,7 +141,7 @@ class NotificationToast(QWidget):
         # Text container
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(2, 2, 2, 2)
-        text_layout.setSpacing(2)
+        text_layout.setSpacing(1)
         text_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Icon + title row (paired and vertically centered)
@@ -207,6 +207,8 @@ class NotificationToast(QWidget):
         self._message_label.setTextFormat(Qt.TextFormat.RichText)  # Support HTML from Anki cards
         self._message_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self._message_label.setOpenExternalLinks(True)
+        self._message_label.setMinimumWidth(0)
+        self._message_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         msg_palette = self._message_label.palette()
         msg_palette.setColor(QPalette.ColorRole.WindowText, QColor(200, 200, 205))
         self._message_label.setPalette(msg_palette)
@@ -214,6 +216,7 @@ class NotificationToast(QWidget):
 
         message_container = QWidget()
         message_container.setStyleSheet("background: transparent;")
+        message_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         message_layout = QVBoxLayout(message_container)
         message_layout.setContentsMargins(0, 0, 0, 0)
         message_layout.addWidget(self._message_label)
@@ -223,6 +226,7 @@ class NotificationToast(QWidget):
         self._message_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._message_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._message_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._message_scroll.setFixedHeight(self.MESSAGE_MAX_HEIGHT)
         self._message_scroll.setStyleSheet("QScrollArea { background: transparent; }")
         self._message_scroll.setWidget(message_container)
 
@@ -233,7 +237,7 @@ class NotificationToast(QWidget):
         self._feedback_container.setStyleSheet("background: transparent;")
         self._feedback_container.setContentsMargins(0, 0, 0, 0)
         self._feedback_layout = QHBoxLayout(self._feedback_container)
-        self._feedback_layout.setContentsMargins(0, 6, 0, 6)
+        self._feedback_layout.setContentsMargins(0, 2, 0, 2)
         self._feedback_layout.setSpacing(6)
         self._feedback_container.hide()
         text_layout.addWidget(self._feedback_container)
@@ -318,15 +322,9 @@ class NotificationToast(QWidget):
         else:
             self._feedback_container.hide()
         
-        # Adjust size to content
-        self._message_label.adjustSize()
-        message_height = self._message_label.sizeHint().height()
-        self._message_scroll.setMaximumHeight(message_height * 3)
+        self._title_label.setText(title)
+        self._set_message_text(message)
 
-        self.setMinimumHeight(self.MIN_HEIGHT)
-        self.setMaximumHeight(self.MAX_HEIGHT)
-        self.adjustSize()
-        
         # Position at bottom-right of screen (clamped to visible area)
         screen = self.screen().availableGeometry()
         end_x = screen.right() - self.WIDTH - self.MARGIN
@@ -337,9 +335,6 @@ class NotificationToast(QWidget):
         
         self.move(end_x, end_y)
         self.setWindowOpacity(0.0)
-        
-        self._title_label.setText(title)
-        self._message_label.setText(message)
         
         self.show()
         
@@ -357,6 +352,16 @@ class NotificationToast(QWidget):
             self._start_timers(duration)
         else:
             self._progress_bar.hide()
+
+    def _message_width(self) -> int:
+        """Available width for wrapped message text inside the fixed-width toast."""
+        contents_width = self.WIDTH - (self.SHADOW_SIZE + 8) * 2
+        return max(0, contents_width - 8)
+
+    def _set_message_text(self, message: str):
+        self._message_label.setMaximumWidth(self._message_width())
+        self._message_label.setText(message)
+        self._message_label.adjustSize()
     
     def _start_hide_animation(self):
         """Start the hide animation."""
@@ -387,7 +392,7 @@ class NotificationToast(QWidget):
                 item.widget().deleteLater()
 
         # Ensure margins are maintained
-        self._feedback_layout.setContentsMargins(0, 6, 0, 6)
+        self._feedback_layout.setContentsMargins(0, 2, 0, 2)
 
         for button_config in buttons:
             label = button_config.get("label", "")
@@ -488,8 +493,7 @@ class NotificationToast(QWidget):
 
         # Update message
         if message is not None:
-            self._message_label.setText(message)
-            self._message_label.adjustSize()
+            self._set_message_text(message)
 
         # Update buttons and manage timers
         if buttons is not None:
