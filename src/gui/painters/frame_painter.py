@@ -106,25 +106,13 @@ class FramePainter(BasePainter):
 
     @staticmethod
     def draw_fallboard(painter: QPainter, geometry: PianoGeometry):
-        """Draw the fallboard (narrow brown panel on left of content with « symbol)"""
+        """Draw the fallboard (narrow brown panel on left of content)"""
         fallboard_rect = geometry.fallboard_rect
         x1 = fallboard_rect.x()
         x2 = x1 + geometry.fallboard_width
 
         FramePainter._draw_panel_gradient(painter, x1, fallboard_rect.y(), x2, geometry.window_height)
         FramePainter._draw_panel_svg(painter, x1, 0, geometry.fallboard_width, geometry.window_height)
-
-        # Draw « symbol at center
-        from PyQt6.QtGui import QFont
-        font = QFont()
-        font.setPixelSize(16)
-        painter.setFont(font)
-        painter.setPen(QPen(piano_colors().ACCENT))
-
-        x_center = x1 + (geometry.fallboard_width // 2)
-        y_center = fallboard_rect.y() + (geometry.window_height // 2)
-
-        painter.drawText(int(x_center - 8), int(y_center + 6), "«")
 
     @staticmethod
     def draw_control_panel(painter: QPainter, geometry: PianoGeometry):

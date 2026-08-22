@@ -94,6 +94,11 @@ class ReminderManager(QThread):
             return True
         return datetime.now() < self._mute_until
 
+    @property
+    def muted_until(self) -> Optional[datetime]:
+        """When the current mute expires; datetime.max means indefinite, None means not muted."""
+        return self._mute_until if self.is_muted else None
+
     def _check_overdue_on_startup(self):
         """Check for overdue reminders when app starts."""
         now = datetime.now()
@@ -137,6 +142,8 @@ class ReminderManager(QThread):
                 continue
 
             if reminder.next_fire_at <= now:
+                if ReminderService.is_snoozed(reminder, now):
+                    continue
                 if ReminderService.defer_until_global_window(reminder, now):
                     logger.info(f"Deferring reminder outside global window: {reminder.name}")
                     continue
@@ -177,10 +184,14 @@ class ReminderManager(QThread):
             logger.info(f"Reminders muted — skipping {reminder.name}")
             return
 
-        # Check anti-spam gap — fixed reminders and reminders with bypass_anti_spam are always exempt
+        # Check anti-spam gap — fixed reminders, bypass_anti_spam, and elapsed
+        # user snoozes are always exempt. A non-null snooze_until at fire time
+        # means this fire is the snooze the user explicitly asked for (still-
+        # snoozed reminders are filtered out before reaching here).
         anti_spam_exempt = (
             reminder.reminder_type == 'fixed'
             or getattr(reminder, 'bypass_anti_spam', False)
+            or getattr(reminder, 'snooze_until', None) is not None
         )
         if not anti_spam_exempt and self.last_notification_time:
             time_since_last = (now - self.last_notification_time).total_seconds()

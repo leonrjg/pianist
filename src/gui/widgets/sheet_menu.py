@@ -8,28 +8,29 @@ from dataclasses import dataclass
 from typing import Optional
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QPushButton, QScrollArea, QWidget
 
 
+from gui.icon_renderer import render_icon_pixmap
 from gui.themes import current_theme as _t, ThemedWidget
 
 
 # Dimension constants (not theme-sensitive)
 class _Dim:
     BUTTON_SIZE = 30
-    ICON_SIZE = 18
+    ICON_SIZE = 20
     BORDER_RADIUS = 6
-    BUTTON_SPACING = 4
+    BUTTON_SPACING = 3
     TOP_MARGIN = 4
     BOTTOM_MARGIN = 2
     BUTTON_BOTTOM_MARGIN = 0
     SIDE_MARGIN = 6
-    SCROLLBAR_HEIGHT = 3
+    VISIBLE_BUTTONS = 7
+    SCROLLBAR_HEIGHT = 6
     SCROLLBAR_MIN_WIDTH = 20
-    SCROLLBAR_TOP_MARGIN = 2
+    SCROLLBAR_TOP_MARGIN = 4
     FONT_SIZE = 14
-    TOOLTIP_FONT_SIZE = 12
 
 
 @dataclass
@@ -44,24 +45,13 @@ class MenuItem:
 
 def _tinted_icon(icon_path: str, tint: str, size: int) -> QIcon:
     """Return a QIcon rendered sharp at the correct device pixel ratio.
-    If tint is non-empty, all opaque pixels are recolored to that rgb(r,g,b) color."""
+
+    The icon's ink follows the theme: ``tint`` (an ``rgb(r, g, b)`` string) is
+    substituted for ``currentColor`` in the SVG, while any accent colors the icon
+    hard-codes (e.g. the amber in the glyph set) are preserved. An empty ``tint``
+    renders the SVG as authored."""
     dpr = QApplication.primaryScreen().devicePixelRatio()
-    target = int(size * dpr)
-    src = QIcon(icon_path).pixmap(QSize(target, target))
-    if not tint:
-        src.setDevicePixelRatio(dpr)
-        return QIcon(src)
-    src.setDevicePixelRatio(1.0)  # work in physical pixel space so drawPixmap fills the canvas
-    result = QPixmap(src.size())
-    result.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(result)
-    painter.drawPixmap(0, 0, src)
-    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-    r, g, b = [int(v.strip()) for v in tint[4:-1].split(',')]
-    painter.fillRect(result.rect(), QColor(r, g, b))
-    painter.end()
-    result.setDevicePixelRatio(dpr)
-    return QIcon(result)
+    return QIcon(render_icon_pixmap(icon_path, tint, size, dpr))
 
 
 class MenuButton(QPushButton, ThemedWidget):
@@ -103,14 +93,6 @@ class MenuButton(QPushButton, ThemedWidget):
                 background-color: {t.accent_dark};
                 border-color: {t.accent_dark};
             }}
-            QToolTip {{
-                background-color: {t.paper};
-                color: {t.ink_primary};
-                border: 1px solid {t.accent};
-                padding: 4px;
-                border-radius: 3px;
-                font-size: {_Dim.TOOLTIP_FONT_SIZE}px;
-            }}
         """)
 
 
@@ -124,8 +106,7 @@ class SheetMenu(QWidget, ThemedWidget):
         MenuItem("repertoire", "Repertoire", "gui/icons/list.svg"),
         MenuItem("reminders", "Reminders", "gui/icons/bell.svg"),
         MenuItem("calendar", "Calendar", "gui/icons/calendar.svg"),
-        MenuItem("thoughts", "Thoughts", "gui/icons/edit.svg"),
-        MenuItem("habit_detail", "New Habit", "gui/icons/new.svg"),
+        MenuItem("thoughts", "Thoughts", "gui/icons/leaf.svg"),
         MenuItem("stats", "Stats", "gui/icons/stats.svg"),
         MenuItem("settings", "Settings", "gui/icons/settings.svg"),
     ]
@@ -155,7 +136,7 @@ class SheetMenu(QWidget, ThemedWidget):
         self._scroll_area = self._create_scroll_area()
         button_container = self._create_button_container()
         self._scroll_area.setWidget(button_container)
-        main_layout.addWidget(self._scroll_area)
+        main_layout.addWidget(self._scroll_area, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self.setMaximumHeight(
             button_container.sizeHint().height()
@@ -174,9 +155,10 @@ class SheetMenu(QWidget, ThemedWidget):
             }}
             QScrollBar:horizontal {{
                 background: {t.border};
-                height: {_Dim.SCROLLBAR_HEIGHT}px;
+                height: {_Dim.SCROLLBAR_HEIGHT + _Dim.SCROLLBAR_TOP_MARGIN}px;
                 border: none;
                 border-radius: 3px;
+                margin-top: {_Dim.SCROLLBAR_TOP_MARGIN}px;
                 margin-left: 10%;
                 margin-right: 10%;
             }}
@@ -202,6 +184,13 @@ class SheetMenu(QWidget, ThemedWidget):
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        # Cap the viewport so only VISIBLE_BUTTONS fit (plus a peek of the next),
+        # forcing the 8th button to require scrolling.
+        scroll_area.setMaximumWidth(
+            _Dim.VISIBLE_BUTTONS * _Dim.BUTTON_SIZE
+            + _Dim.VISIBLE_BUTTONS * _Dim.BUTTON_SPACING
+            + _Dim.SIDE_MARGIN
+        )
         self._apply_scroll_style(scroll_area)
         return scroll_area
 

@@ -17,12 +17,29 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
+    QMessageBox,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer, QEvent, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QPainter, QColor, QKeyEvent, QTextBlockFormat, QTextCursor
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QTimer, QEvent, QPropertyAnimation, QEasingCurve, QMimeData
+from PyQt6.QtGui import (
+    QPainter,
+    QColor,
+    QKeyEvent,
+    QFont,
+    QTextCharFormat,
+    QTextCursor,
+)
 
 from core.notes.service import NoteService
 from core.settings.service import SettingsService
+
+from gui.widgets.notes_markdown import (
+    BOLD_WEIGHT,
+    CODE_PROPERTY,
+    apply_markdown,
+    document_to_markdown,
+    fragment_to_markdown,
+)
 
 from gui.themes import current_theme as _t, ThemedWidget
 from gui.painters.frame_painter import FramePainter
@@ -39,10 +56,28 @@ logger = logging.getLogger(__name__)
 
 
 class AutoIndentTextEdit(QTextEdit):
-    """QTextEdit with auto-indent support for tab characters"""
+    """QTextEdit with auto-indent, inline Markdown formatting, and Markdown copy.
+
+    Styling is limited to inline character formats (bold/italic/code/strike/underline).
+    The note's canonical form is Markdown; see ``notes_markdown`` for the
+    document<->Markdown mapping that this editor's load/save/copy go through.
+    """
 
     def keyPressEvent(self, event: QKeyEvent):
-        """Handle key press events with auto-indent for tabs"""
+        """Handle key press events with formatting shortcuts and tab auto-indent"""
+        # Formatting shortcuts. Ctrl+B / Ctrl+I are required; they route through
+        # the same toggles as the toolbar so button state stays in sync.
+        if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            if event.key() == Qt.Key.Key_B:
+                self.toggle_bold()
+                return
+            if event.key() == Qt.Key.Key_I:
+                self.toggle_italic()
+                return
+            if event.key() == Qt.Key.Key_U:
+                self.toggle_underline()
+                return
+
         # Check if Enter/Return was pressed
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             cursor = self.textCursor()
@@ -81,6 +116,73 @@ class AutoIndentTextEdit(QTextEdit):
         # Default behavior for all other keys
         super().keyPressEvent(event)
 
+    # ----- Inline formatting -------------------------------------------------
+
+    def _merge_format(self, fmt: QTextCharFormat):
+        """Apply a char format to the selection and to subsequent typing."""
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            cursor.mergeCharFormat(fmt)
+        self.mergeCurrentCharFormat(fmt)
+
+    def toggle_bold(self):
+        c = _c()
+        is_bold = self.currentCharFormat().fontWeight() > QFont.Weight.Normal
+        fmt = QTextCharFormat()
+        if is_bold:
+            fmt.setFontWeight(QFont.Weight.Normal)
+            # Restore the body text color so un-bolded runs match plain text.
+            fmt.setForeground(c.WHITE_KEY)
+        else:
+            fmt.setFontWeight(BOLD_WEIGHT)
+            # Color carries the emphasis: the body font has no heavier face.
+            fmt.setForeground(c.ACCENT_LIGHT)
+        self._merge_format(fmt)
+
+    def toggle_italic(self):
+        fmt = QTextCharFormat()
+        fmt.setFontItalic(not self.currentCharFormat().fontItalic())
+        self._merge_format(fmt)
+
+    def toggle_strike(self):
+        fmt = QTextCharFormat()
+        fmt.setFontStrikeOut(not self.currentCharFormat().fontStrikeOut())
+        self._merge_format(fmt)
+
+    def toggle_underline(self):
+        fmt = QTextCharFormat()
+        fmt.setFontUnderline(not self.currentCharFormat().fontUnderline())
+        self._merge_format(fmt)
+
+    def toggle_code(self):
+        is_code = self.currentCharFormat().boolProperty(CODE_PROPERTY)
+        fmt = QTextCharFormat()
+        if is_code:
+            fmt.setProperty(CODE_PROPERTY, False)
+            fmt.setFontFixedPitch(False)
+            fmt.setFontFamilies([self.font().family()])
+        else:
+            fmt.setProperty(CODE_PROPERTY, True)
+            fmt.setFontFixedPitch(True)
+            fmt.setFontFamilies(["monospace"])
+        self._merge_format(fmt)
+
+    # ----- Clipboard ---------------------------------------------------------
+
+    def insertFromMimeData(self, source: QMimeData):
+        """Paste as plain, unformatted text at the document's default style."""
+        if source.hasText():
+            cursor = self.textCursor()
+            cursor.insertText(source.text(), QTextCharFormat())
+
+    def createMimeDataFromSelection(self) -> QMimeData:
+        """Copy the selection as Markdown so inline styling is preserved."""
+        data = QMimeData()
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            data.setText(fragment_to_markdown(cursor.selection()))
+        return data
+
 
 class NotesWidget(QWidget, ThemedWidget):
     """Notepad widget that appears below the piano window"""
@@ -93,6 +195,9 @@ class NotesWidget(QWidget, ThemedWidget):
     MAX_HEIGHT = 700  # Maximum height
     RESIZE_MARGIN = 8
     NOTE_RESULTS_MAX_HEIGHT = 180
+    # Extra vertical gap above each paragraph (actual line break), not between
+    # wrapped lines within a paragraph.
+    BLOCK_SPACING = 5
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -126,6 +231,7 @@ class NotesWidget(QWidget, ThemedWidget):
         self._note_items = []
         self._selected_note_data = None
         self._updating_note_search = False
+        self._notepad_show_all = False
         self._save_timer = QTimer()
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self._save_content)
@@ -154,22 +260,43 @@ class NotesWidget(QWidget, ThemedWidget):
         header.addWidget(self.note_search)
 
         self._add_note_button = QPushButton("+")
-        self._add_note_button.setFixedSize(20, 20)
+        self._add_note_button.setFixedSize(26, 24)
         self._add_note_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._add_note_button.setToolTip("Add note")
         self._add_note_button.clicked.connect(self._on_add_note_clicked)
         header.addWidget(self._add_note_button)
 
+        self._rename_note_button = QPushButton("✎")
+        self._rename_note_button.setFixedSize(26, 24)
+        self._rename_note_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._rename_note_button.setToolTip("Edit note")
+        self._rename_note_button.clicked.connect(self._on_edit_note_clicked)
+        header.addWidget(self._rename_note_button)
+
         header.addStretch()
 
-        # Close button
-        self._close_button = QPushButton("×")
-        self._close_button.setFixedSize(20, 20)
-        self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._close_button.clicked.connect(self.close)
-        header.addWidget(self._close_button)
-
         main_layout.addLayout(header)
+
+        # Compact inline-formatting toolbar on its own row.
+        format_bar = QHBoxLayout()
+        format_bar.setContentsMargins(2, 0, 2, 4)
+        format_bar.setSpacing(4)
+
+        self._format_buttons = {}
+        for key, label, tooltip in (
+            ('bold', 'B', 'Bold (Ctrl+B)'),
+            ('italic', 'I', 'Italic (Ctrl+I)'),
+            ('underline', 'U', 'Underline (Ctrl+U)'),
+            ('code', '<>', 'Code'),
+            ('strike', 'S', 'Strikethrough'),
+        ):
+            button = self._make_format_button(key, label, tooltip)
+            self._format_buttons[key] = button
+            format_bar.addWidget(button)
+
+        format_bar.addStretch()
+
+        main_layout.addLayout(format_bar)
 
         self._note_results = QListWidget()
         self._note_results.setMaximumHeight(self.NOTE_RESULTS_MAX_HEIGHT)
@@ -180,21 +307,17 @@ class NotesWidget(QWidget, ThemedWidget):
         self._note_results.hide()
         main_layout.addWidget(self._note_results)
 
-        # Text editor with auto-indent
+        # Text editor with auto-indent. Rich text is enabled so inline styling
+        # works; paste is still flattened (insertFromMimeData) so external
+        # formatting never leaks in.
         self.text_edit = AutoIndentTextEdit()
-        self.text_edit.setAcceptRichText(False)
+        self.text_edit.setAcceptRichText(True)
         self.text_edit.setPlaceholderText("What are you doing now?")
         self.text_edit.textChanged.connect(self._on_text_changed)
+        self.text_edit.currentCharFormatChanged.connect(self._update_format_buttons)
         self.text_edit.setTabStopDistance(10)  # Reduce tab width from default ~80px to 30px
         self.text_edit.setMouseTracking(True)
         self.text_edit.installEventFilter(self)
-
-        # Set line height for better readability
-        block_format = QTextBlockFormat()
-        block_format.setLineHeight(140, QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
-        cursor = self.text_edit.textCursor()
-        cursor.select(QTextCursor.SelectionType.Document)
-        cursor.setBlockFormat(block_format)
 
         main_layout.addWidget(self.text_edit)
 
@@ -205,6 +328,34 @@ class NotesWidget(QWidget, ThemedWidget):
         main_layout.addWidget(self._resize_handle)
 
         self._setup_style()
+
+    def _make_format_button(self, key: str, label: str, tooltip: str) -> QPushButton:
+        """Create a compact, checkable inline-formatting toolbar button."""
+        button = QPushButton(label)
+        button.setFixedSize(20, 20)
+        button.setCheckable(True)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setToolTip(tooltip)
+        # Keep focus (and thus the selection) in the editor when toggling.
+        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        button.clicked.connect(lambda _checked, k=key: self._toggle_format(k))
+        return button
+
+    def _toggle_format(self, key: str):
+        """Route a toolbar button to the matching editor toggle."""
+        getattr(self.text_edit, f"toggle_{key}")()
+
+    def _update_format_buttons(self, fmt: QTextCharFormat):
+        """Reflect the caret's current inline styling in the toolbar buttons."""
+        state = {
+            'bold': fmt.fontWeight() > QFont.Weight.Normal,
+            'italic': fmt.fontItalic(),
+            'underline': fmt.fontUnderline(),
+            'code': fmt.boolProperty(CODE_PROPERTY),
+            'strike': fmt.fontStrikeOut(),
+        }
+        for key, button in self._format_buttons.items():
+            button.setChecked(state[key])
 
     def is_on_resize_handle(self, pos: QPoint) -> bool:
         """Return True when a point is in the bottom resize strip."""
@@ -295,36 +446,49 @@ class NotesWidget(QWidget, ThemedWidget):
                 color: {c.BACKGROUND.name()};
             }}
         """)
-        self._close_button.setStyleSheet(f"""
+        note_button_style = f"""
             QPushButton {{
                 background-color: {c.FRAME_DARK.name()};
                 border: 1px solid {c.ACCENT.name()};
-                border-radius: 10px;
+                border-radius: 3px;
                 color: {c.ACCENT_LIGHT.name()};
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
-                padding-bottom: 2px;
+                padding: 0;
             }}
             QPushButton:hover {{
                 border-color: {c.ACCENT_LIGHT.name()};
                 background-color: {c.FRAME_MEDIUM.name()};
             }}
-        """)
-        self._add_note_button.setStyleSheet(f"""
+        """
+        self._add_note_button.setStyleSheet(note_button_style)
+        self._rename_note_button.setStyleSheet(note_button_style)
+        format_button_style = f"""
             QPushButton {{
                 background-color: {c.FRAME_DARK.name()};
                 border: 1px solid {c.ACCENT.name()};
-                border-radius: 10px;
+                border-radius: 3px;
                 color: {c.ACCENT_LIGHT.name()};
-                font-size: 15px;
+                font-size: 11px;
                 font-weight: bold;
-                padding-bottom: 1px;
             }}
             QPushButton:hover {{
                 border-color: {c.ACCENT_LIGHT.name()};
                 background-color: {c.FRAME_MEDIUM.name()};
             }}
-        """)
+            QPushButton:checked {{
+                background-color: {c.ACCENT.name()};
+                color: {c.BACKGROUND.name()};
+                border-color: {c.ACCENT_LIGHT.name()};
+            }}
+        """
+        for key, button in self._format_buttons.items():
+            font = button.font()
+            font.setItalic(key == 'italic')
+            font.setStrikeOut(key == 'strike')
+            font.setUnderline(key == 'underline')
+            button.setFont(font)
+            button.setStyleSheet(format_button_style)
         self.text_edit.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {c.FRAME_MEDIUM.name()};
@@ -401,10 +565,24 @@ class NotesWidget(QWidget, ThemedWidget):
     def _filtered_note_items(self):
         query = self.note_search.text().strip().lower()
         if not query or self._updating_note_search:
-            return self._note_items
+            if self._notepad_show_all:
+                return self._note_items
+            return self._current_scope_note_items()
         return [(label, data) for label, data in self._note_items if query in label.lower()]
 
+    def _current_scope_note_items(self):
+        """Notes belonging to the currently selected note's habit (or the
+        global notes when no habit is selected), plus a trailing "..." entry
+        to expand to the full note list when there's more to show."""
+        habit_id = (self._selected_note_data or {}).get('habit_id')
+        scoped = [(label, data) for label, data in self._note_items if data['habit_id'] == habit_id]
+        if len(scoped) < len(self._note_items):
+            scoped = scoped + [("...", {'show_all': True})]
+        return scoped
+
     def _show_note_results(self):
+        if not self._note_results.isVisible():
+            self._notepad_show_all = False
         self._refresh_note_results()
         self._note_results.show()
         self._adjust_height()
@@ -452,9 +630,11 @@ class NotesWidget(QWidget, ThemedWidget):
         note_id = selected_data.get('note_id')
         self._note = NoteService.get_note_by_id(note_id) if note_id else NoteService.get_global_note()
 
-        # Update text editor without triggering save
+        # Update text editor without triggering save. Content is Markdown,
+        # which rebuilds the document.
         self.text_edit.blockSignals(True)
-        self.text_edit.setPlainText(self._note.content)
+        apply_markdown(self.text_edit.document(), self._note.content or "", bold_color=_c().ACCENT_LIGHT,
+                       block_spacing=self.BLOCK_SPACING)
         self.text_edit.blockSignals(False)
 
     def _on_note_selected(self, label: str, data):
@@ -464,8 +644,13 @@ class NotesWidget(QWidget, ThemedWidget):
 
     def _on_note_result_clicked(self, item: QListWidgetItem):
         data = item.data(Qt.ItemDataRole.UserRole)
-        if data is not None:
-            self._on_note_selected(item.text(), data)
+        if data is None:
+            return
+        if data.get('show_all'):
+            self._notepad_show_all = True
+            self._refresh_note_results()
+            return
+        self._on_note_selected(item.text(), data)
 
     def _on_note_search_changed(self, text: str):
         """Filter the note result list as the user types."""
@@ -527,6 +712,76 @@ class NotesWidget(QWidget, ThemedWidget):
         except Exception:
             logger.exception("Failed to create note")
 
+    def _on_edit_note_clicked(self):
+        """Show a menu to rename or delete the currently selected note."""
+        if self._note is None:
+            return
+
+        menu = QMenu(self)
+        menu.addAction("Rename", self._on_rename_note_clicked)
+        menu.addAction("Delete", self._on_delete_note_clicked)
+        pos = self._rename_note_button.mapToGlobal(self._rename_note_button.rect().bottomLeft())
+        menu.exec(pos)
+
+    def _on_rename_note_clicked(self):
+        """Rename the currently selected note."""
+        if self._note is None:
+            return
+
+        title, accepted = QInputDialog.getText(self, "Rename note", "Name", text=self._note.title)
+        if not accepted:
+            return
+
+        title = title.strip()
+        if not title or title == self._note.title:
+            return
+
+        try:
+            NoteService.rename_note(self._note, title)
+            self._populate_note_selector(default_note_id=self._note.id)
+        except Exception:
+            logger.exception("Failed to rename note")
+
+    def _on_delete_note_clicked(self):
+        """Delete the currently selected note, after confirmation."""
+        if self._note is None:
+            return
+
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Delete '{self._note.title}'? This cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        # Drop any pending debounced save so it can't land on the note we
+        # switch to next (see _load_selected_note).
+        self._save_timer.stop()
+
+        habit_id = self._note.habit_id
+
+        try:
+            NoteService.delete_note(self._note)
+            self._note = None
+
+            # Fall back to this habit's default note (not the overall
+            # default note) when the deleted note belonged to a habit.
+            fallback_note_id = None
+            if habit_id is not None:
+                _service = getattr(self.parent(), 'service', None)
+                habit = _service.get_habit_by_id(habit_id) if _service else None
+                if habit:
+                    fallback_note_id = NoteService.get_habit_note(habit).id
+
+            self._populate_note_selector(default_note_id=fallback_note_id)
+            self._load_selected_note()
+            self._user_resized_height = False
+            self._adjust_height()
+            self.text_edit.setFocus()
+        except Exception:
+            logger.exception("Failed to delete note")
+
     def paintEvent(self, event):
         """Draw background matching the piano frame style (gradient + SVG overlay)"""
         painter = QPainter(self)
@@ -549,26 +804,28 @@ class NotesWidget(QWidget, ThemedWidget):
         if t and t.frame_svg:
             BasePainter.draw_image_overlay(painter, r.x(), r.y(), r.width(), r.height(), t.frame_svg, t.frame_svg_opacity)
 
-    def show_at_position(self, pos: QPoint, width: int):
+    def show_at_position(self, pos: QPoint, width: int, note_id=None):
         """
         Show the notes widget at the specified position with given width.
 
         Args:
             pos: Position to show the widget at
             width: Width of the widget (should match piano window)
+            note_id: If given, selects this note instead of auto-selecting one
         """
         self.setFixedWidth(width)
         self.move(pos)
 
-        # Auto-select habit if exactly one session is running
-        default_note_id = None
-        if self.parent() and hasattr(self.parent(), 'session_manager'):
-            active_habit_ids = list(self.parent().session_manager._processes.keys())
-            if len(active_habit_ids) == 1:
-                _service = getattr(self.parent(), 'service', None)
-                habit = _service.get_habit_by_id(active_habit_ids[0]) if _service else None
-                if habit:
-                    default_note_id = NoteService.get_habit_note(habit).id
+        default_note_id = note_id
+        if default_note_id is None:
+            # Auto-select habit if exactly one session is running
+            if self.parent() and hasattr(self.parent(), 'session_manager'):
+                active_habit_ids = list(self.parent().session_manager._processes.keys())
+                if len(active_habit_ids) == 1:
+                    _service = getattr(self.parent(), 'service', None)
+                    habit = _service.get_habit_by_id(active_habit_ids[0]) if _service else None
+                    if habit:
+                        default_note_id = NoteService.get_habit_note(habit).id
 
         # Populate note selector
         self._populate_note_selector(default_note_id=default_note_id)
@@ -608,7 +865,9 @@ class NotesWidget(QWidget, ThemedWidget):
             return
         
         try:
-            content = self.text_edit.toPlainText()
+            # Persist the canonical Markdown, not the rendered plain text, so
+            # inline styling survives a reload.
+            content = document_to_markdown(self.text_edit.document())
             if content and content.strip():
                 self._note.update_content(content)
         except Exception as e:
@@ -621,17 +880,17 @@ class NotesWidget(QWidget, ThemedWidget):
 
         # Get content height from document
         doc = self.text_edit.document()
-        
+
         # Force document to calculate layout based on text edit width
         # This ensures proper height calculation even on first show
         doc.setTextWidth(self.text_edit.viewport().width())
-        
+
         content_height = doc.size().height()
-        
-        # Add padding for header and margins (header ~30px + margins ~12px)
+
+        # Add padding for the header row, the format toolbar row, and margins.
         result_height = self._note_results.height() + 4 if self._note_results.isVisible() else 0
-        total_height = int(content_height + 42 + result_height)
-        
+        total_height = int(content_height + 66 + result_height)
+
         # Clamp automatic sizing so long saved notes open with scrolling.
         new_height = max(self.MIN_HEIGHT, min(total_height, self.AUTO_MAX_HEIGHT))
 

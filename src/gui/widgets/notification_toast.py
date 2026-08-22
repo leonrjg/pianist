@@ -7,7 +7,6 @@ A frameless popup that slides in from the corner of the screen.
 import os
 
 from PyQt6.QtWidgets import (
-    QApplication,
     QWidget,
     QLabel,
     QVBoxLayout,
@@ -19,7 +18,6 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import (
     Qt,
-    QEvent,
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
@@ -40,8 +38,7 @@ from PyQt6.QtGui import (
 )
 
 from ..constants import piano_colors
-
-
+from core.settings.service import SettingsService
 from gui.themes import current_theme as _t
 
 
@@ -77,26 +74,40 @@ class NotificationToast(QWidget):
     PROGRESS_INTERVAL = 50
     
     def __init__(self, parent=None):
+        # Qt.Tool (not Qt.Window): on macOS only panel-type windows can be
+        # non-activating, so a plain Window would steal focus on show()
+        # despite WindowDoesNotAcceptFocus / WA_ShowWithoutActivating.
         super().__init__(
             parent,
-            Qt.WindowType.Window |
+            Qt.WindowType.Tool |
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.WindowDoesNotAcceptFocus
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        # Tool windows hide when the app deactivates on macOS; a toast must
+        # stay visible while the user works in another app.
+        self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         
         self._urgency = 'normal'
         self._duration = 12000
         self._icon_pixmap = None
         self._buttons = None
-        self._key_bindings = {}  # {Qt.Key | (Qt.Key, modifier): callable}
+        self._configured_opacity = float(SettingsService.get('window.opacity', 1.0))
+
+        # Drag support: the coordinator (NotificationService) moves the whole
+        # group of visible toasts together via a shared offset.
+        self._coordinator = None
+        self._dragging = False
+        self._drag_start_global = QPoint()
+        self._home_pos = QPoint()  # default (un-dragged) position
         
         self._load_icon()
         self._setup_ui()
         self._setup_animations()
+        SettingsService.signals.changed.connect(self._on_setting_changed)
         
         # Auto-hide timer
         self._hide_timer = QTimer(self)
@@ -142,7 +153,10 @@ class NotificationToast(QWidget):
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(2, 2, 2, 2)
         text_layout.setSpacing(1)
-        text_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Header pinned to the top, footer (buttons/progress) to the bottom,
+        # message centered between them via paired stretches below, so every
+        # toast keeps the same layout regardless of content.
+        text_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
         # Icon + title row (paired and vertically centered)
         top_layout = QHBoxLayout()
@@ -170,6 +184,7 @@ class NotificationToast(QWidget):
         # Close button
         self._close_button = QPushButton()
         self._close_button.setFixedSize(20, 20)
+        self._close_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         close_icon_path = os.path.join(os.path.dirname(__file__), '..', 'icons', 'x.svg')
         if os.path.exists(close_icon_path):
             self._close_button.setIcon(QIcon(close_icon_path))
@@ -199,7 +214,11 @@ class NotificationToast(QWidget):
         top_layout.addWidget(self._close_button, 0, Qt.AlignmentFlag.AlignVCenter)
         
         text_layout.addLayout(top_layout)
-        
+
+        # Stretch above the message; paired with the one below it, this keeps
+        # the message vertically centered between the pinned header and footer.
+        text_layout.addStretch(1)
+
         # Message label (scrollable for long text)
         self._message_label = QLabel()
         self._message_label.setWordWrap(True)
@@ -207,6 +226,9 @@ class NotificationToast(QWidget):
         self._message_label.setTextFormat(Qt.TextFormat.RichText)  # Support HTML from Anki cards
         self._message_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self._message_label.setOpenExternalLinks(True)
+        # Stay mouse-interactive (links/selection) without grabbing keyboard
+        # focus, so showing a toast never activates its window.
+        self._message_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._message_label.setMinimumWidth(0)
         self._message_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         msg_palette = self._message_label.palette()
@@ -222,15 +244,42 @@ class NotificationToast(QWidget):
         message_layout.addWidget(self._message_label)
 
         self._message_scroll = QScrollArea()
+        self._message_scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._message_scroll.setWidgetResizable(True)
         self._message_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._message_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._message_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self._message_scroll.setFixedHeight(self.MESSAGE_MAX_HEIGHT)
-        self._message_scroll.setStyleSheet("QScrollArea { background: transparent; }")
+        c = piano_colors()
+        self._message_scroll.setStyleSheet(f"""
+            QScrollArea {{
+                background: transparent;
+            }}
+            QScrollBar:vertical {{
+                background-color: {c.FRAME_DARK.name()};
+                width: 6px;
+                border-radius: 3px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {c.ACCENT.name()};
+                border-radius: 3px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {c.ACCENT_LIGHT.name()};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """)
         self._message_scroll.setWidget(message_container)
 
         text_layout.addWidget(self._message_scroll)
+
+        # Matching stretch below the message keeps it centered and pushes the
+        # footer to the bottom, so the footer's height (buttons vs. progress
+        # bar) never shifts the header or message position.
+        text_layout.addStretch(1)
 
         # Feedback buttons container (hidden by default)
         self._feedback_container = QWidget()
@@ -274,30 +323,39 @@ class NotificationToast(QWidget):
         self._fade_anim.setDuration(self.SLIDE_DURATION)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._fade_anim.finished.connect(self._on_fade_finished)
-    
-    def eventFilter(self, obj, event):
-        if event.type() == QEvent.Type.KeyPress and self._key_bindings:
-            key = Qt.Key(event.key())
-            mods = event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
-            cb = self._key_bindings.get((key, mods)) or (
-                self._key_bindings.get(key) if not mods else None
-            )
-            if cb:
-                cb()
-                return True
-        return False
 
-    def _update_key_bindings(self, bindings: dict):
-        had = bool(self._key_bindings)
-        self._key_bindings = bindings or {}
-        now = bool(self._key_bindings)
-        if now and not had:
-            QApplication.instance().installEventFilter(self)
-        elif not now and had:
-            QApplication.instance().removeEventFilter(self)
+        # Snap-back animation: the "pull" toward the default location.
+        # OutBack gives a slight magnetic overshoot.
+        self._snap_anim = QPropertyAnimation(self, b"pos")
+        self._snap_anim.setDuration(220)
+        self._snap_anim.setEasingCurve(QEasingCurve.Type.OutBack)
+
+    def set_drag_coordinator(self, coordinator):
+        """Register the coordinator that moves all toasts as a group."""
+        self._coordinator = coordinator
+
+    def apply_offset(self, offset: QPoint, animate: bool):
+        """
+        Move to home position plus a coordinator-supplied offset.
+
+        Args:
+            offset: Total offset from home (pile indent + group + individual).
+            animate: When True, glide to the target (used for the snap-back
+                     "pull" and pile reflow); otherwise follow the cursor instantly.
+        """
+        target = self._home_pos + offset
+        if animate:
+            self._snap_anim.stop()
+            self._snap_anim.setStartValue(self.pos())
+            self._snap_anim.setEndValue(target)
+            self._snap_anim.start()
+        else:
+            if self._snap_anim.state() == QPropertyAnimation.State.Running:
+                self._snap_anim.stop()
+            self.move(target)
 
     def show_notification(self, title: str, message: str, duration: int = 7000, urgency: str = 'normal',
-                         buttons: list = None, key_bindings: dict = None):
+                         buttons: list = None):
         """
         Display the notification.
 
@@ -312,9 +370,6 @@ class NotificationToast(QWidget):
         self._duration = duration
         self._urgency = urgency
         self._buttons = buttons
-
-        if key_bindings is not None:
-            self._update_key_bindings(key_bindings)
 
         # Setup buttons if provided
         if self._buttons:
@@ -332,19 +387,24 @@ class NotificationToast(QWidget):
         end_x = max(screen.left(), min(end_x, screen.right() - self.WIDTH))
         end_y = max(screen.top(), min(end_y, screen.bottom() - self.height()))
         start_x = screen.right() + 10
-        
-        self.move(end_x, end_y)
+
+        # Default (un-dragged) location; the pile/group may already be offset.
+        self._home_pos = QPoint(end_x, end_y)
+        offset = self._coordinator.offset_for(self) if self._coordinator else QPoint(0, 0)
+        target = self._home_pos + offset
+
+        self.move(target)
         self.setWindowOpacity(0.0)
-        
+
         self.show()
-        
+
         # Animate in
-        self._slide_anim.setStartValue(QPoint(start_x, end_y))
-        self._slide_anim.setEndValue(QPoint(end_x, end_y))
+        self._slide_anim.setStartValue(QPoint(start_x, target.y()))
+        self._slide_anim.setEndValue(target)
         self._slide_anim.start()
-        
+
         self._fade_anim.setStartValue(0.0)
-        self._fade_anim.setEndValue(1.0)
+        self._fade_anim.setEndValue(self._configured_opacity)
         self._fade_anim.start()
 
         # Only auto-close if no buttons (buttons require user interaction)
@@ -374,7 +434,7 @@ class NotificationToast(QWidget):
         self._slide_anim.setEndValue(QPoint(end_x, self.pos().y()))
         self._slide_anim.start()
         
-        self._fade_anim.setStartValue(1.0)
+        self._fade_anim.setStartValue(self.windowOpacity())
         self._fade_anim.setEndValue(0.0)
         self._fade_anim.start()
     
@@ -403,6 +463,7 @@ class NotificationToast(QWidget):
 
             btn = QPushButton(label)
             btn.setFixedHeight(28)
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)  # don't let a button activate the toast on show
 
             if icon_path and os.path.exists(icon_path):
                 btn.setIcon(QIcon(icon_path))
@@ -477,7 +538,7 @@ class NotificationToast(QWidget):
             callback()
 
     def update_content(self, title: str = None, message: str = None, buttons: list = None,
-                      auto_close_after: int = None, key_bindings: dict = None):
+                      auto_close_after: int = None):
         """
         Update notification content in place (smooth transition without hide/show).
 
@@ -516,10 +577,6 @@ class NotificationToast(QWidget):
                     if auto_close_after is None:
                         auto_close_after = 2000  # Default 2 sec for updates without buttons
 
-        # Update key bindings (None = keep current)
-        if key_bindings is not None:
-            self._update_key_bindings(key_bindings)
-
         # Handle auto-close
         if auto_close_after is not None:
             self._hide_timer.stop()
@@ -549,9 +606,22 @@ class NotificationToast(QWidget):
     def _on_fade_finished(self):
         """Handle fade animation completion."""
         if self.windowOpacity() == 0.0:
-            self._update_key_bindings({})
             self.hide()
             self.deleteLater()
+
+    def _on_setting_changed(self, key: str, value):
+        """Apply window opacity changes to this toast while it is visible."""
+        if key != 'window.opacity':
+            return
+
+        self._configured_opacity = float(value)
+        is_fading_out = (
+            self._fade_anim.state() == QPropertyAnimation.State.Running
+            and self._fade_anim.endValue() == 0.0
+        )
+        if self.isVisible() and not is_fading_out:
+            self._fade_anim.stop()
+            self.setWindowOpacity(self._configured_opacity)
     
     def paintEvent(self, event):
         """Paint the notification background."""
@@ -615,6 +685,31 @@ class NotificationToast(QWidget):
         super().leaveEvent(event)
     
     def mousePressEvent(self, event):
-        """Handle mouse press events."""
-        # No longer dismisses on click - use close button instead
+        """Begin dragging the toast (and the whole visible group)."""
+        if event.button() == Qt.MouseButton.LeftButton and self._coordinator:
+            self._dragging = True
+            self._drag_start_global = event.globalPosition().toPoint()
+            self._coordinator.begin_drag(self)
+            event.accept()
+            return
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """Forward drag deltas to the coordinator (moves pile or this toast)."""
+        if self._dragging and self._coordinator:
+            current = event.globalPosition().toPoint()
+            delta = current - self._drag_start_global
+            self._coordinator.update_drag(self, delta.x(), delta.y())
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        """End the drag gesture."""
+        if self._dragging and event.button() == Qt.MouseButton.LeftButton:
+            self._dragging = False
+            if self._coordinator:
+                self._coordinator.end_drag(self)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)

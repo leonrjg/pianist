@@ -8,14 +8,19 @@ The CLI does not use this service — it queries the ORM directly.
 """
 
 import json
-from typing import List, Optional, Callable, Dict
-from datetime import datetime
+import logging
+from typing import List, Optional, Callable, Dict, Tuple
+from datetime import datetime, date
+
+logger = logging.getLogger(__name__)
 
 from core.db import db
 from core.habit.habit import Habit
 from core.habit.manual_task import ManualTask
 from core.habit.habit_tracker import HabitTracker
 from core.habit.log import Log
+from core.task import get_upcoming_tasks
+from core.task.task import Task
 
 
 class HabitService:
@@ -53,11 +58,48 @@ class HabitService:
         """Non-archived visible habits (shown as piano keys)."""
         return [h for h in self._habits if h.visible]
 
+    def get_today_task_rows(self, include_suppressed: bool = False) -> List[Task]:
+        """Tasks (habit-scheduled or standalone) due on the current local date.
+
+        Habits with suppress_piano_key=True are excluded unless include_suppressed=True.
+        """
+        today = date.today()
+        tasks = get_upcoming_tasks(
+            self._habits, timespan=24 * 60 * 60,
+            include_manual=True, include_completed=True,
+        )
+        return [
+            t for t in tasks
+            if t.scheduled_at.date() == today
+            and (include_suppressed or not (t.habit is not None and t.habit.suppress_piano_key))
+        ]
+
+    def get_staff_task_rows(self) -> List[Task]:
+        """Today's task rows for the staff-strip completion summary.
+
+        Excludes hourly habits: they recur many times per day, so each would add a
+        note to the strip and drown out the once-a-day items the summary is meant to
+        track. Standalone tasks (no habit) are always kept.
+        """
+        return [
+            t for t in self.get_today_task_rows(include_suppressed=True)
+            if t.habit is None or t.habit.schedule != 'hourly'
+        ]
+
     def get_habit_by_id(self, habit_id: int) -> Optional[Habit]:
         for h in self._habits:
             if h.id == habit_id:
                 return h
         return None
+
+    def get_logged_seconds(self, habit_id) -> int:
+        """Net tracked seconds already logged this period for a habit (0 if unknown).
+
+        Used to seed a session's countdown so earlier sessions in the same period
+        count toward the habit's allocated minimum time.
+        """
+        habit = self.get_habit_by_id(habit_id)
+        return habit.get_logged_seconds() if habit else 0
 
     def get_all_non_deleted(self, archived: bool | None = None) -> List[Habit]:
         """All non-deleted habits, optionally filtered by archived state, ordered by display_order."""
@@ -91,16 +133,53 @@ class HabitService:
     # Mutation API
     # ------------------------------------------------------------------
 
-    def reorder_visible_habits(self, reordered_visible: List[Habit]) -> None:
+    def reorder_piano_keys(self, ordered_backers: List[Tuple[str, object]]) -> None:
         """
-        Update display_order for visible habits, reload in-memory list, notify subscribers.
+        Assign a single, unified display_order across every piano-key backer.
+
+        A piano key is backed by either a Habit (habit-scheduled occurrence or a
+        plain visible habit) or a standalone ManualTask. Both carry their own
+        ``display_order`` column; assigning positions from one global counter makes
+        the two columns comparable so that any key can sort above or below any other,
+        regardless of type. This is the single ordering authority — there is no
+        pinned today-block.
+
+        Args:
+            ordered_backers: Backers in their new visual order. Each item is a
+                ``(kind, id)`` tuple where kind is ``'habit'`` or ``'manual'``.
+                Duplicates (e.g. an hourly habit due several times today) are
+                collapsed to their first occurrence.
 
         All saves are wrapped in a single transaction so a partial reorder cannot occur.
         """
+        seen: set = set()
         with db.atomic():
-            for i, habit in enumerate(reordered_visible):
-                habit.display_order = i
-                habit.save()
+            position = 0
+            for kind, backer_id in ordered_backers:
+                if (kind, backer_id) in seen:
+                    continue
+                seen.add((kind, backer_id))
+
+                if kind == 'habit':
+                    habit = self.get_habit_by_id(backer_id)
+                    if habit is None:
+                        logger.warning("reorder_piano_keys: unknown habit id %r, skipping", backer_id)
+                        continue
+                    habit.display_order = position
+                    habit.save()
+                elif kind == 'manual':
+                    manual_task = ManualTask.get_or_none(ManualTask.id == backer_id)
+                    if manual_task is None:
+                        logger.warning("reorder_piano_keys: unknown manual task id %r, skipping", backer_id)
+                        continue
+                    manual_task.display_order = position
+                    manual_task.save()
+                else:
+                    logger.warning("reorder_piano_keys: unknown backer kind %r, skipping", kind)
+                    continue
+
+                position += 1
+
         self._habits = list(Habit.select()
             .where(Habit.deleted_at.is_null() & (Habit.archived == False))
             .order_by(Habit.display_order, Habit.id))

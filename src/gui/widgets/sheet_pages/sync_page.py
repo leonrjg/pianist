@@ -43,12 +43,12 @@ def _network_permission_status() -> tuple[str, Optional[str]]:
             running = False
 
         if running:
-            return "Local network access active — mDNS discovery is running", None
+            return "LAN discovery active", None
         return (
             "Local network access may be restricted",
             "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork",
         )
-    return "Local network access is not restricted on this platform", None
+    return "LAN discovery active", None
 
 
 class SyncPage(SheetPage):
@@ -62,7 +62,6 @@ class SyncPage(SheetPage):
 
     def build_content(self):
         layout = self.layout()
-        layout.addWidget(self._create_section_header("Sync"))
 
         # --- Network access ---
         layout.addWidget(self._create_section_header("Network Access"))

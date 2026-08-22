@@ -66,13 +66,13 @@ class DailySchedule(RegularSchedule):
             List of future daily task datetimes, ordered from earliest
             to latest.
         """
-        days = timespan // (time.DAY * self.step)
+        cutoff = datetime.now() + timedelta(seconds=timespan)
 
         tasks = set()
         current = datetime.now() - timedelta(days=self.step)
-        for _ in range(days):
+        while True:
             next_task = self.get_next_task(current)
-            if not next_task:
+            if next_task is None or next_task > cutoff:
                 break
             tasks.add(next_task)
             current = next_task

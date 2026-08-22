@@ -5,10 +5,11 @@ Repertoire Page - List of all habits.
 from datetime import datetime
 
 from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QHBoxLayout
 
 from .base_page import SheetPage
 from .habit_card import HabitCard
-from ..themed_form_widgets import ThemedButton
+from ..sheet_menu import MenuButton
 
 from core.habit.service import HabitService
 from core.util.time import get_friendly_datetime
@@ -37,11 +38,24 @@ class RepertoirePage(SheetPage):
         title = self._create_section_header(self.get_page_title())
         layout.addWidget(title)
 
-        # Archived button
-        button_text = "Show Active" if self._show_archived_only else "Show Archived"
-        self._archived_button = ThemedButton(button_text, button_type="secondary", parent=self)
+        # Action buttons, grouped horizontally as compact icon buttons
+        actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(6)
+
+        self._new_habit_button = MenuButton("gui/icons/new.svg", "New Habit", parent=self)
+        self._new_habit_button.clicked.connect(self._navigate_to_new_habit)
+        actions_layout.addWidget(self._new_habit_button)
+
+        archived_tooltip = "Show Active" if self._show_archived_only else "Show Archived"
+        self._archived_button = MenuButton("gui/icons/archive.svg", archived_tooltip, parent=self)
+        self._archived_button.setProperty("active", self._show_archived_only)
+        self._archived_button.style().unpolish(self._archived_button)
+        self._archived_button.style().polish(self._archived_button)
         self._archived_button.clicked.connect(self._toggle_archived_view)
-        layout.addWidget(self._archived_button)
+        actions_layout.addWidget(self._archived_button)
+
+        actions_layout.addStretch()
+        layout.addLayout(actions_layout)
 
         # Load habits via service
         try:
@@ -83,6 +97,10 @@ class RepertoirePage(SheetPage):
     def _navigate_to_habit(self, habit):
         """Navigate to habit detail page"""
         self.navigate_to.emit('habit_detail', habit.id)
+
+    def _navigate_to_new_habit(self):
+        """Navigate to the habit detail page in new-habit mode (no habit id)."""
+        self.navigate_to.emit('habit_detail', None)
 
     def _toggle_archived_view(self):
         """Toggle between showing active habits and archived habits."""

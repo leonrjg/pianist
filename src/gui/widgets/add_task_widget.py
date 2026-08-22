@@ -278,6 +278,9 @@ class AddTaskWidget(QWidget, ThemedWidget):
 
     def show_at_position(self, pos: QPoint):
         """Show the widget at the specified position, clamped to screen bounds."""
+        # Re-evaluate "today" on every open; the popup lives for the whole
+        # session, so a date captured at construction goes stale across days.
+        self.date_input.setDate(QDate.currentDate())
         self.adjustSize()
 
         from PyQt6.QtGui import QGuiApplication

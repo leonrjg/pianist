@@ -11,8 +11,8 @@ Responsible for painting:
 """
 
 from typing import Optional, TYPE_CHECKING
-from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QFontMetrics, QPainterPath
-from PyQt6.QtCore import Qt, QRect
+from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QFontMetrics, QPainterPath, QPolygonF
+from PyQt6.QtCore import Qt, QRect, QRectF, QPointF
 
 from .base_painter import BasePainter
 from ..constants import piano_colors, PianoLayout, Animations, font_pt, make_font
@@ -147,6 +147,7 @@ class KeyPainter(BasePainter):
         """Draw the label text on a piano key"""
         painter.setPen(QPen(piano_colors().TEXT_PRIMARY))
         font = QFont()
+        font.setWeight(QFont.Weight.Light)
         painter.setFont(font)
 
         label_rect = QRect(
@@ -288,10 +289,12 @@ class KeyPainter(BasePainter):
         """Draw time display text on a black key"""
         # Find if there's a time display for the corresponding habit
         time_text = ""
+        is_overtime = False
         if index < len(keys_data):
             habit = keys_data[index].get('habit')
             if habit:
                 time_text = state.get_time_display(habit.id) or ""
+                is_overtime = state.is_time_display_overtime(habit.id)
 
         # Use full width - buttons will overlay on hover
         text_rect = QRect(
@@ -302,7 +305,10 @@ class KeyPainter(BasePainter):
         )
 
         font_size = 12 if len(time_text) <= 5 else 11
-        painter.setPen(QPen(piano_colors().BLACK_KEY_TEXT))
+        # A countdown that has passed its target (overtime) is shown in the accent
+        # colour to signal the minimum time was reached.
+        text_color = piano_colors().ACCENT if is_overtime else piano_colors().BLACK_KEY_TEXT
+        painter.setPen(QPen(text_color))
         painter.setFont(make_font('Helvetica', font_size))
         painter.drawText(
             text_rect,
@@ -325,12 +331,22 @@ class KeyPainter(BasePainter):
         if not habit or not state.has_active_session(habit.id):
             return
 
-        # Show both buttons when hovering over either one (treat as a block)
+        # Show the whole button block when hovering over any one of them.
         if state.hovered_time_button and state.hovered_time_button[0] == index:
             hovered_button_type = state.hovered_time_button[1]
-            buttons = geometry.get_time_adjustment_buttons_rects(index)
+            # The countdown/stopwatch toggle only exists for habits with an
+            # allocated minimum time (countdown is meaningless without one).
+            include_mode = habit.allocated_time is not None
+            buttons = geometry.get_time_adjustment_buttons_rects(index, include_mode=include_mode)
 
-            # Draw both buttons
+            if include_mode:
+                mode = state.get_session_time_mode(habit.id) or 'countdown'
+                KeyPainter._draw_mode_button(
+                    painter,
+                    buttons['mode'],
+                    mode,
+                    is_hovered=(hovered_button_type == 'mode')
+                )
             KeyPainter._draw_time_button(
                 painter,
                 buttons['minus'],
@@ -359,6 +375,50 @@ class KeyPainter(BasePainter):
         painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
 
     @staticmethod
+    def _draw_mode_button(painter: QPainter, rect: QRect, mode: str, is_hovered: bool = False):
+        """Draw the countdown/stopwatch toggle button.
+
+        The glyph shows the *current* mode: an hourglass for countdown, a clock
+        face for stopwatch. Drawn as vector primitives (not a font glyph) so it
+        renders reliably at this small size.
+        """
+        bg_color = piano_colors().ACCENT_LIGHT if is_hovered else piano_colors().ACCENT
+        border_color = piano_colors().ACCENT.darker(130)
+        ink = piano_colors().WHITE_KEY
+
+        painter.setPen(QPen(border_color, 1))
+        painter.setBrush(QBrush(bg_color))
+        painter.drawRect(rect)
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        # Inset the glyph within the 12px button.
+        m = 3
+        gl = rect.left() + m
+        gr = rect.right() - m + 1
+        gt = rect.top() + m
+        gb = rect.bottom() - m + 1
+        cx = (gl + gr) / 2
+
+        if mode == 'countdown':
+            # Hourglass: two triangles meeting at the centre.
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(ink))
+            cy = (gt + gb) / 2
+            painter.drawPolygon(QPolygonF([QPointF(gl, gt), QPointF(gr, gt), QPointF(cx, cy)]))
+            painter.drawPolygon(QPolygonF([QPointF(gl, gb), QPointF(gr, gb), QPointF(cx, cy)]))
+        else:
+            # Clock face: a circle with a short hand.
+            painter.setPen(QPen(ink, 1.2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            face = QRectF(gl, gt + 1, gr - gl, gb - gt - 1)
+            painter.drawEllipse(face)
+            fcx, fcy = face.center().x(), face.center().y()
+            painter.drawLine(QPointF(fcx, fcy), QPointF(fcx, face.top() + 1.5))
+            painter.drawLine(QPointF(fcx, fcy), QPointF(fcx + 2, fcy))
+        painter.restore()
+
+    @staticmethod
     def draw_task_checkmark(painter: QPainter, black_key_rect: QRect, state: PianoState,
                            index: int, keys_data: list):
         """Draw task completion checkmark on a black key"""
@@ -370,12 +430,10 @@ class KeyPainter(BasePainter):
         task_datetime = key_data.get('task_datetime')
         is_completed = key_data.get('is_completed', False)
 
-        # Don't show checkmark if there's a task but no habit, or if session is active
-        if not task_datetime or not habit:
+        if not task_datetime:
             return
 
-        # Don't show checkmark if this habit has an active session
-        if state.has_active_session(habit.id):
+        if habit and state.has_active_session(habit.id):
             return
 
         # Calculate checkmark position (center of black key)

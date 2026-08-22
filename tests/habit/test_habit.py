@@ -426,14 +426,13 @@ class TestHabitInit:
 class TestHabitScheduleTypes:
     """Test different schedule type creation."""
 
-    @pytest.mark.parametrize("schedule_type,mock_class,expected_args", [
-        ('hourly', 'HourlySchedule', {}),
-        ('daily', 'DailySchedule', {}),
-        ('weekly', 'WeeklySchedule', {}),
-        ('monthly', 'MonthlySchedule', {}),
-        ('exponential_3', 'ExponentialSchedule', {'base': 3})
+    @pytest.mark.parametrize("schedule_type,mock_class", [
+        ('hourly', 'HourlySchedule'),
+        ('daily', 'DailySchedule'),
+        ('weekly', 'WeeklySchedule'),
+        ('monthly', 'MonthlySchedule'),
     ])
-    def test_get_schedule_creates_correct_type(self, schedule_type, mock_class, expected_args):
+    def test_get_schedule_creates_correct_type(self, schedule_type, mock_class):
         """Test _get_schedule creates correct schedule type based on habit.schedule."""
         with patch(f'src.core.habit.habit.{mock_class}') as mock_schedule:
             habit = Mock()
@@ -442,8 +441,9 @@ class TestHabitScheduleTypes:
 
             Habit._get_schedule(habit)
 
-            expected_call_args = {'start': habit.started_at, **expected_args}
-            mock_schedule.assert_called_once_with(**expected_call_args)
+            mock_schedule.assert_called_once_with(
+                start=habit.started_at, end=habit.ended_at, step=habit.schedule_step
+            )
 
 
 class TestHabitActivityBuckets:

@@ -31,6 +31,8 @@ class Task:
         completed_at: When the task was completed (None if not completed)
         created_at: When the task record was created
         source_id: ID of the source object (habit.id or manual_task.id)
+        display_order: Ordering of the backing object (habit or manual task) in the
+            unified piano-key sequence. Lower sorts first.
     """
     type: TaskType
     scheduled_at: datetime
@@ -40,6 +42,7 @@ class Task:
     completed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     source_id: Optional[int] = None
+    display_order: int = 0
 
     @property
     def is_overdue(self) -> bool:
@@ -80,7 +83,8 @@ class Task:
             completed=completed,
             completed_at=None,  # Habit tasks don't track exact completion time
             created_at=habit.created_at,
-            source_id=habit.id
+            source_id=habit.id,
+            display_order=habit.display_order,
         )
 
     @classmethod
@@ -102,5 +106,6 @@ class Task:
             completed=manual_task.completed_at is not None,
             completed_at=manual_task.completed_at,
             created_at=manual_task.created_at,
-            source_id=manual_task.id
+            source_id=manual_task.id,
+            display_order=manual_task.display_order,
         )

@@ -90,6 +90,7 @@ class MusicSheetWidget(QWidget, ThemedWidget):
         self._page_stack = []  # Navigation history
         self._current_page = None
         self._animator = PageTurnAnimation(self)
+        self._page_cache: dict = {}  # Cached page instances for tabs without unique data
 
         # Generate darker spots/stains - more and larger
         self._paper_stains = []
@@ -248,12 +249,17 @@ class MusicSheetWidget(QWidget, ThemedWidget):
             page_type: Type of page (PageType enum value)
             data: Optional data for the page (e.g., habit_id for detail page)
         """
+        # If already on this page, just refresh in place — no animation, no re-stack
+        if self._current_page is not None and self._page_cache.get(page_type) is self._current_page:
+            self._current_page.refresh()
+            return
+
         # Clear search highlights when switching pages
         if hasattr(self, '_search_bar') and self._search_bar.isVisible():
             self._clear_search_highlights()
             # Re-search on new page if there's a query
             # Will be handled after page loads by _on_search_changed
-        
+
         # Cancel any ongoing animation to prevent overlapping pages
         if self._animator.is_running():
             self._animator.cancel()
@@ -261,27 +267,27 @@ class MusicSheetWidget(QWidget, ThemedWidget):
         # Update menu's active page
         self._menu.set_current_page(page_type)
 
-        # Create the new page
+        # Create the new page (may return a cached instance)
         new_page = self._create_page(page_type, data)
         if not new_page:
             print(f"Failed to create page: {page_type}")
             return
 
-        # Connect page signals
-        new_page.navigate_to.connect(self._navigate_to)
-        new_page.content_updated.connect(self.habit_updated.emit)
+        # Connect signals only for freshly built pages; cached pages already have them connected
+        if not getattr(new_page, '_from_cache', False):
+            new_page.navigate_to.connect(self._navigate_to)
+            new_page.content_updated.connect(self.habit_updated.emit)
 
         # Get current page
         old_page = self._current_page
 
-        # Clean up old page if moving forward (to prevent memory leak)
-        # Keep in stack widget only if going back
+        # Clean up history, but never destroy cached page instances
         if old_page and len(self._page_stack) > 3:  # Limit history depth
-            # Remove oldest page from stack
             oldest = self._page_stack.pop(0)
-            self._disconnect_page_signals(oldest)
-            self._stack.removeWidget(oldest)
-            oldest.deleteLater()
+            if oldest not in self._page_cache.values():
+                self._disconnect_page_signals(oldest)
+                self._stack.removeWidget(oldest)
+                oldest.deleteLater()
 
         # Add to stack widget
         self._stack.addWidget(new_page)
@@ -326,8 +332,40 @@ class MusicSheetWidget(QWidget, ThemedWidget):
             self._stack.removeWidget(old_page)
             old_page.deleteLater()
 
+    # Page types that can be cached and reused across navigations.
+    # Excluded: habit_detail, habit_stats, reminder_detail — each requires unique constructor args.
+    _CACHEABLE_PAGE_TYPES = frozenset({
+        PageType.INDEX.value,
+        PageType.REPERTOIRE.value,
+        PageType.STATS.value,
+        PageType.SETTINGS.value,
+        PageType.MOOD.value,
+        PageType.CALENDAR.value,
+        PageType.REMINDERS.value,
+        PageType.SYNC.value,
+        PageType.THOUGHTS.value,
+    })
+
     def _create_page(self, page_type: str, data):
-        """Factory method to create pages with error handling"""
+        """Return a page for page_type, reusing a cached instance when possible."""
+        if page_type in self._CACHEABLE_PAGE_TYPES:
+            if page_type in self._page_cache:
+                page = self._page_cache[page_type]
+                page._from_cache = True
+                page.refresh()
+                return page
+            page = self._build_page(page_type, data)
+            if page:
+                page._from_cache = False
+                self._page_cache[page_type] = page
+            return page
+        page = self._build_page(page_type, data)
+        if page:
+            page._from_cache = False
+        return page
+
+    def _build_page(self, page_type: str, data):
+        """Instantiate a fresh page widget. All construction and DB access happens here."""
         try:
             if page_type == PageType.INDEX.value:
                 return IndexPage(self)
@@ -385,10 +423,6 @@ class MusicSheetWidget(QWidget, ThemedWidget):
     def navigate_to_mood_page(self):
         """Navigate to the mood management page"""
         self._navigate_to(PageType.MOOD.value, None)
-
-    def navigate_to_sync_page(self):
-        """Navigate to the sync status page"""
-        self._navigate_to(PageType.SYNC.value, None)
 
     def resizeEvent(self, event):
         """Update overlay geometry when widget is resized"""

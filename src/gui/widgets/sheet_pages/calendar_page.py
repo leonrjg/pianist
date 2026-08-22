@@ -7,7 +7,7 @@ Clicking a day shows a popup with tasks for that day.
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QCalendarWidget, QLabel,
                               QLineEdit, QPushButton, QScrollArea, QFrame)
-from PyQt6.QtCore import Qt, QDate, QPoint, pyqtSignal
+from PyQt6.QtCore import Qt, QDate, QPoint, QObject, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QTextCharFormat, QFont, QCursor
 from datetime import datetime, timedelta
 import logging
@@ -375,9 +375,15 @@ class TaskPopup(QWidget):
         super().closeEvent(event)
 
 
-class CalendarWheelFilter(QWidget):
-    """Event filter that blocks wheel events on calendar's internal view"""
-    
+class CalendarWheelFilter(QObject):
+    """Event filter that blocks wheel events on calendar's internal view.
+
+    Must be a QObject, not a QWidget: it is only ever used as an event filter.
+    As a QWidget parented to the page it would render as an invisible child at
+    (0, 0), swallowing mouse clicks over the calendar's top-left (the prev-month
+    arrow) instead of letting them reach the navigation bar.
+    """
+
     def __init__(self, calendar, parent=None):
         super().__init__(parent)
         self._calendar = calendar
@@ -585,6 +591,10 @@ class CalendarPage(SheetPage):
     def showEvent(self, event):
         """Set up scroll area reference when page is shown"""
         super().showEvent(event)
+        # Snap to today on each open; the page is cached for the whole session,
+        # so the shown month would otherwise stay frozen on the launch day.
+        if self._calendar:
+            self._calendar.setSelectedDate(QDate.currentDate())
         if self._calendar and self._wheel_filter:
             from PyQt6.QtWidgets import QScrollArea
             parent = self._calendar.parent()

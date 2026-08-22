@@ -26,6 +26,7 @@ DEFAULTS = {
     'reminders.show_habit_linked_on_page': False,
     'session.timeout_seconds': 1800,
     'session.min_duration_seconds': 0,
+    'session.idle_nudge_seconds': 0,
 }
 
 

@@ -26,7 +26,7 @@ def cli(ctx):
 @cli.command()
 @click.argument('name')
 @click.option('--schedule',
-              type=click.Choice(['hourly', 'daily', 'weekly', 'monthly', 'exponential_3']),
+              type=click.Choice(['hourly', 'daily', 'weekly', 'monthly']),
               help='Schedule type for the habit')
 @click.option('--duration', type=int, help='Allocated time per period in minutes')
 @click.option('--timeout', type=int, help='Inactivity threshold for trackers in seconds')
@@ -39,7 +39,7 @@ def save(name, schedule, duration, timeout, trackers, track_args):
 
     Args:
         name: Unique name for the habit (e.g., "piano", "reading").
-        schedule: Periodicity type - 'daily', 'weekly', 'monthly', 'hourly', or 'exponential_3'.
+        schedule: Periodicity type - 'daily', 'weekly', 'monthly', or 'hourly'.
         duration: Allocated time per period in minutes (minimum for streak qualification).
         timeout: Inactivity threshold in seconds before session pause.
         trackers: List of tracking methods ('io' for activity, 'window' for app detection).

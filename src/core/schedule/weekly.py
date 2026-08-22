@@ -67,17 +67,16 @@ class WeeklySchedule(RegularSchedule):
             List of future weekly task datetimes, ordered from earliest
             to latest.
         """
-        now = datetime.now()
-        days = timespan // time.DAY
-        weeks = days // (7 * self.step)
+        cutoff = datetime.now() + timedelta(seconds=timespan)
 
         tasks = []
-        current = now
-        for _ in range(weeks):
+        current = datetime.now() - timedelta(weeks=self.step)
+        while True:
             next_task = self.get_next_task(current)
-            if next_task:
-                tasks.append(next_task)
-                current = next_task + timedelta(days=1)
+            if next_task is None or next_task > cutoff:
+                break
+            tasks.append(next_task)
+            current = next_task + timedelta(days=1)
         return tasks
 
     def get_next_task(self, from_dt: datetime) -> Optional[datetime]:

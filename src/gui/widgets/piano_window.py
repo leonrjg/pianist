@@ -24,11 +24,12 @@ from core.util.time import get_friendly_elapsed
 from datetime import datetime
 
 from gui.themes import ThemedWidget
+from gui.icon_renderer import render_icon_pixmap, ink_string
 from ..services import HabitService
-from ..constants import PianoLayout, piano_colors, _parse_rgb, Animations, Interactions
+from ..constants import PianoLayout, piano_colors, Animations, Interactions
 from ..models import PianoGeometry, PianoState
 from ..managers import SessionManager, AnimationManager, SoundManager, DrawerAnimationManager, WindowSizeManager, ReorderModeManager, AutoSessionManager, ReminderManager
-from ..painters import FramePainter, KeyPainter
+from ..painters import FramePainter, KeyPainter, StaffStripPainter
 from .music_sheet_widget import MusicSheetWidget
 from .marquee import Marquee
 from core.reminder.context import ContextEvaluator
@@ -76,13 +77,21 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
 
         # ===== Initialize Keys Placeholder =====
         self.state.num_habits = len(service.get_visible_habits())
-        self.keys = []  # Will be populated by update_keys_for_window_size()
+        self.keys = []  # Visible window of keys, populated by update_keys_for_window_size()
+        self._all_key_rows = []  # Full ordered key list (pre-window), used for reordering
+        self._staff_completions = []  # Completion flags for today's tasks (staff strip)
+        self._staff_titles = []       # Task titles for staff strip tooltips
+
+        # Guards _shutdown() so the teardown runs exactly once, regardless of
+        # whether closeEvent or QApplication.aboutToQuit reaches it first.
+        self._shutdown_done = False
 
         # ===== Initialize Managers =====
         self.session_manager = SessionManager()
         self.session_manager.elapsed_updated.connect(self.on_elapsed_updated)
         self.session_manager.session_ended.connect(self.on_session_ended)
         self.session_manager.error_occurred.connect(self.on_session_error)
+        self.session_manager.idle_nudge.connect(self._on_idle_nudge)
         self.session_manager.start()
 
         # Auto-session manager for window-based session triggering
@@ -244,41 +253,31 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         self.notes_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.notes_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        # Sync button
-        self.sync_button = QPushButton()
-        self.sync_button.setIcon(QIcon('gui/icons/sync.svg'))
-        self.sync_button.setIconSize(QSize(14, 14))
-        self.sync_button.setFixedSize(20, 20)
-        self.sync_button.setToolTip('Sync')
-        self.sync_button.clicked.connect(self.on_sync_button_clicked)
-        self.sync_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.sync_button.hide()  # Hidden until a peer device is known
-        self._sync_rotation = 0
-        # Cached pixmap is rebuilt in _setup_style with the correct theme color
-        self._sync_icon_pixmap = None
+        # Overflow button — revealed only when the window is too short to fit
+        # every control button; its menu exposes the ones that were hidden.
+        self.overflow_button = QPushButton("⋮")
+        self.overflow_button.setFixedSize(20, 20)
+        self.overflow_button.setToolTip('More')
+        self.overflow_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.overflow_button.clicked.connect(self._show_overflow_menu)
+        self.overflow_button.hide()
 
-        self._apply_sync_button_style(active=False)
         self._setup_style()
 
-        control_layout.addWidget(self.close_button)
-        control_layout.addWidget(self.maximize_button)
-        control_layout.addWidget(self.reorder_button)
-        control_layout.addWidget(self.mood_button)
-        control_layout.addWidget(self.add_task_button)
-        control_layout.addWidget(self.notes_button)
-        control_layout.addWidget(self.sync_button)
+        # Ordered control buttons plus the menu metadata used when they overflow.
+        self._control_buttons = [
+            (self.close_button, 'Minimize', self.showMinimized),
+            (self.maximize_button, 'Maximize window', self.toggle_maximize),
+            (self.reorder_button, 'Reorder keys', self.reorder_mode_manager.toggle_reorder_mode),
+            (self.mood_button, 'Log mood', self.on_mood_button_clicked),
+            (self.add_task_button, 'Add task', self.on_add_task_button_clicked),
+            (self.notes_button, 'Notes', self.on_notes_button_clicked),
+        ]
+
+        for btn, _label, _cb in self._control_buttons:
+            control_layout.addWidget(btn)
+        control_layout.addWidget(self.overflow_button)
         control_layout.addStretch()
-
-        # Spin timer: rotate icon while a sync is in-flight
-        self._sync_spin_timer = QTimer()
-        self._sync_spin_timer.setInterval(50)
-        self._sync_spin_timer.timeout.connect(self._on_sync_spin_tick)
-
-        # Poll timer: update sync button visibility/color every 5 s
-        self._sync_poll_timer = QTimer()
-        self._sync_poll_timer.timeout.connect(self._update_sync_button_state)
-        self._sync_poll_timer.start(5000)
-        self._update_sync_button_state()  # Apply immediately
 
         self._position_control_buttons_container()
 
@@ -357,13 +356,52 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         self._update_notes_widget_position()  # Update notes widget position
         self.update()
 
+    # Vertical breathing room above/below the control buttons so they never
+    # touch (or get clipped by) the window edges when the window is short.
+    _CONTROL_V_MARGIN = 10
+    _CONTROL_BTN_SLOT = 24  # 20px button + 4px layout spacing
+
+    def _update_control_button_overflow(self):
+        """Hide control buttons that don't fit the current window height and,
+        when any are hidden, reveal the overflow (⋮) button in their place."""
+        buttons = [btn for btn, _l, _c in self._control_buttons]
+        available = self.height() - 2 * self._CONTROL_V_MARGIN
+        # n slots need n*20 + (n-1)*4 px == n*24 - 4.
+        capacity = max(0, (available + 4) // self._CONTROL_BTN_SLOT)
+
+        if capacity >= len(buttons):
+            for btn in buttons:
+                btn.setVisible(True)
+            self.overflow_button.hide()
+            self._overflow_hidden = []
+        else:
+            # Reserve the last visible slot for the overflow button itself.
+            shown = max(0, capacity - 1)
+            for i, btn in enumerate(buttons):
+                btn.setVisible(i < shown)
+            self._overflow_hidden = self._control_buttons[shown:]
+            self.overflow_button.setVisible(True)
+
+        self.control_buttons_container.adjustSize()
+
+    def _show_overflow_menu(self):
+        """Pop a menu exposing the control actions that were hidden by overflow."""
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        for _btn, label, callback in getattr(self, '_overflow_hidden', []):
+            menu.addAction(label, callback)
+        pos = self.overflow_button.mapToGlobal(self.overflow_button.rect().bottomLeft())
+        menu.exec(pos)
+
     def _position_control_buttons_container(self):
         """Position the control buttons container centered horizontally in the control panel"""
+        self._update_control_button_overflow()
+
         # Center horizontally in the control panel
         control_panel_start_x = self.width() - PianoLayout.CONTROL_PANEL_WIDTH
         container_width = 20  # Button width
         x = control_panel_start_x + (PianoLayout.CONTROL_PANEL_WIDTH - container_width) // 2
-        y = 10
+        y = self._CONTROL_V_MARGIN
 
         self.control_buttons_container.move(x, y)
 
@@ -375,57 +413,80 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         Reads only from the in-memory service cache — no database access.
         Safe to call on every resize and scroll event.
         """
-        all_habits = self.service.get_visible_habits()
-        self.state.num_habits = len(all_habits)
-        num_actual_habits = len(all_habits)
+        today_tasks = self.service.get_today_task_rows()
+        _staff_tasks = sorted(self.service.get_staff_task_rows(), key=lambda t: not t.completed)
+        self._staff_completions = [t.completed for t in _staff_tasks]
+        self._staff_titles = [t.title or '' for t in _staff_tasks]
+        seen_habit_ids = {t.habit.id for t in today_tasks if t.habit is not None}
+        remaining_visible = [h for h in self.service.get_visible_habits() if h.id not in seen_habit_ids]
+
+        all_key_data = []
+        for task in today_tasks:
+            all_key_data.append({
+                'label': task.title,
+                'habit': task.habit,
+                'task': task,
+                'time': None,
+                'task_datetime': task.scheduled_at,
+                'is_completed': task.completed,
+            })
+        for habit in remaining_visible:
+            info = self.service.get_next_task_info(habit.id)
+            all_key_data.append({
+                'label': habit.name,
+                'habit': habit,
+                'task': None,
+                'time': None,
+                'task_datetime': info['task_dt'],
+                'is_completed': info['is_completed'],
+            })
+
+        # Single ordering authority: sort every key by its backer's display_order.
+        # Today-tasks and habits share one comparable order, so any key can be
+        # reordered above or below any other (no pinned today-block). Ties — e.g.
+        # several occurrences of one hourly habit, or freshly-created rows still at
+        # the default order — fall back to schedule time for a stable arrangement.
+        all_key_data.sort(key=self._key_order_value)
+
+        # Keep the full, ordered row list so reordering operates on real positions
+        # even while the visible window is scrolled.
+        self._all_key_rows = all_key_data
+
+        num_actual_rows = len(all_key_data)
+        self.state.num_habits = num_actual_rows
 
         available_height = self.height() - PianoLayout.FRAME_PADDING_VERTICAL
         num_keys_that_fit = max(1, int(available_height // PianoLayout.KEY_HEIGHT)) + 2
 
         # In scroll mode, one slot is reserved for a visible trailing padding key (see below).
         scroll_display_count = num_keys_that_fit - 1
-        self.state.scrolling_enabled = num_actual_habits > scroll_display_count
+        self.state.scrolling_enabled = num_actual_rows > scroll_display_count
+
+        _padding = {'label': '', 'habit': None, 'task': None, 'time': None, 'task_datetime': None, 'is_completed': False}
 
         if self.state.scrolling_enabled:
-            self.state.max_scroll_offset = max(0, num_actual_habits - scroll_display_count)
+            self.state.max_scroll_offset = max(0, num_actual_rows - scroll_display_count)
 
             new_keys = []
             for i in range(scroll_display_count):
-                habit_index = i + self.state.scroll_offset
-                if habit_index < num_actual_habits:
-                    habit = all_habits[habit_index]
-                    info = self.service.get_next_task_info(habit.id)
-                    new_keys.append({
-                        'label': habit.name,
-                        'habit': habit,
-                        'time': None,
-                        'task_datetime': info['task_dt'],
-                        'is_completed': info['is_completed'],
-                    })
+                row_index = i + self.state.scroll_offset
+                if row_index < num_actual_rows:
+                    new_keys.append(all_key_data[row_index])
                 else:
-                    new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
+                    new_keys.append(_padding)
 
             # Always append an empty trailing key so:
             # 1. draw_black_key runs for the last real habit (needs a key below it)
             # 2. The empty key itself is visible on screen, matching the non-scroll appearance
-            new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
+            new_keys.append(_padding)
         else:
             self.state.scroll_offset = 0
             self.state.max_scroll_offset = 0
 
-            new_keys = []
-            for habit in all_habits[:num_keys_that_fit]:
-                info = self.service.get_next_task_info(habit.id)
-                new_keys.append({
-                    'label': habit.name,
-                    'habit': habit,
-                    'time': None,
-                    'task_datetime': info['task_dt'],
-                    'is_completed': info['is_completed'],
-                })
+            new_keys = list(all_key_data[:num_keys_that_fit])
 
             while len(new_keys) < num_keys_that_fit:
-                new_keys.append({'label': '', 'habit': None, 'time': None, 'task_datetime': None, 'is_completed': False})
+                new_keys.append(_padding)
 
         self.keys = new_keys
         self.reorder_mode_manager.set_num_keys(len(new_keys))
@@ -445,9 +506,15 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Create rounded rectangle clip path
+        # Create rounded rectangle clip path aligned to the *visible* region.
+        # When collapsed, the drawer mask hides everything left of visible_start_x,
+        # so rounding the full window would place the left corners under the mask
+        # (leaving a straight cut). Rounding from the visible edge instead makes the
+        # collapsed left border round to match the right window border.
+        visible_start_x = self.drawer_animation_manager.visible_start_x
+        clip_rect = QRectF(visible_start_x, 0, self.width() - visible_start_x, self.height())
         path = QPainterPath()
-        path.addRoundedRect(QRectF(self.rect()), PianoLayout.WINDOW_BORDER_RADIUS, PianoLayout.WINDOW_BORDER_RADIUS)
+        path.addRoundedRect(clip_rect, PianoLayout.WINDOW_BORDER_RADIUS, PianoLayout.WINDOW_BORDER_RADIUS)
         painter.setClipPath(path)
 
         # Draw background
@@ -456,6 +523,7 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         # Delegate to painters (window mask controls visibility)
         FramePainter.draw_frame(painter, self.geometry_model)
         KeyPainter.draw_keys(painter, self.geometry_model, self.state, self.keys, self.reorder_mode_manager)
+        StaffStripPainter.draw(painter, self.geometry_model, self._staff_completions)
 
         # Unified overlay spanning fallboard + keys + control panel
         try:
@@ -485,6 +553,9 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         if self.state.toggleable_drawer_visible:
             return None
 
+        # fallboard_x is the visible left edge of the window when the drawer is
+        # closed. Everything to the left of it is masked out (no mouse events),
+        # so the resize zone must sit just inside that edge, extending inward.
         fallboard_x = self.geometry_model.toggleable_drawer_width
         # Check corners first (larger zone)
         if pos.y() <= Interactions.RESIZE_CORNER_THRESHOLD or pos.y() >= self.height() - Interactions.RESIZE_CORNER_THRESHOLD:
@@ -500,8 +571,7 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         # Checkmark is in center of black key area
         for i in range(len(self.keys) - 1):
             key_data = self.keys[i]
-            # Only check for keys with tasks
-            if not key_data.get('habit') or not key_data.get('task_datetime'):
+            if not key_data.get('task_datetime'):
                 continue
 
             black_key_rect = self.geometry_model.get_black_key_rect(i)
@@ -530,32 +600,95 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
             if not habit or not self.session_manager.has_active_session(habit.id):
                 continue
 
-            button_type = self.geometry_model.get_time_button_at_point(pos, i)
+            include_mode = habit.allocated_time is not None
+            button_type = self.geometry_model.get_time_button_at_point(pos, i, include_mode=include_mode)
             if button_type:
                 return (i, button_type)
 
         return None
 
-    def _toggle_task_completion(self, habit, task_datetime):
+    def _toggle_task_completion(self, key_data: dict, task_datetime: datetime):
         """Toggle task completion state"""
         try:
-            self.service.toggle_task_completion(habit, task_datetime)
-            # Notify music sheet to refresh its pages
+            from core.task.service import TaskService
+            habit = key_data.get('habit')
+            if habit is not None:
+                self.service.toggle_task_completion(habit, task_datetime)
+            else:
+                task = key_data.get('task')
+                new_state = not (task.completed if task else False)
+                TaskService.toggle_standalone_task_completion(task_datetime, new_state)
             if hasattr(self, 'music_sheet_widget'):
                 self.music_sheet_widget.habit_updated.emit()
         except Exception as e:
-            print(f"Error toggling task completion: {e}")
+            logging.error(f"Error toggling task completion: {e}")
 
     def handle_time_adjustment_click(self, habit_id: int, button_type: str):
         """
-        Handle time adjustment button click.
+        Handle a time button click on a black key.
 
         Args:
             habit_id: ID of the habit whose session to adjust
-            button_type: 'plus' or 'minus'
+            button_type: 'plus', 'minus', or 'mode' (countdown/stopwatch toggle)
         """
+        if button_type == 'mode':
+            self._toggle_session_time_mode(habit_id)
+            return
+
         delta_seconds = 60 if button_type == 'plus' else -60
-        self.session_manager.adjust_session_time(habit_id, delta_seconds)
+        new_elapsed = self.session_manager.adjust_session_time(habit_id, delta_seconds)
+        # Reflect the adjustment instantly; the offset lives in the GUI process, so
+        # there is no subprocess round-trip to wait for. Persistence happens in the
+        # background when the session ends.
+        if new_elapsed is not None:
+            self.on_elapsed_updated(habit_id, new_elapsed)
+
+    def _toggle_session_time_mode(self, habit_id: int):
+        """Flip a habit's black-key display between countdown and stopwatch for
+        the current session, then re-render immediately from the cached elapsed."""
+        habit = self.service.get_habit_by_id(habit_id)
+        if not habit or habit.allocated_time is None:
+            return  # Countdown is only meaningful with an allocated minimum time
+        # Default is countdown when an allocated time exists, so an absent override
+        # is treated as countdown and flips to stopwatch.
+        current = self.state.get_session_time_mode(habit_id) or 'countdown'
+        self.state.set_session_time_mode(habit_id, 'stopwatch' if current == 'countdown' else 'countdown')
+        self._refresh_time_display(habit_id, self.state.get_session_elapsed(habit_id) or 0)
+
+    def _format_session_time(self, habit, elapsed_seconds: int) -> tuple[str, bool]:
+        """Return (display_text, is_overtime) for a black key in its current mode.
+
+        Countdown (default when the habit has an allocated_time) shows the time
+        remaining until the target, seeded by time already logged this period so
+        earlier sessions count toward the goal. Once the target is reached it
+        counts overtime up from 00:00, flagged so the painter renders it in the
+        accent colour. If prior sessions already met the goal, the session starts
+        at overtime 00:00.
+        """
+        allocated = habit.allocated_time if habit else None
+        mode = (habit and self.state.get_session_time_mode(habit.id)) or None
+        if mode is None:
+            mode = 'countdown' if allocated else 'stopwatch'
+
+        if mode == 'countdown' and allocated:
+            prior = self.state.get_session_prior_seconds(habit.id)
+            baseline_remaining = allocated - prior
+            if baseline_remaining > 0:
+                remaining = baseline_remaining - elapsed_seconds
+                if remaining > 0:
+                    return get_friendly_elapsed(remaining), False
+                # Target crossed mid-session: count overtime up from 00:00.
+                return get_friendly_elapsed(elapsed_seconds - baseline_remaining), True
+            # Prior sessions already met the goal: overtime from 00:00 this session.
+            return get_friendly_elapsed(elapsed_seconds), True
+        return get_friendly_elapsed(elapsed_seconds), False
+
+    def _refresh_time_display(self, habit_id: int, elapsed_seconds: int):
+        """Recompute and store the black-key time text for the habit's current mode."""
+        habit = self.service.get_habit_by_id(habit_id)
+        text, overtime = self._format_session_time(habit, elapsed_seconds)
+        self.state.set_time_display(habit_id, text, overtime)
+        self.update(self.geometry_model.time_display_area)
 
     def mousePressEvent(self, event):
         """Handle mouse press"""
@@ -578,9 +711,10 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
             if checkmark_index is not None and checkmark_index >= 0 and checkmark_index < len(self.keys):
                 key_data = self.keys[checkmark_index]
                 habit = key_data.get('habit')
-                # Only allow checkmark click if this specific habit has no active session
-                if habit and key_data.get('task_datetime') and not self.session_manager.has_active_session(habit.id):
-                    self._toggle_task_completion(habit, key_data['task_datetime'])
+                task_datetime = key_data.get('task_datetime')
+                has_session = habit is not None and self.session_manager.has_active_session(habit.id)
+                if task_datetime and not has_session:
+                    self._toggle_task_completion(key_data, task_datetime)
                     return
 
             # Check for resize on fallboard left edge (when drawer closed)
@@ -746,6 +880,11 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
             # Reset drag state
             self.state.end_drag()
 
+    def _is_point_on_staff_note(self, pos: QPoint) -> bool:
+        """Return True if pos falls on any staff note drawn on the fallboard."""
+        rects = StaffStripPainter.get_note_rects(self.geometry_model, len(self._staff_titles))
+        return any(r.contains(pos.x(), pos.y()) for r in rects)
+
     def handle_click(self, pos: QPoint):
         """
         Handle a click at the given position.
@@ -753,8 +892,8 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         Checks clickable regions in priority order. First match handles the click.
         No mode restrictions needed - key dragging already prevents key clicks in reorder mode.
         """
-        # Drawer toggle
-        if self.geometry_model.is_point_in_hinge(pos):
+        # Drawer toggle (staff notes on fallboard)
+        if self._is_point_on_staff_note(pos):
             self.toggle_toggleable_drawer()
             return
 
@@ -796,7 +935,7 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
 
         if (self.geometry_model.is_point_in_control_button(pos) or
             self.geometry_model.is_point_in_keys(pos) or
-            self.geometry_model.is_point_in_hinge(pos)):
+            self._is_point_on_staff_note(pos)):
             cursor = Qt.CursorShape.PointingHandCursor
 
         self.setCursor(cursor)
@@ -863,6 +1002,9 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
     def start_session(self, habit):
         """Start a session thread"""
         try:
+            # Capture time already logged this period so the countdown target
+            # accounts for earlier sessions toward the allocated minimum time.
+            self.state.set_session_prior_seconds(habit.id, self.service.get_logged_seconds(habit.id))
             self.session_manager.start_session(habit)
             print(f"Starting session for {habit.name}")
         except Exception as e:
@@ -883,10 +1025,8 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
 
     def on_elapsed_updated(self, habit_id: int, elapsed_seconds: int):
         """Handle elapsed time updates from session process"""
-        time_text = get_friendly_elapsed(elapsed_seconds)
-        self.state.set_time_display(habit_id, time_text)
-        # Only update the time display area
-        self.update(self.geometry_model.time_display_area)
+        self.state.set_session_elapsed(habit_id, elapsed_seconds)
+        self._refresh_time_display(habit_id, elapsed_seconds)
 
     def on_session_ended(self, habit_id: int):
         """Handle session ended signal from process"""
@@ -896,6 +1036,11 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
     def on_session_error(self, error_message: str):
         """Handle session error from process"""
         print(f"Session error: {error_message}")
+
+    def _on_idle_nudge(self, habit_id: int, habit_name: str):
+        """Show a nudge notification when a session has been idle too long."""
+        title = habit_name or "Session idle"
+        self.notification_service.show_toast(title, "You've been away — time to get back to it!", duration=10000)
 
     def on_session_start_requested(self, habit):
         """Handle session start request (manual or auto) - play sound and start session"""
@@ -943,11 +1088,42 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         # If beyond all keys, drop at the end
         return len(self.keys) - 1
 
+    def _key_order_value(self, key_data: dict):
+        """Sort key for the unified piano-key ordering.
+
+        Primary: the backer's display_order (habit or manual task — both share one
+        comparable ordering). Secondary: schedule time, so tied rows (default-ordered
+        new rows, or repeated occurrences of one habit) stay in a stable, sensible order.
+        """
+        task = key_data.get('task')
+        habit = key_data.get('habit')
+        if task is not None:
+            order = task.display_order
+        elif habit is not None:
+            order = habit.display_order
+        else:
+            order = float('inf')  # padding — should not appear in all_key_data
+        return (order, key_data.get('task_datetime') or datetime.max)
+
+    @staticmethod
+    def _key_backer(key_data: dict):
+        """Return the ``(kind, id)`` backer of a key, or None for a padding slot."""
+        habit = key_data.get('habit')
+        if habit is not None:
+            return ('habit', habit.id)
+        task = key_data.get('task')
+        if task is not None:
+            return ('manual', task.source_id)
+        return None
+
     def perform_key_reorder(self):
         """
-        Perform the actual reordering of habits in the database.
+        Persist the new key arrangement after a drag-drop.
 
-        Updates display_order values based on the new arrangement.
+        Operates on the full ordered row list (``self._all_key_rows``) by object
+        identity, not on visible-window indices — so a drop is correct even while the
+        list is scrolled. The dragged row is moved to sit before the drop-target row,
+        then every backer (habit or manual task) is reassigned a unified display_order.
         """
         if self.state.dragged_key_index is None or self.state.drop_target_index is None:
             return
@@ -955,28 +1131,42 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         from_index = self.state.dragged_key_index
         to_index = self.state.drop_target_index
 
-        # Don't reorder if dropping in the same position
         if from_index == to_index:
             return
 
-        # Get the habit that was dragged
-        dragged_key = self.keys[from_index]
-        dragged_habit = dragged_key.get('habit')
-
-        if not dragged_habit:
+        if not (0 <= from_index < len(self.keys)):
             return
 
-        # Reorder the visible habits list
-        reordered_habits = list(self.service.get_visible_habits())
-        dragged = reordered_habits.pop(from_index)
-        # Adjust target index if dragging downward (after pop, indices shift)
-        adjusted_to_index = to_index if to_index <= from_index else to_index - 1
-        reordered_habits.insert(adjusted_to_index, dragged)
+        dragged_row = self.keys[from_index]
+        if self._key_backer(dragged_row) is None:
+            return  # padding slot — nothing to reorder
 
-        # Persist via service (atomic transaction, updates in-memory list, notifies)
-        self.service.reorder_visible_habits(reordered_habits)
+        target_row = self.keys[to_index] if 0 <= to_index < len(self.keys) else None
 
-        # Play sound
+        rows = list(self._all_key_rows)
+        try:
+            src = next(i for i, r in enumerate(rows) if r is dragged_row)
+        except StopIteration:
+            return
+        rows.pop(src)
+
+        # A padding target (or out-of-range) means "drop at the very end".
+        if target_row is None or self._key_backer(target_row) is None:
+            rows.append(dragged_row)
+        else:
+            try:
+                dst = next(i for i, r in enumerate(rows) if r is target_row)
+            except StopIteration:
+                rows.append(dragged_row)
+            else:
+                rows.insert(dst, dragged_row)
+
+        ordered_backers = [b for b in (self._key_backer(r) for r in rows) if b is not None]
+
+        # Persist via service (atomic transaction, updates in-memory list, notifies,
+        # which triggers a rebuild + repaint through _on_habits_changed).
+        self.service.reorder_piano_keys(ordered_backers)
+
         self.sound_manager.play_sound('thunk')
 
     def on_reorder_mode_toggled(self, is_active: bool):
@@ -1079,7 +1269,7 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         """Refresh habits list when management window updates them"""
         self.service.refresh()
 
-    # ===== Sync Button =====
+    # ===== Control Panel Styling =====
 
     def _control_button_stylesheet(self, border_override: str = None, color_override: str = None) -> str:
         """Return a themed stylesheet for a control panel button."""
@@ -1106,16 +1296,12 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
 
     @staticmethod
     def _themed_icon(svg_path: str, color) -> QIcon:
-        """Return svg_path icon tinted to the given QColor via composition."""
-        base = QIcon(svg_path)
-        pixmap = base.pixmap(QSize(14, 14))
-        if pixmap.isNull():
-            return base
-        p = QPainter(pixmap)
-        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-        p.fillRect(pixmap.rect(), color)
-        p.end()
-        return QIcon(pixmap)
+        """Return svg_path with its ink set to the given QColor.
+
+        The ink color is substituted for ``currentColor`` in the SVG; any accent
+        colors the icon hard-codes (e.g. the amber in the glyph set) are kept."""
+        dpr = QApplication.primaryScreen().devicePixelRatio()
+        return QIcon(render_icon_pixmap(svg_path, ink_string(color), 14, dpr))
 
     def _setup_style(self):
         """Re-apply theme to all control panel buttons and repaint."""
@@ -1133,73 +1319,10 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
             btn.setStyleSheet(plain)
             btn.setIcon(self._themed_icon(svg_path, icon_color))
         self.add_task_button.setStyleSheet(plain)
-        # Rebuild cached sync spin pixmap with current theme color
-        sync_icon = self._themed_icon('gui/icons/sync.svg', icon_color)
-        self._sync_icon_pixmap = sync_icon.pixmap(QSize(14, 14))
-        self.sync_button.setIcon(sync_icon)
-        # Re-apply sync button only if fully initialized
-        if hasattr(self, '_sync_spin_timer'):
-            self._update_sync_button_state()
+        self.overflow_button.setStyleSheet(plain)
         # Re-apply mood button (it has its own icon logic)
         self.update_mood_button_icon()
         self.update()
-
-    def _apply_sync_button_style(self, active: bool):
-        """Apply active (peers in range) or muted (no peers) style to the sync button."""
-        from gui.themes.manager import ThemeManager
-        t = ThemeManager.get_instance().current
-        c = piano_colors()
-        border = t.status_active if active else c.FRAME_LIGHT.name()
-        hover_border = _parse_rgb(t.status_active).lighter(130).name() if active else c.ACCENT.name()
-        self.sync_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                border: 1px solid {border};
-                border-radius: 10px;
-            }}
-            QPushButton:hover {{
-                border-color: {hover_border};
-            }}
-        """)
-
-    def _update_sync_button_state(self):
-        """Poll sync state and update button visibility, color, and spin animation."""
-        try:
-            from core.sync.models import Device
-            from core.sync.service import SyncService
-            client = SyncService.get_instance().client
-            known = Device.select().where(Device.is_self == False).count()
-            peers_in_range = client.peer_count > 0
-            is_syncing = client.is_syncing
-        except Exception:
-            known = 0
-            peers_in_range = False
-            is_syncing = False
-
-        self.sync_button.setVisible(known > 0)
-        self._apply_sync_button_style(active=peers_in_range)
-
-        if is_syncing and not self._sync_spin_timer.isActive():
-            self._sync_spin_timer.start()
-        elif not is_syncing and self._sync_spin_timer.isActive():
-            self._sync_spin_timer.stop()
-            self._sync_rotation = 0
-            self.sync_button.setIcon(self._themed_icon('gui/icons/sync.svg', piano_colors().ACCENT))
-            self.sync_button.setIconSize(QSize(14, 14))
-
-    def _on_sync_spin_tick(self):
-        """Advance sync icon rotation by one frame."""
-        from PyQt6.QtGui import QTransform
-        self._sync_rotation = (self._sync_rotation + 12) % 360
-        transform = QTransform().rotate(self._sync_rotation)
-        rotated = self._sync_icon_pixmap.transformed(transform, Qt.TransformationMode.SmoothTransformation)
-        self.sync_button.setIcon(QIcon(rotated))
-
-    def on_sync_button_clicked(self):
-        """Open the drawer and navigate to the sync page."""
-        if not self.state.toggleable_drawer_visible:
-            self.toggle_toggleable_drawer()
-        self.music_sheet_widget.navigate_to_sync_page()
 
     # ===== Mood Management =====
 
@@ -1356,23 +1479,30 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         """Toggle notes widget visibility"""
         if self.notes_widget is None:
             return
-            
+
         if self.state.notes_visible:
             self.notes_widget.close()
         else:
-            # Calculate visible portion of window (accounting for hidden drawer mask)
-            drawer_width = self.geometry_model.toggleable_drawer_width
-            visible_start_x = drawer_width if not self.state.toggleable_drawer_visible else 0
-            visible_width = self.width() - visible_start_x
-            
-            # Position below window, aligned with visible portion
-            window_pos = self.pos()
-            window_height = self.height()
-            notes_x = window_pos.x() + visible_start_x
-            notes_y = window_pos.y() + window_height
-            
-            self.notes_widget.show_at_position(QPoint(notes_x, notes_y), visible_width)
-            self.state.notes_visible = True
+            self.open_notepad()
+
+    def open_notepad(self, note_id=None):
+        """Show the notepad pane, optionally pre-selected to a specific note."""
+        if self.notes_widget is None:
+            return
+
+        # Calculate visible portion of window (accounting for hidden drawer mask)
+        drawer_width = self.geometry_model.toggleable_drawer_width
+        visible_start_x = drawer_width if not self.state.toggleable_drawer_visible else 0
+        visible_width = self.width() - visible_start_x
+
+        # Position below window, aligned with visible portion
+        window_pos = self.pos()
+        window_height = self.height()
+        notes_x = window_pos.x() + visible_start_x
+        notes_y = window_pos.y() + window_height
+
+        self.notes_widget.show_at_position(QPoint(notes_x, notes_y), visible_width, note_id=note_id)
+        self.state.notes_visible = True
 
     def on_notes_closed(self):
         """Handle notes widget closed"""
@@ -1413,6 +1543,21 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         
         super().changeEvent(event)
 
+    def event(self, e):
+        from PyQt6.QtCore import QEvent
+        from PyQt6.QtWidgets import QToolTip
+        if e.type() == QEvent.Type.ToolTip:
+            note_rects = StaffStripPainter.get_note_rects(self.geometry_model, len(self._staff_titles))
+            pos = e.pos()
+            for i, rect in enumerate(note_rects):
+                if rect.contains(pos.x(), pos.y()):
+                    QToolTip.showText(e.globalPos(), self._staff_titles[i], self)
+                    return True
+            QToolTip.hideText()
+            e.ignore()
+            return True
+        return super().event(e)
+
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts."""
         # Check for Ctrl+F (or Cmd+F on macOS) to open search
@@ -1440,8 +1585,18 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         reminder = ReminderService.get_by_id(reminder_id)
         ActionHandler.show_notification_for_action(reminder, message, urgency)
 
-    def closeEvent(self, event):
-        """Clean up when window closes"""
+    def _shutdown(self):
+        """Tear down background workers and persist active sessions.
+
+        Idempotent and safe to call from any quit path. Depending on how the
+        app terminates, either closeEvent (window close, Cmd+W) or
+        QApplication.aboutToQuit (Cmd+Q, app.quit(), dock Quit) may fire first;
+        whichever wins runs the teardown, the other becomes a no-op.
+        """
+        if self._shutdown_done:
+            return
+        self._shutdown_done = True
+
         # Stop all sessions first (don't wait yet)
         if hasattr(self, 'session_manager'):
             self.session_manager.cleanup()
@@ -1466,4 +1621,7 @@ class PianoFloatingWindow(QWidget, ThemedWidget):
         if self.management_window is not None:
             self.management_window.close()
 
+    def closeEvent(self, event):
+        """Clean up when window closes"""
+        self._shutdown()
         event.accept()

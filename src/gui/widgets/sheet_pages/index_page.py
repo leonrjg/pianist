@@ -52,7 +52,13 @@ class IndexPage(SheetPage):
 
     def _rebuild_tasks(self):
         _service = getattr(self.window(), 'service', None)
-        habits = sorted(_service.get_all_habits(), key=lambda h: h.name) if _service else []
+        # Exclude hourly habits: they recur many times per day and would flood the
+        # task list with near-duplicate cards. Standalone manual tasks are pulled in
+        # separately by the task queries and are unaffected.
+        habits = sorted(
+            (h for h in _service.get_all_habits() if h.schedule != 'hourly'),
+            key=lambda h: h.name,
+        ) if _service else []
 
         task_layout = self._task_container.layout()
         while task_layout.count():

@@ -8,7 +8,6 @@ from core.schedule.schedule import Schedule
 from core.db import BaseModel
 
 from core.schedule.daily import DailySchedule
-from core.schedule.exponential import ExponentialSchedule
 from core.schedule.weekly import WeeklySchedule
 from core.schedule.monthly import MonthlySchedule
 from core.schedule.hourly import HourlySchedule
@@ -24,7 +23,7 @@ class Habit(BaseModel):
     Args:
         id: Unique identifier for the habit.
         name: Name of the habit.
-        schedule: Schedule type (e.g., 'hourly', 'daily', 'weekly', 'monthly', 'exponential_3').
+        schedule: Schedule type (e.g., 'hourly', 'daily', 'weekly', 'monthly').
         created_at: Timestamp when the habit was created.
         updated_at: Timestamp when the habit was last updated.
         started_at: Timestamp when the habit tracking started.
@@ -33,7 +32,6 @@ class Habit(BaseModel):
         allocated_time: Total allocated time for the habit in seconds (minimum time to qualify for streaks).
         visible: Whether the habit appears as a piano key (True) or only in drawer lists (False).
         archived: Whether the habit is archived (retired but historical data preserved).
-        note: Markdown notes for the habit.
     """
     id = UUIDField(primary_key=True, default=uuid.uuid4)
     name = CharField()
@@ -47,8 +45,8 @@ class Habit(BaseModel):
     allocated_time: Optional[int] = IntegerField(null=True)
     display_order = IntegerField(default=0)
     visible = BooleanField(default=True)
+    suppress_piano_key = BooleanField(default=False)
     archived = BooleanField(default=False)
-    note = TextField(null=True)
     device_id = CharField(default='')
     deleted_at = DateTimeField(null=True)
     
@@ -74,7 +72,6 @@ class Habit(BaseModel):
             'daily': lambda: DailySchedule(start=self.started_at, end=end, step=step),
             'weekly': lambda: WeeklySchedule(start=self.started_at, end=end, step=step),
             'monthly': lambda: MonthlySchedule(start=self.started_at, end=end, step=step),
-            'exponential_3': lambda: ExponentialSchedule(start=self.started_at, end=end, base=3),
         }
 
         if self.schedule not in registry:
@@ -195,8 +192,13 @@ class Habit(BaseModel):
 
         return checker
 
-    def _is_window_completed_by_log(self, min_threshold: datetime, max_threshold: datetime) -> bool:
-        """Check if any tracked session in [min_threshold, max_threshold) meets the completion threshold."""
+    def _logged_seconds_in_window(self, min_threshold: datetime, max_threshold: datetime) -> Optional[int]:
+        """Net tracked seconds from completed sessions started in [min_threshold, max_threshold).
+
+        Open (in-progress) sessions are excluded. Returns None when the window
+        contains no completed sessions, so callers can distinguish "no activity"
+        from "activity summing to zero".
+        """
         from core.habit.log import Log
 
         def date_to_int(dt):
@@ -207,18 +209,40 @@ class Habit(BaseModel):
                                       - fn.COALESCE(Log.idle_time, 0)
                                       + fn.COALESCE(Log.offset, 0)))
 
-        net = (Log.select(fn.SUM(duration_expr))
-               .where(
-                   (Log.habit == self) &
-                   (Log.start >= min_threshold) &
-                   (Log.start < max_threshold) &
-                   Log.end.is_null(False) &
-                   Log.deleted_at.is_null()
-               )
-               .scalar())
+        return (Log.select(fn.SUM(duration_expr))
+                .where(
+                    (Log.habit == self) &
+                    (Log.start >= min_threshold) &
+                    (Log.start < max_threshold) &
+                    Log.end.is_null(False) &
+                    Log.deleted_at.is_null()
+                )
+                .scalar())
+
+    def _is_window_completed_by_log(self, min_threshold: datetime, max_threshold: datetime) -> bool:
+        """Check if any tracked session in [min_threshold, max_threshold) meets the completion threshold."""
+        net = self._logged_seconds_in_window(min_threshold, max_threshold)
         if net is None:
             return False
         return net >= (self.allocated_time or 0)
+
+    def _period_bounds(self, at: datetime) -> tuple[datetime, datetime]:
+        """Return the [start, end) datetimes of the schedule period containing `at`."""
+        unit = self._schedule.get_scale()
+        min_threshold = at - timedelta(seconds=int(get_naive_timestamp(at)) % unit)
+        return min_threshold, min_threshold + timedelta(seconds=unit)
+
+    def get_logged_seconds(self, at: datetime = None) -> int:
+        """Net tracked seconds already logged in the schedule period containing `at`
+        (default: now), excluding any in-progress session. Zero when there is none.
+
+        Used to seed countdown targets so time accumulated by earlier sessions in
+        the same period counts toward ``allocated_time``.
+        """
+        if at is None:
+            at = datetime.now()
+        min_threshold, max_threshold = self._period_bounds(at)
+        return self._logged_seconds_in_window(min_threshold, max_threshold) or 0
 
     def is_task_completed(self, task: datetime) -> bool:
         """
@@ -232,9 +256,7 @@ class Habit(BaseModel):
         Returns:
             True if the task was completed (either tracked or manually), False otherwise.
         """
-        unit = self._schedule.get_scale()
-        min_threshold = task - timedelta(seconds=int(get_naive_timestamp(task)) % unit)
-        max_threshold = min_threshold + timedelta(seconds=unit)
+        min_threshold, max_threshold = self._period_bounds(task)
 
         if self._is_window_completed_by_log(min_threshold, max_threshold):
             return True

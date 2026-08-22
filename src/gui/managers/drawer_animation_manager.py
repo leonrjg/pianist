@@ -86,6 +86,17 @@ class DrawerAnimationManager(QObject):
             # Apply mask and trigger repaint
             self._apply_mask()
 
+    @property
+    def visible_start_x(self) -> int:
+        """X coordinate where the unmasked (visible) region begins.
+
+        Single source of truth for the window's visible left edge — used both to
+        build the mask and to align the rounded clip path in paintEvent so the
+        collapsed left edge is rounded to match the right window border.
+        """
+        current_drawer_width = self.window.geometry_model.toggleable_drawer_width
+        return current_drawer_width - self._mask_offset
+
     def _apply_mask(self):
         """
         Apply the current mask to the window.
@@ -105,7 +116,7 @@ class DrawerAnimationManager(QObject):
                 self._mask_offset = current_drawer_width
 
         # Calculate visible region start position
-        visible_start_x = current_drawer_width - self._mask_offset
+        visible_start_x = self.visible_start_x
 
         # Create and apply mask
         visible_region = QRegion(

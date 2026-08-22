@@ -6,11 +6,14 @@ from src.core.schedule.daily import DailySchedule
 from src.core.util.time import DAY
 
 
+FAR_END = datetime(2100, 1, 1, 12, 0, 0)
+
+
 @pytest.fixture
 def daily_schedule():
     """Create a DailySchedule starting at 2023-01-01 12:00:00."""
     start = datetime(2023, 1, 1, 12, 0, 0)
-    return DailySchedule(start)
+    return DailySchedule(start, FAR_END)
 
 
 class TestDailySchedule:
@@ -127,10 +130,12 @@ class TestDailySchedule:
         assert result == expected
     
     @pytest.mark.parametrize("timespan_days,expected_count", [
-        (1, 1),
-        (3, 3),
-        (7, 7),
-        (0, 0),
+        # now coincides with an occurrence (start), so the window [now, now+N days]
+        # is closed on both ends and contains N+1 occurrences.
+        (1, 2),
+        (3, 4),
+        (7, 8),
+        (0, 1),
     ])
     def test_get_next_tasks_count(self, daily_schedule, timespan_days, expected_count, monkeypatch):
         """Test get_next_tasks returns correct number of future tasks."""
@@ -171,10 +176,13 @@ class TestDailySchedule:
         monkeypatch.setattr('src.core.schedule.daily.datetime', MockDateTime())
         
         timespan_seconds = 3 * DAY
-        result = daily_schedule.get_next_tasks(timespan_seconds)
-        
-        # Should be ordered from earliest to latest
+        # get_next_tasks returns an unordered set for the daily schedule, so sort
+        # before asserting order (see DailySchedule.get_next_tasks return type).
+        result = sorted(daily_schedule.get_next_tasks(timespan_seconds))
+
+        # Window [now, now+3 days] with now on an occurrence: today's task through day+3.
         expected = [
+            datetime(2023, 1, 1, 12, 0, 0),
             datetime(2023, 1, 2, 12, 0, 0),
             datetime(2023, 1, 3, 12, 0, 0),
             datetime(2023, 1, 4, 12, 0, 0),
@@ -186,7 +194,7 @@ class TestDailySchedule:
         """Test daily schedule behavior during leap year."""
         # Test with leap year date
         start = datetime(2024, 2, 28, 10, 0, 0)
-        schedule = DailySchedule(start)
+        schedule = DailySchedule(start, FAR_END)
 
         # Test next task after leap day
         leap_day = datetime(2024, 2, 29, 15, 0, 0)
@@ -198,7 +206,7 @@ class TestDailySchedule:
         """Test daily schedule behavior during daylight saving time transition."""
         # Test around daylight saving time transition (if applicable)
         start = datetime(2023, 3, 12, 2, 30, 0)  # DST transition date in US
-        schedule = DailySchedule(start)
+        schedule = DailySchedule(start, FAR_END)
 
         next_day = datetime(2023, 3, 13, 1, 0, 0)
         result = schedule.get_next_task(next_day)
@@ -208,7 +216,7 @@ class TestDailySchedule:
     def test_get_previous_task_get_next_task_consistency(self):
         """Test consistency between get_previous_task and get_next_task methods."""
         start = datetime(2023, 1, 1, 12, 0, 0)
-        schedule = DailySchedule(start)
+        schedule = DailySchedule(start, FAR_END)
 
         # Start from a scheduled task time
         t1 = schedule.get_next_task(start + timedelta(days=3))

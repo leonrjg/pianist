@@ -47,14 +47,14 @@ class SearchBarWidget(QFrame, ThemedWidget):
         self._counter_label.setFixedWidth(45)
         self._counter_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._counter_label)
-        
+
         # Close button
         self._close_button = QPushButton("×")
         self._close_button.setFixedSize(20, 20)
         self._close_button.clicked.connect(self.close_requested.emit)
         self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
         layout.addWidget(self._close_button)
-        
+
         self._setup_style()
     
     def _setup_style(self):

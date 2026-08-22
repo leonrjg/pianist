@@ -34,7 +34,8 @@ class Reminder(BaseModel):
 
     # Scheduling
     last_fired_at = DateTimeField(null=True)
-    next_fire_at = DateTimeField(null=True)
+    next_fire_at = DateTimeField(null=True)  # schedule-owned: when the occurrence is due
+    snooze_until = DateTimeField(null=True)  # user-owned: defer firing until at least this time
     fixed_time_minute = IntegerField(null=True)  # minutes from midnight for fixed reminders
     active_start_minute = IntegerField(default=0)  # minutes from midnight
     active_end_minute = IntegerField(default=1440)  # minutes from midnight

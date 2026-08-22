@@ -148,6 +148,12 @@ class Note(BaseModel):
         self.updated_at = datetime.now()
         self.save()
 
+    def delete_note(self) -> None:
+        """Soft-delete the note."""
+        self.deleted_at = datetime.now()
+        self.updated_at = datetime.now()
+        self.save()
+
     def update_content(self, content: str) -> None:
         """
         Update the note content and timestamp.

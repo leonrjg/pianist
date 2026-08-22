@@ -85,8 +85,9 @@ class ReminderService:
                 was_overdue=is_overdue
             )
 
-            # Update last_fired_at
+            # Update last_fired_at; a fire consumes any pending snooze
             reminder.last_fired_at = now
+            reminder.snooze_until = None
 
             if reminder.reminder_type == 'fixed':
                 cls.complete_fixed_fire(reminder)
@@ -178,11 +179,17 @@ class ReminderService:
         return list(Reminder.select().where(Reminder.deleted_at.is_null()).order_by(Reminder.created_at.desc()))
 
     @classmethod
-    def get_for_reminders_page(cls, include_habit_linked: bool = False) -> List[Reminder]:
+    def get_for_reminders_page(
+        cls,
+        include_habit_linked: bool = False,
+        include_one_off: bool = True,
+    ) -> List[Reminder]:
         """Reminders shown on the standalone reminders page."""
         query = Reminder.select().where(Reminder.deleted_at.is_null())
         if not include_habit_linked:
             query = query.where(Reminder.habit.is_null())
+        if not include_one_off:
+            query = query.where(Reminder.manual_task.is_null())
         return list(query.order_by(Reminder.created_at.desc()))
 
     @classmethod
@@ -207,23 +214,25 @@ class ReminderService:
 
     @classmethod
     def get_overdue_stochastic(cls, now: datetime) -> List[Reminder]:
-        """Enabled stochastic reminders with next_fire_at in the past."""
+        """Enabled, un-snoozed stochastic reminders with next_fire_at in the past."""
         return list(Reminder.select().where(
             (Reminder.is_enabled == True) &
             (Reminder.reminder_type == 'stochastic') &
             (Reminder.next_fire_at.is_null(False)) &
             (Reminder.next_fire_at < now) &
+            (Reminder.snooze_until.is_null() | (Reminder.snooze_until <= now)) &
             Reminder.deleted_at.is_null()
         ))
 
     @classmethod
     def get_overdue_fixed(cls, now: datetime) -> List[Reminder]:
-        """Enabled fixed reminders with next_fire_at in the past."""
+        """Enabled, un-snoozed fixed reminders with next_fire_at in the past."""
         return list(Reminder.select().where(
             (Reminder.is_enabled == True) &
             (Reminder.reminder_type == 'fixed') &
             (Reminder.next_fire_at.is_null(False)) &
             (Reminder.next_fire_at < now) &
+            (Reminder.snooze_until.is_null() | (Reminder.snooze_until <= now)) &
             Reminder.deleted_at.is_null()
         ))
 
@@ -381,6 +390,8 @@ class ReminderService:
             ):
                 reminder.is_enabled = False
 
+        # Advancing the schedule retires any pending snooze for the old occurrence.
+        reminder.snooze_until = None
         reminder.updated_at = now
         reminder.save()
 
@@ -489,11 +500,25 @@ class ReminderService:
         cls.reschedule(reminder, datetime.now())
 
     @classmethod
-    def snooze(cls, reminder: Reminder, hours: float) -> None:
-        """Delay a reminder's next firing by the given number of hours."""
-        reminder.next_fire_at = datetime.now() + timedelta(hours=hours)
-        reminder.updated_at = datetime.now()
+    def snooze(cls, reminder: Reminder, minutes: int) -> None:
+        """Defer a reminder's firing by the given number of minutes.
+
+        Sets the user-owned ``snooze_until`` floor without touching the
+        schedule-owned ``next_fire_at``. The reminder will not fire until
+        ``snooze_until`` has passed (see :meth:`is_snoozed`).
+        """
+        now = datetime.now()
+        reminder.snooze_until = now + timedelta(minutes=minutes)
+        reminder.updated_at = now
         reminder.save()
+
+    @classmethod
+    def is_snoozed(cls, reminder: Reminder, now: datetime = None) -> bool:
+        """Return whether a user-initiated snooze is still suppressing this reminder."""
+        snooze_until = getattr(reminder, 'snooze_until', None)
+        if snooze_until is None:
+            return False
+        return snooze_until > (now or datetime.now())
 
     @classmethod
     def skip_occurrence(cls, reminder: Reminder) -> None:
@@ -511,12 +536,14 @@ class ReminderService:
             logger.warning("skip_occurrence: no current task found for reminder %s — habit may have ended", reminder.id)
             reminder.is_enabled = False
             reminder.next_fire_at = None
+            reminder.snooze_until = None
             reminder.updated_at = now
             reminder.save()
             return
 
         past_current = current_task + timedelta(seconds=scale_seconds)
         reminder.next_fire_at = cls.get_next_habit_stochastic_fire_time(reminder, from_dt=past_current)
+        reminder.snooze_until = None
         reminder.updated_at = now
         reminder.save()
 

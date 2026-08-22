@@ -30,6 +30,7 @@ class ManualTask(BaseModel):
     scheduled_at = DateTimeField(index=True)
     completed_at = DateTimeField(null=True)
     created_at = DateTimeField(default=datetime.now)
+    display_order = IntegerField(default=0)
     device_id = CharField(default='')
     updated_at = DateTimeField(default=datetime.now)
     deleted_at = DateTimeField(null=True)

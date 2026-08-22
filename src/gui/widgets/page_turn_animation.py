@@ -84,7 +84,7 @@ class PageTurnAnimation(QObject):
 
             # Slide current widget out
             current_slide = QPropertyAnimation(current_widget, b"geometry")
-            current_slide.setDuration(400)
+            current_slide.setDuration(180)
             current_slide.setStartValue(self._original_geometry)
             current_slide.setEndValue(QRect(
                 current_end_x,
@@ -96,7 +96,7 @@ class PageTurnAnimation(QObject):
 
             # Slide next widget in
             next_slide = QPropertyAnimation(next_widget, b"geometry")
-            next_slide.setDuration(400)
+            next_slide.setDuration(180)
             next_slide.setStartValue(QRect(
                 next_start_x,
                 self._original_geometry.y(),
@@ -110,7 +110,7 @@ class PageTurnAnimation(QObject):
             current_effect = QGraphicsOpacityEffect()
             current_widget.setGraphicsEffect(current_effect)
             current_fade = QPropertyAnimation(current_effect, b"opacity")
-            current_fade.setDuration(400)
+            current_fade.setDuration(180)
             current_fade.setStartValue(1.0)
             current_fade.setEndValue(0.3)
             current_fade.setEasingCurve(QEasingCurve.Type.InOutQuad)
@@ -118,7 +118,7 @@ class PageTurnAnimation(QObject):
             next_effect = QGraphicsOpacityEffect()
             next_widget.setGraphicsEffect(next_effect)
             next_fade = QPropertyAnimation(next_effect, b"opacity")
-            next_fade.setDuration(400)
+            next_fade.setDuration(180)
             next_fade.setStartValue(0.3)
             next_fade.setEndValue(1.0)
             next_fade.setEasingCurve(QEasingCurve.Type.InOutQuad)

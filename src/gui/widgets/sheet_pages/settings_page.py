@@ -68,6 +68,13 @@ class SettingsPage(SheetPage):
         self._build_ical_section(layout)
         layout.addWidget(self._create_separator())
 
+        # --- Sync ---
+        layout.addSpacing(12)
+        layout.addWidget(self._create_section_header("Sync"))
+        sync = self._create_link_label('Manage devices', lambda: self.navigate_to.emit('sync', None))
+        layout.addWidget(sync)
+        layout.addWidget(self._create_separator())
+
         # --- Export ---
         layout.addSpacing(12)
         layout.addWidget(self._create_section_header("Export"))

@@ -106,8 +106,12 @@ class PianoLayout:
 
     # Window dimensions
     DEFAULT_WINDOW_WIDTH = 300  # Default width (can be larger than minimum)
-    DEFAULT_WINDOW_HEIGHT = 315
-    MIN_KEYS_WIDTH = 90
+    # Default to 4 full piano keys. Expressed as the half-key snap target
+    # (n * KEY_HEIGHT + KEY_HEIGHT // 2 + 1) so it lands exactly on the layout's
+    # snap grid and opens without an initial resize jump.
+    DEFAULT_WINDOW_KEYS = 4
+    DEFAULT_WINDOW_HEIGHT = DEFAULT_WINDOW_KEYS * KEY_HEIGHT + KEY_HEIGHT // 2 + 1
+    MIN_KEYS_WIDTH = 81  # ~10% narrower than the former 90; shrinks the whole window accordingly
     MIN_WINDOW_WIDTH = int(3 * (FALLBOARD_WIDTH + MIN_KEYS_WIDTH + CONTROL_PANEL_WIDTH))
     # Rounded up to the nearest valid half-key snap target (n * KEY_HEIGHT + KEY_HEIGHT // 2 + 1)
     # so Qt's size floor and the snap formula always agree.
@@ -218,8 +222,8 @@ class Interactions:
     PEDAL_CLICK_RADIUS = 12  # Click detection radius for pedals
 
     # Resize detection zones
-    RESIZE_EDGE_THRESHOLD = 8  # Pixels from edge for straight edge resizing
-    RESIZE_CORNER_THRESHOLD = 20  # Pixels from corner for diagonal resizing
+    RESIZE_EDGE_THRESHOLD = 5  # Pixels from edge for straight edge resizing
+    RESIZE_CORNER_THRESHOLD = 14  # Pixels from corner for diagonal resizing
 
 
 class Audio:

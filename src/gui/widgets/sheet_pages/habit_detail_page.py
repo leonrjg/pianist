@@ -5,22 +5,23 @@ Habit Detail Page - View and edit individual habit details.
 
 from datetime import datetime
 
-from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QMessageBox, QWidget)
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QMessageBox, QWidget, QInputDialog)
 from PyQt6.QtCore import Qt, QDate
 
 from core.tracker.registry import TrackerRegistry
 from . import HabitStatCard
 from .base_page import SheetPage
 from .reminder_card import ReminderCard
+from .notepad_card import NotepadCard
 from ..themed_dropdown import ThemedDropdown
 from ..themed_form_widgets import ThemedLineEdit, ThemedSpinBox, ThemedCheckBox, ThemedButton, ThemedDateEdit, ThemedFormSection
-from .notes_widget import NotesWidget
 from ..tracker_help_widget import TrackerHelpWidget
 
 # Import database models
 from core.db import db
 from core.habit.habit import Habit
 from core.habit.service import HabitService
+from core.notes.service import NoteService
 from core.reminder.service import ReminderService
 
 
@@ -39,8 +40,8 @@ class HabitDetailPage(SheetPage):
         self._duration_spin = None
         self._timeout_spin = None
         self._visible_checkbox = None
+        self._suppress_key_checkbox = None
         self._archive_button = None
-        self._notes_widget = None
         self._create_default_reminder_checkbox = None
 
         # Dynamic tracker widgets - populated during build_content
@@ -100,7 +101,7 @@ class HabitDetailPage(SheetPage):
         basic_section.add_field("Name:", self._name_edit)
 
         # Schedule field
-        schedules = ['hourly', 'daily', 'weekly', 'monthly', 'exponential_3']
+        schedules = ['hourly', 'daily', 'weekly', 'monthly']
         default_schedule = self.habit.schedule if self.habit else None
         self._schedule_dropdown = ThemedDropdown(schedules, default_schedule)
         basic_section.add_field("Schedule:", self._schedule_dropdown)
@@ -174,6 +175,8 @@ class HabitDetailPage(SheetPage):
         # Duration field
         self._duration_spin = ThemedSpinBox()
         self._duration_spin.setMinimum(0)
+        # No practical upper bound (QSpinBox otherwise defaults to 99 minutes).
+        self._duration_spin.setMaximum(2147483647)
         self._duration_spin.setMaximumWidth(140)
         if self.habit and self.habit.allocated_time:
             self._duration_spin.setValue(self.habit.allocated_time // 60)
@@ -200,6 +203,13 @@ class HabitDetailPage(SheetPage):
         if self.habit and self.habit.archived:
             self._visible_checkbox.setEnabled(False)
         display_section.add_widget(self._visible_checkbox)
+
+        # Never show as key checkbox
+        self._suppress_key_checkbox = ThemedCheckBox("Never show as piano key")
+        self._suppress_key_checkbox.setChecked(self.habit.suppress_piano_key if self.habit else False)
+        if self.habit and self.habit.archived:
+            self._suppress_key_checkbox.setEnabled(False)
+        display_section.add_widget(self._suppress_key_checkbox)
 
         form_layout.addWidget(display_section)
 
@@ -286,13 +296,25 @@ class HabitDetailPage(SheetPage):
         form_layout.addStretch()
         layout.addWidget(form_widget)
 
-        # Notes section
-        notes_section = ThemedFormSection("Notes")
-        self._notes_widget = NotesWidget(parent=self)
-        if self.habit and self.habit.note:
-            self._notes_widget.set_note(self.habit.note)
-        notes_section.add_widget(self._notes_widget)
-        form_layout.addWidget(notes_section)
+        # Notepads section - lists notepads scoped to this habit; editing
+        # happens in the toggleable notepad pane, opened from here.
+        notepads_section = ThemedFormSection("Notepads")
+        if self.habit:
+            new_notepad_btn = ThemedButton("+ New notepad", button_type="secondary", parent=self)
+            new_notepad_btn.clicked.connect(self._create_notepad)
+            notepads_section.add_widget(new_notepad_btn)
+
+            notepads = NoteService.list_habit_notes(self.habit)
+            if notepads:
+                for note in notepads:
+                    card = NotepadCard(note, self)
+                    card.open_clicked.connect(self._open_notepad)
+                    notepads_section.add_widget(card)
+            else:
+                notepads_section.add_widget(self._create_text_label("No notepads for this habit.", secondary=True))
+        else:
+            notepads_section.add_widget(self._create_text_label("Save this habit before adding notepads.", secondary=True))
+        form_layout.addWidget(notepads_section)
 
         # Reminders section
         reminders_section = ThemedFormSection("Reminders")
@@ -405,6 +427,22 @@ class HabitDetailPage(SheetPage):
                     config_dict = self._parse_config_string(config_edit.text())
                     help_widget.set_tracker(tracker_name, config_dict)
 
+    def _open_notepad(self, note):
+        """Open the toggleable notepad pane pre-selected to this notepad."""
+        window = self.window()
+        if hasattr(window, 'open_notepad'):
+            window.open_notepad(note.id)
+
+    def _create_notepad(self):
+        """Create a new notepad scoped to this habit."""
+        title, accepted = QInputDialog.getText(self, "New notepad", "Name")
+        if not accepted:
+            return
+
+        title = title.strip() or None
+        NoteService.create_habit_note(self.habit, title=title)
+        self.refresh()
+
     def _create_reminder(self):
         self.navigate_to.emit('reminder_detail', {
             'default_habit_id': self.habit.id,
@@ -441,8 +479,8 @@ class HabitDetailPage(SheetPage):
         duration = self._duration_spin.value()
         timeout = self._timeout_spin.value()
         visible = self._visible_checkbox.isChecked()
-        note = self._notes_widget.get_note()
-        
+        suppress_piano_key = self._suppress_key_checkbox.isChecked()
+
         # Get start date from date picker
         qdate = self._start_date_edit.date()
         from datetime import datetime
@@ -493,7 +531,7 @@ class HabitDetailPage(SheetPage):
                     self.habit.inactivity_threshold = timeout
 
                 self.habit.visible = visible
-                self.habit.note = note if note.strip() else None
+                self.habit.suppress_piano_key = suppress_piano_key
 
                 self.habit.save()
 

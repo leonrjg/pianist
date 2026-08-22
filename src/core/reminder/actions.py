@@ -13,8 +13,6 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt
-
 # Set up logger
 logger = logging.getLogger(__name__)
 
@@ -24,6 +22,9 @@ if TYPE_CHECKING:
 
 class ActionHandler:
     """Handles execution of reminder actions."""
+
+    # Snooze durations offered on habit reminder notifications: (label, minutes)
+    SNOOZE_PRESETS = [("10m", 10), ("1h", 60), ("3h", 180), ("8h", 480), ("1d", 1440)]
 
     @classmethod
     def get_message(cls, reminder) -> str:
@@ -179,6 +180,53 @@ class ActionHandler:
             return f"Unexpected error: {str(e)}"
 
     @classmethod
+    def _make_snooze_button(cls, get_toast, reminder, on_back, subtitle):
+        """Build a 'Snooze' button that swaps the toast to a preset-duration sub-view.
+
+        Shared by habit and fixed reminder notifications so both offer the same
+        snooze choices (see :attr:`SNOOZE_PRESETS`).
+
+        Args:
+            get_toast: Zero-arg callable returning the live toast (late-bound, as
+                the toast is created after the buttons that reference it).
+            reminder: Reminder to snooze.
+            on_back: Callback restoring the toast's primary buttons.
+            subtitle: Title shown on the preset view and in the confirmation.
+        """
+        def show_presets():
+            from core.reminder.service import ReminderService
+
+            def make_preset(label, minutes):
+                def do_snooze():
+                    try:
+                        ReminderService.snooze(reminder, minutes)
+                        get_toast().update_content(
+                            title="Snoozed",
+                            message=f"{subtitle} snoozed for {label}",
+                            buttons=[],
+                            auto_close_after=1500
+                        )
+                    except Exception as e:
+                        logger.exception("Error snoozing reminder")
+                        get_toast().update_content(
+                            title="Error",
+                            message=f"Failed to snooze: {str(e)}",
+                            buttons=[],
+                            auto_close_after=3000
+                        )
+                return {"label": label, "callback": do_snooze, "color": "rgba(90, 90, 110, 160)"}
+
+            buttons = [make_preset(label, minutes) for label, minutes in cls.SNOOZE_PRESETS]
+            buttons.append({"label": "Back", "callback": on_back, "color": "rgba(90, 90, 110, 160)"})
+            get_toast().update_content(
+                title=subtitle,
+                message="Snooze for…",
+                buttons=buttons,
+            )
+
+        return {"label": "Snooze", "callback": show_presets, "color": "rgba(90, 90, 110, 160)"}
+
+    @classmethod
     def show_notification_for_action(cls, reminder: 'Reminder', message: str, urgency: str = 'normal'):
         """
         Orchestrate notification flow based on action type.
@@ -196,6 +244,11 @@ class ActionHandler:
         from core.integrations.anki_service import AnkiService
 
         notification_service = NotificationService.get_instance()
+
+        # Suppress a fresh notification while one for this reminder is still on screen.
+        if notification_service.is_showing_task(reminder.id):
+            logger.info("Reminder %s already has a visible notification — skipping", reminder.id)
+            return
 
         if getattr(reminder, 'habit_id', None):
             from core.reminder.service import ReminderService
@@ -233,11 +286,16 @@ class ActionHandler:
                 except Exception as e:
                     logger.exception("Error skipping reminder occurrence")
 
-            toast = notification_service.show_toast(
-                reminder.habit.name,
-                message,
-                urgency=urgency,
-                buttons=[
+            def show_primary():
+                toast.update_content(
+                    title=reminder.habit.name,
+                    message=message,
+                    buttons=primary_buttons(),
+                )
+
+            def primary_buttons():
+                return [
+                    cls._make_snooze_button(lambda: toast, reminder, show_primary, reminder.habit.name),
                     {
                         "label": "Skip",
                         "callback": skip_occurrence,
@@ -249,8 +307,14 @@ class ActionHandler:
                         "color": "rgba(100, 180, 120, 200)",
                         "primary": True,
                     },
-                ],
-                key_bindings={Qt.Key.Key_Return: mark_done}
+                ]
+
+            toast = notification_service.show_toast(
+                reminder.habit.name,
+                message,
+                urgency=urgency,
+                buttons=primary_buttons(),
+                dedup_key=reminder.id
             )
             return
 
@@ -260,7 +324,7 @@ class ActionHandler:
 
             card = AnkiService.get_cached_card(reminder.id)
             if not card:
-                notification_service.show_toast(reminder.name, message, 5000, 'normal')
+                notification_service.show_toast(reminder.name, message, 5000, 'normal', dedup_key=reminder.id)
                 return
 
             deck_name = reminder.action_payload
@@ -301,7 +365,6 @@ class ActionHandler:
                                 "color": "rgba(100, 140, 180, 200)",
                                 "primary": True,
                             }],
-                            key_bindings={(Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier): undo},
                             auto_close_after=5000
                         )
                         logger.info(f"[ANKI RATING] Toast updated to show success")
@@ -313,7 +376,6 @@ class ActionHandler:
                             title="Error",
                             message=f"Failed to submit rating: {str(e)}",
                             buttons=[],
-                            key_bindings={},
                             auto_close_after=3000
                         )
 
@@ -326,7 +388,6 @@ class ActionHandler:
                             title="Error",
                             message=f"Unexpected error: {str(e)}",
                             buttons=[],
-                            key_bindings={},
                             auto_close_after=3000
                         )
 
@@ -342,12 +403,6 @@ class ActionHandler:
                     title=f"{active_card.deck_name} - Answer",
                     message=active_card.back,
                     buttons=rating_buttons,
-                    key_bindings={
-                        Qt.Key.Key_1: lambda: rate(1, "Again"),
-                        Qt.Key.Key_2: lambda: rate(2, "Hard"),
-                        Qt.Key.Key_3: lambda: rate(3, "Good"),
-                        Qt.Key.Key_4: lambda: rate(4, "Easy"),
-                    }
                 )
 
             _edit_icon = os.path.join(os.path.dirname(__file__), '..', '..', 'gui', 'icons', 'edit.svg')
@@ -401,7 +456,6 @@ class ActionHandler:
                     title=f"{new_card.deck_name} - Question",
                     message=new_card.front,
                     buttons=make_question_buttons(new_card),
-                    key_bindings={Qt.Key.Key_Space: lambda: show_answer(new_card)}
                 )
 
             def fetch_next_card():
@@ -422,10 +476,10 @@ class ActionHandler:
                 f"{card.deck_name} - Question",
                 card.front,
                 buttons=make_question_buttons(card),
-                key_bindings={Qt.Key.Key_Space: lambda: show_answer(card)}
+                dedup_key=reminder.id
             )
 
-        # Simple notification — fixed reminders get a snooze button
+        # Fixed reminders get the same preset snooze sub-view as habit reminders
         elif reminder.reminder_type == 'fixed':
             if urgency == 'high':
                 duration = 15000
@@ -436,27 +490,24 @@ class ActionHandler:
 
             toast = None
 
-            def snooze_1h():
-                from core.reminder.service import ReminderService
-                ReminderService.snooze(reminder, hours=1)
+            def show_primary():
                 toast.update_content(
-                    title="Snoozed",
-                    message="Reminder snoozed for 1 hour",
-                    buttons=[],
-                    auto_close_after=1500
+                    title=reminder.name,
+                    message=message,
+                    buttons=primary_buttons(),
                 )
+
+            def primary_buttons():
+                return [cls._make_snooze_button(lambda: toast, reminder, show_primary, reminder.name)]
 
             toast = notification_service.show_toast(
                 reminder.name,
                 message,
                 duration,
                 urgency,
-                buttons=[{
-                    "label": "Snooze 1h",
-                    "callback": snooze_1h,
-                    "color": "rgba(90, 90, 110, 160)",
-                }]
+                buttons=primary_buttons(),
+                dedup_key=reminder.id
             )
 
         else:
-            notification_service.show_reminder_notification(reminder.name, message, urgency)
+            notification_service.show_reminder_notification(reminder.name, message, urgency, dedup_key=reminder.id)

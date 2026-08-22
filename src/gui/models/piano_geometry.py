@@ -123,54 +123,60 @@ class PianoGeometry:
             int(self.black_key_height)
         )
 
-    def get_time_adjustment_buttons_rects(self, key_index: int) -> dict:
+    def get_time_adjustment_buttons_rects(self, key_index: int, include_mode: bool = False) -> dict:
         """
         Get rectangles for time adjustment buttons on a black key.
-        Buttons are horizontally stacked (minus on left, plus on right).
+        Buttons are horizontally stacked, flush with the right edge.
+
+        When `include_mode` is True (habit has an allocated minimum time) a
+        countdown/stopwatch toggle is added to the left of the +/- pair:
+        [mode][minus][plus]. Otherwise just [minus][plus].
 
         Returns:
-            dict with 'plus' and 'minus' QRect objects
+            dict with 'minus' and 'plus' (and 'mode' when included) QRect objects
         """
         black_key_rect = self.get_black_key_rect(key_index)
         button_size = 12
-        button_spacing = 0  # Buttons touch each other
+        count = 3 if include_mode else 2
 
-        # Total width for both buttons
-        total_width = button_size * 2 + button_spacing
-
-        # Buttons flush with right edge (0px margin)
-        buttons_start_x = black_key_rect.x() + black_key_rect.width() - total_width
+        # Buttons touch each other, flush with the right edge (0px margin)
+        buttons_start_x = black_key_rect.x() + black_key_rect.width() - button_size * count
 
         # Center vertically in the black key
         button_y = black_key_rect.y() + (black_key_rect.height() - button_size) / 2
 
-        return {
-            'minus': QRect(int(buttons_start_x), int(button_y), button_size, button_size),
-            'plus': QRect(int(buttons_start_x + button_size + button_spacing), int(button_y), button_size, button_size)
-        }
+        rects = {}
+        x = buttons_start_x
+        if include_mode:
+            rects['mode'] = QRect(int(x), int(button_y), button_size, button_size)
+            x += button_size
+        rects['minus'] = QRect(int(x), int(button_y), button_size, button_size)
+        x += button_size
+        rects['plus'] = QRect(int(x), int(button_y), button_size, button_size)
+        return rects
 
     @property
     def time_button_width(self) -> int:
         """Width of time adjustment buttons for layout calculations (0 = overlay, don't reserve space)"""
         return 0  # Buttons overlay the time display on hover
 
-    def get_time_button_at_point(self, pos: QPoint, key_index: int) -> Optional[str]:
+    def get_time_button_at_point(self, pos: QPoint, key_index: int, include_mode: bool = False) -> Optional[str]:
         """
         Check if point is on a time button for the given key.
 
         Args:
             pos: Point to check
             key_index: Index of the key to check
+            include_mode: Whether the mode-toggle button is present for this key
 
         Returns:
-            'plus', 'minus', or None
+            'plus', 'minus', 'mode', or None
         """
-        buttons = self.get_time_adjustment_buttons_rects(key_index)
+        buttons = self.get_time_adjustment_buttons_rects(key_index, include_mode=include_mode)
 
-        if buttons['plus'].contains(pos):
-            return 'plus'
-        elif buttons['minus'].contains(pos):
-            return 'minus'
+        for button_type, rect in buttons.items():
+            if rect.contains(pos):
+                return button_type
 
         return None
 
@@ -196,15 +202,8 @@ class PianoGeometry:
         ]
 
     def get_hinge_click_areas(self) -> list[QRect]:
-        """Get clickable area for fallboard « symbol (drawer toggle)"""
-        # Click area centered on the « symbol in the middle of fallboard
-        fallboard_rect = self.fallboard_rect
-        x_center = fallboard_rect.x() + (self.fallboard_width // 2)
-        y_center = fallboard_rect.y() + (self.window_height // 2)
-        # Create a clickable area around the « symbol
-        return [
-            QRect(int(x_center - 15), int(y_center - 15), 30, 30)
-        ]
+        """Clickable areas for the drawer toggle. Staff note rects are handled by the window."""
+        return []
 
     def get_pedal_positions(self) -> list[tuple[int, int, int, int]]:
         """Get positions for decorative pedals as (x, y, width, height) tuples"""

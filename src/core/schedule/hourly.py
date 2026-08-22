@@ -57,13 +57,14 @@ class HourlySchedule(RegularSchedule):
             List of upcoming hourly task datetimes, ordered from earliest
             to latest.
         """
-        now = datetime.now()
-        hours = timespan // (time.HOUR * self.step)
+        cutoff = datetime.now() + timedelta(seconds=timespan)
 
         tasks = []
-        current = now
-        for _ in range(hours):
+        current = datetime.now() - timedelta(hours=self.step)
+        while True:
             next_task = self.get_next_task(current)
+            if next_task is None or next_task > cutoff:
+                break
             tasks.append(next_task)
             current = next_task
         return tasks

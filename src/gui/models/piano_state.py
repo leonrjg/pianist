@@ -53,6 +53,18 @@ class PianoState(QObject):
         # ===== Session State =====
         # Maps habit_id -> time display string (e.g., "5m 23s")
         self._time_displays: Dict = {}
+        # Raw (tracked) elapsed seconds per habit, kept so the black-key display can
+        # be re-rendered instantly when the countdown/stopwatch mode is toggled.
+        self._session_elapsed: Dict = {}
+        # Explicit per-habit display mode override ('countdown' or 'stopwatch').
+        # Absent = use the default (countdown when the habit has an allocated_time).
+        self._session_time_mode: Dict = {}
+        # Whether the current countdown display is past its target (overtime),
+        # so the painter can render it in the accent colour.
+        self._session_overtime: Dict = {}
+        # Net seconds already logged this period before the current session began,
+        # captured at session start so countdown targets account for prior sessions.
+        self._session_prior_seconds: Dict = {}
 
         # ===== Habit Data =====
         self._num_habits = 0  # Total number of habits loaded
@@ -256,18 +268,51 @@ class PianoState(QObject):
 
     # ===== Session Properties =====
 
-    def set_time_display(self, habit_id, time_text: str):
-        """Set time display for a habit"""
+    def set_time_display(self, habit_id, time_text: str, overtime: bool = False):
+        """Set time display for a habit. `overtime` flags a countdown that has
+        passed its target, so the painter renders it in the accent colour."""
         self._time_displays[habit_id] = time_text
+        self._session_overtime[habit_id] = overtime
 
     def get_time_display(self, habit_id) -> Optional[str]:
         """Get time display for a habit"""
         return self._time_displays.get(habit_id)
 
+    def is_time_display_overtime(self, habit_id) -> bool:
+        """Whether the habit's current countdown display is past its target."""
+        return self._session_overtime.get(habit_id, False)
+
+    def set_session_elapsed(self, habit_id, seconds: int):
+        """Store the raw tracked elapsed seconds for a habit's active session."""
+        self._session_elapsed[habit_id] = seconds
+
+    def get_session_elapsed(self, habit_id) -> Optional[int]:
+        """Get the raw tracked elapsed seconds, or None if no active session."""
+        return self._session_elapsed.get(habit_id)
+
+    def get_session_time_mode(self, habit_id) -> Optional[str]:
+        """Explicit display-mode override ('countdown'/'stopwatch'), or None for default."""
+        return self._session_time_mode.get(habit_id)
+
+    def set_session_time_mode(self, habit_id, mode: str):
+        """Override the black-key display mode for a habit's current session."""
+        self._session_time_mode[habit_id] = mode
+
+    def set_session_prior_seconds(self, habit_id, seconds: int):
+        """Store net seconds logged this period before the current session started."""
+        self._session_prior_seconds[habit_id] = seconds
+
+    def get_session_prior_seconds(self, habit_id) -> int:
+        """Net seconds logged this period before the current session (0 if none)."""
+        return self._session_prior_seconds.get(habit_id, 0)
+
     def clear_time_display(self, habit_id):
-        """Clear time display for a habit"""
-        if habit_id in self._time_displays:
-            del self._time_displays[habit_id]
+        """Clear all session display state for a habit (called on session end)."""
+        self._time_displays.pop(habit_id, None)
+        self._session_elapsed.pop(habit_id, None)
+        self._session_time_mode.pop(habit_id, None)
+        self._session_overtime.pop(habit_id, None)
+        self._session_prior_seconds.pop(habit_id, None)
 
     def has_active_session(self, habit_id) -> bool:
         """Check if habit has an active session"""
@@ -402,6 +447,10 @@ class PianoState(QObject):
         self._press_local_y = 0
         self._last_click_time = 0
         self._time_displays.clear()
+        self._session_elapsed.clear()
+        self._session_time_mode.clear()
+        self._session_overtime.clear()
+        self._session_prior_seconds.clear()
         self._is_fading_out = False
         self._dragged_key_index = None
         self._drag_current_y = 0

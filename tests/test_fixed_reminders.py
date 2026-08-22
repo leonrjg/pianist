@@ -194,6 +194,26 @@ def test_habit_stochastic_reminder_advances_when_random_time_has_passed(monkeypa
     ) == datetime(2026, 5, 3, 7, 0)
 
 
+def test_is_snoozed_false_when_no_snooze():
+    reminder = SimpleNamespace(snooze_until=None)
+
+    assert not ReminderService.is_snoozed(reminder, datetime(2026, 5, 2, 8, 0))
+
+
+def test_is_snoozed_true_while_snooze_floor_in_future():
+    reminder = SimpleNamespace(snooze_until=datetime(2026, 5, 2, 9, 0))
+
+    assert ReminderService.is_snoozed(reminder, datetime(2026, 5, 2, 8, 0))
+
+
+def test_is_snoozed_false_once_snooze_floor_elapsed():
+    reminder = SimpleNamespace(snooze_until=datetime(2026, 5, 2, 9, 0))
+
+    # At exactly the floor the snooze has elapsed and the reminder may fire.
+    assert not ReminderService.is_snoozed(reminder, datetime(2026, 5, 2, 9, 0))
+    assert not ReminderService.is_snoozed(reminder, datetime(2026, 5, 2, 10, 0))
+
+
 def test_completed_habit_stochastic_reminder_reschedules_without_firing(monkeypatch):
     habit = Habit(
         name="Piano",

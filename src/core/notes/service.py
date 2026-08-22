@@ -49,6 +49,11 @@ class NoteService:
         note.rename(title)
 
     @classmethod
+    def delete_note(cls, note: Note) -> None:
+        """Soft-delete a note."""
+        note.delete_note()
+
+    @classmethod
     def create_thought(cls, content: str) -> Note:
         """Create a quick thought."""
         return Note.create_thought(content)
